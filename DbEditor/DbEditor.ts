@@ -18,6 +18,7 @@ import {WarningsPanel} from './Validation/WarningsPanel.js';
 import {validateSchema} from './Validation/SchemaValidator.js';
 import {AutoSaveIndicator} from './AutoSaveIndicator.js';
 import {AlertDialog} from './Base/AlertDialog.js';
+import {InputDialog} from './Base/InputDialog.js';
 import {ChoiceDialog} from './Base/ChoiceDialog.js';
 import {ConfirmDialog} from './Base/ConfirmDialog.js';
 import {SqlPreviewDialog} from './Base/SqlPreviewDialog.js';
@@ -745,11 +746,11 @@ export class DbEditor {
         const banner = document.createElement('div');
         banner.className = 'scope-banner';
         const lbl = document.createElement('span');
-        lbl.textContent = `Showing layer: ${layerName}`;
+        lbl.textContent = `Showing EER diagram: ${layerName}`;
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'scope-banner-close';
-        close.title = 'Clear layer scope (show all)';
+        close.title = 'Clear diagram scope (show all)';
         close.textContent = '×';
         close.addEventListener('click', () => {
             const dbUnid = this._activeContainerUnid;
@@ -1710,9 +1711,13 @@ export class DbEditor {
                 ];
             case 'insert':
                 return [
-                    {label: 'Add Table', onClick: (): void => this._addTablePrompt()},
-                    {label: 'Add Enum', onClick: (): void => this._addEnumPrompt()},
-                    {label: 'Add EER diagram', onClick: (): void => this._addLayerPrompt()}
+                    {label: 'Add Table…', onClick: (): void => { this._addTablePrompt().catch((err: unknown): void => console.error('[DbEditor] add table failed:', err)); }},
+                    {label: 'Add View…', onClick: (): void => { this._addViewPrompt().catch((err: unknown): void => console.error('[DbEditor] add view failed:', err)); }},
+                    {label: 'Add Enum…', onClick: (): void => { this._addEnumPrompt().catch((err: unknown): void => console.error('[DbEditor] add enum failed:', err)); }},
+                    {label: 'Add Routine…', onClick: (): void => { this._addRoutinePrompt().catch((err: unknown): void => console.error('[DbEditor] add routine failed:', err)); }},
+                    {kind: 'separator'},
+                    {label: 'Add Folder…', onClick: (): void => { this._addFolderPrompt().catch((err: unknown): void => console.error('[DbEditor] add folder failed:', err)); }},
+                    {label: 'Add EER diagram…', onClick: (): void => { this._addLayerPrompt().catch((err: unknown): void => console.error('[DbEditor] add EER diagram failed:', err)); }}
                 ];
             case 'view':
                 return [
@@ -2442,13 +2447,14 @@ export class DbEditor {
         const y = Math.round((bandRect.top - zr.top) / zoom);
         const w = Math.max(60, Math.round((bandRect.right - bandRect.left) / zoom));
         const h = Math.max(60, Math.round((bandRect.bottom - bandRect.top) / zoom));
-        const name = window.prompt('New layer name?', 'New Layer');
-        if (!name) {return;}
-        this._mutate(p => this._api.createLayer(p.unid, this._activeContainerUnid!, name, {
-            pos: {x: x, y: y},
-            width: w,
-            height: h
-        })).then(() => this._reload());
+        InputDialog.showInput('New EER diagram', 'Diagram name', 'New diagram').then(name => {
+            if (!name) {return;}
+            this._mutate(p => this._api.createLayer(p.unid, this._activeContainerUnid!, name, {
+                pos: {x: x, y: y},
+                width: w,
+                height: h
+            })).then(() => this._reload());
+        }).catch((err: unknown): void => console.error('[DbEditor] layer create failed:', err));
     }
 
     private _wireMiddleMousePan(): void {
@@ -2576,37 +2582,58 @@ export class DbEditor {
      * -----------------------------------------------------------------
      */
 
-    private async _addTablePrompt(): Promise<void> {
+    private async _requireActiveContainer(): Promise<boolean> {
         if (!this._activeProject || !this._activeContainerUnid) {
             await AlertDialog.showAlert('No active database',
                 'Pick a database (or folder) from the tree first.');
-            return;
+            return false;
         }
-        const name = window.prompt('Table name?', 'new_table');
+        return true;
+    }
+
+    private async _addTablePrompt(): Promise<void> {
+        if (!await this._requireActiveContainer()) {return;}
+        const name = await InputDialog.showInput('Add table', 'Table name', 'new_table');
         if (!name) {return;}
         await this._mutate(p => this._api.createTable(p.unid, this._activeContainerUnid!, name, { x: 80, y: 80 }));
         await this._reload();
     }
 
     private async _addEnumPrompt(): Promise<void> {
-        if (!this._activeProject || !this._activeContainerUnid) {
-            await AlertDialog.showAlert('No active database',
-                'Pick a database (or folder) from the tree first.');
-            return;
-        }
-        const name = window.prompt('Enum name?', 'new_enum');
+        if (!await this._requireActiveContainer()) {return;}
+        const name = await InputDialog.showInput('Add enum', 'Enum name', 'new_enum');
         if (!name) {return;}
         await this._mutate(p => this._api.createEnum(p.unid, this._activeContainerUnid!, name, { x: 80, y: 80 }));
         await this._reload();
     }
 
+    private async _addViewPrompt(): Promise<void> {
+        if (!await this._requireActiveContainer()) {return;}
+        const name = await InputDialog.showInput('Add view', 'View name', 'new_view');
+        if (!name) {return;}
+        await this._mutate(p => this._api.createView(p.unid, this._activeContainerUnid!, name, { x: 80, y: 80 }));
+        await this._reload();
+    }
+
+    private async _addRoutinePrompt(): Promise<void> {
+        if (!await this._requireActiveContainer()) {return;}
+        const name = await InputDialog.showInput('Add routine', 'Routine name', 'new_routine');
+        if (!name) {return;}
+        await this._mutate(p => this._api.createRoutine(p.unid, this._activeContainerUnid!, name, 'procedure', { x: 80, y: 80 }));
+        await this._reload();
+    }
+
+    private async _addFolderPrompt(): Promise<void> {
+        if (!await this._requireActiveContainer()) {return;}
+        const name = await InputDialog.showInput('Add folder', 'Folder name', 'new_folder');
+        if (!name) {return;}
+        await this._mutate(p => this._api.createContainer(p.unid, this._activeContainerUnid!, name, JsonDataDBType.folder));
+        await this._reload();
+    }
+
     private async _addLayerPrompt(): Promise<void> {
-        if (!this._activeProject || !this._activeContainerUnid) {
-            await AlertDialog.showAlert('No active database',
-                'Pick a database (or folder) from the tree first.');
-            return;
-        }
-        const name = window.prompt('EER diagram name?', 'New diagram');
+        if (!await this._requireActiveContainer()) {return;}
+        const name = await InputDialog.showInput('Add EER diagram', 'Diagram name', 'New diagram');
         if (!name) {return;}
         /*
          * Default size is generous so the user can immediately drop
@@ -3149,6 +3176,16 @@ export class DbEditor {
                 `${modeWord} ${res.stats.schemaCount} schema${res.stats.schemaCount === 1 ? '' : 's'}, ${res.stats.tableCount} tables, ${res.stats.columnCount} columns, ${res.stats.indexCount} indexes, ${res.stats.foreignKeyCount} foreign keys.${posSuffix}${extraSuffix}`
             );
             await this._reload();
+            /*
+             * Auto-fit-to-view after import: Workbench coordinates can
+             * land WAY off-screen (sometimes thousands of px from
+             * origin). Without this, users land on an empty grey
+             * canvas and have to hunt for their tables. The fit-to-
+             * view runs after a brief tick so the rendered cards are
+             * measured against their final positions, not pre-render
+             * defaults.
+             */
+            setTimeout(() => this._fitToView(), 100);
         } catch (err) {
             await AlertDialog.showAlert('Import failed', String(err));
         }

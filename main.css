@@ -764,6 +764,29 @@ body {
   border-color: var(--c-primary);
   box-shadow: var(--c-focus-ring);
 }
+/*
+ * Make the type=search native clear button (×) reliably visible.
+ * Chromium hides it on Linux by default; Webkit shows it. We force
+ * the appearance so the user has a one-click way to drop the filter.
+ */
+.treeview-search input::-webkit-search-cancel-button {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 14px;
+  width: 14px;
+  background-color: var(--c-text-muted);
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 4 L12 12 M12 4 L4 12' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/></svg>");
+  mask-size: 14px 14px;
+  mask-repeat: no-repeat;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 4 L12 12 M12 4 L4 12' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/></svg>");
+  -webkit-mask-size: 14px 14px;
+  -webkit-mask-repeat: no-repeat;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.treeview-search input::-webkit-search-cancel-button:hover {
+  background-color: var(--c-text);
+}
 .treeview {
   padding: 8px 0;
   font-size: 13px;
@@ -1659,6 +1682,13 @@ body {
   font-size: 12px;
   color: var(--c-text-muted);
   font-weight: 500;
+}
+.dialog-input-hint {
+  font-size: 11px;
+  color: var(--c-text-muted);
+  margin-top: -2px;
+  margin-bottom: 4px;
+  font-style: italic;
 }
 .dialog-row input,
 .dialog-row select,

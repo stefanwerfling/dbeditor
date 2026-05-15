@@ -26,8 +26,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
     /* Edit */
     {category: 'Edit', keys: 'Ctrl/Cmd + Z',           label: 'Undo'},
     {category: 'Edit', keys: 'Ctrl/Cmd + Shift + Z, Ctrl/Cmd + Y', label: 'Redo'},
-    {category: 'Edit', keys: 'F2',                    label: 'Rename selected table'},
-    {category: 'Edit', keys: 'R',                     label: 'Rename (1 selected = inline; 2+ = bulk pattern with {name})'},
+    {category: 'Edit', keys: 'R or F2',                label: 'Rename selected table(s). 1 = inline, 2+ = bulk pattern dialog with {name}/{name:lower}/{name:upper}/{name:snake} placeholders (R only; F2 always inline, single-target only).'},
     {category: 'Edit', keys: 'O',                     label: 'Edit table options (1 selected = full; 2+ = sparse-patch batch)'},
     {category: 'Edit', keys: 'L',                     label: 'Assign selected table(s) to an EER diagram'},
     {category: 'Edit', keys: 'Delete, Backspace',     label: 'Delete selected (single or multiple)'},
