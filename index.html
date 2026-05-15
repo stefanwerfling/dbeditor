@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DB Editor - Database Designer</title>
+  </head>
+  <body>
+    <div class="topbar">
+      <span class="topbar-header" id="topbarheader">
+        <span id="topbar-title">DB Editor</span>
+        <span id="topbar-database"></span>
+      </span>
+      <div id="resizer-topbar" class="resizer"></div>
+      <div class="buttonbar" id="buttonbar">
+        <nav class="menubar" id="menubar" aria-label="Application menu">
+          <button class="menubar-item" data-menu="file">File</button>
+          <button class="menubar-item" data-menu="edit">Edit</button>
+          <button class="menubar-item" data-menu="insert">Insert</button>
+          <button class="menubar-item" data-menu="view">View</button>
+          <button class="menubar-item" data-menu="generate">Generate</button>
+          <button class="menubar-item" data-menu="project">Project</button>
+          <button class="menubar-item" data-menu="help">Help</button>
+        </nav>
+        <span class="zoombar">
+          <button id="zoomOutBtn" class="btn-grey" title="Zoom out (Ctrl + −)" aria-label="Zoom out">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button id="zoomResetBtn" class="btn-grey" title="Reset zoom to 100% (Ctrl + 0)">100%</button>
+          <button id="zoomInBtn" class="btn-grey" title="Zoom in (Ctrl + +)" aria-label="Zoom in">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h10M7 2v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button id="zoomFitBtn" class="btn-grey" title="Fit everything in view (F)" aria-label="Fit everything in view">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          </button>
+        </span>
+        <span id="topbar-savestate" class="savestate"></span>
+      </div>
+    </div>
+
+    <div id="main">
+      <div id="controls">
+        <div class="treeview-search">
+          <input id="treeview-search-input" type="search" placeholder="Filter…" />
+        </div>
+        <div class="treeview" id="treeview"></div>
+        <div id="warnings"></div>
+      </div>
+      <div id="resizer" class="resizer"></div>
+      <div id="dbgrid"><div id="dbgrid-zoom"></div></div>
+    </div>
+
+    <script type="module" src="main.ts"></script>
+  </body>
+</html>
