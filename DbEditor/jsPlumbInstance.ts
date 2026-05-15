@@ -14,16 +14,25 @@ const anchorForRow = (rowEl: Element, side: 'left' | 'right' = 'right'): [number
     const row = rowEl as HTMLElement;
     const card = row.closest('.db-table') as HTMLElement | null;
     if (!card) {return null;}
-    const cardH = card.offsetHeight || 1;
     /*
      * If the matched element is the grip-span, walk up one level to the
-     * `.db-table-column` row that holds its `offsetTop`. Otherwise the
-     * matched element already IS the row.
+     * `.db-table-column` row whose rect is the right one to measure.
      */
     const positioningRow = row.classList.contains('db-table-column-grip')
         ? (row.closest('.db-table-column') as HTMLElement | null) ?? row
         : row;
-    const rowCenter = positioningRow.offsetTop + (positioningRow.offsetHeight / 2);
+    /*
+     * Use viewport rects rather than offsetTop/offsetHeight: the
+     * `.db-table-columns` wrapper is `position: relative` (to host
+     * the drag-reorder drop indicator), which makes IT the row's
+     * `offsetParent` — so `offsetTop` would measure inside the
+     * wrapper, not from the card top. The viewport-rect delta
+     * gives the actual row-center-within-the-card.
+     */
+    const cardRect = card.getBoundingClientRect();
+    const rowRect = positioningRow.getBoundingClientRect();
+    const cardH = cardRect.height || 1;
+    const rowCenter = (rowRect.top - cardRect.top) + (rowRect.height / 2);
     const yRatio = Math.max(0, Math.min(1, rowCenter / cardH));
     const x = side === 'right' ? 1 : 0;
     const dx = side === 'right' ? 1 : -1;
@@ -50,9 +59,26 @@ export const getJsPlumbInstance = (): BrowserJsPlumbInstance => {
      * accurate in the unscaled coordinate system.
      */
     const container = (document.getElementById('dbgrid-zoom') ?? document.getElementById('dbgrid')) as HTMLElement;
+    /*
+     * Flowchart connector (orthogonal right-angle routing) instead of
+     * Bezier. Reason: with bezier curves the line "curves into" the
+     * destination card from above, visually appearing to enter the
+     * header area regardless of which column row is the actual
+     * anchor target. Orthogonal lines come straight out of the
+     * column row horizontally, bend once or twice at 90°, and land
+     * straight back on the destination column row — so the user
+     * can trace exactly which column connects to which, like
+     * dbdiagram.io / Workbench's relational notation.
+     *
+     * `stub: 24` is the horizontal segment length before the first
+     * bend; keeps short connections from collapsing into the cards.
+     * `cornerRadius: 4` softens the corners just enough to avoid
+     * a sharp-edged technical look without losing the "I see the
+     * right-angle" affordance.
+     */
     _instance = newInstance({
         container: container,
-        connector: {type: 'Bezier', options: {curviness: 40}},
+        connector: {type: 'Flowchart', options: {stub: 24, cornerRadius: 4, alwaysRespectStubs: true}},
         paintStyle: {strokeWidth: 1.5, stroke: '#3e9c8a'} as Record<string, unknown>,
         endpoint: 'Blank',
         anchors: ['Right', 'Left'],

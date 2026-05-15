@@ -44,14 +44,23 @@ export class DbTable {
      * given column row's vertical center on the requested side of the
      * card. Falls back to mid-height if the row isn't found yet (during
      * initial layout passes when the DOM hasn't been measured).
+     *
+     * Uses `getBoundingClientRect` instead of `offsetTop / offsetHeight`
+     * because the `.db-table-columns` wrapper carries `position:
+     * relative` (for the drag-reorder drop indicator), which makes IT
+     * the row's `offsetParent` — so `offsetTop` measures from inside
+     * the columns wrapper, not from the card top. The relative-to-
+     * card delta from getBoundingClientRect sidesteps that.
      */
     public getColumnAnchor(columnUnid: string, side: 'left' | 'right'): [number, number, number, number] {
         const x = side === 'right' ? 1 : 0;
         const dx = side === 'right' ? 1 : -1;
         const row = this._el.querySelector(`.db-table-column[data-column-unid="${columnUnid}"]`) as HTMLElement | null;
-        const cardH = this._el.offsetHeight || 1;
+        const cardRect = this._el.getBoundingClientRect();
+        const cardH = cardRect.height || 1;
         if (!row) {return [x, 0.5, dx, 0];}
-        const rowCenter = row.offsetTop + (row.offsetHeight / 2);
+        const rowRect = row.getBoundingClientRect();
+        const rowCenter = (rowRect.top - cardRect.top) + (rowRect.height / 2);
         const yRatio = Math.max(0, Math.min(1, rowCenter / cardH));
         return [x, yRatio, dx, 0];
     }

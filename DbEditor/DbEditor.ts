@@ -1316,15 +1316,56 @@ export class DbEditor {
                 detachable: false
             } as any);
             if (conn) {
-                (conn as any).data = { fkUnid: fk.unid, tableUnid: srcTable.unid, fkName: fk.name };
+                (conn as any).data = {
+                    fkUnid: fk.unid,
+                    tableUnid: srcTable.unid,
+                    fkName: fk.name,
+                    /*
+                     * Carry the column unids on each connection so
+                     * the hover handler can highlight the two paired
+                     * rows visually — addresses the "I want to see
+                     * which columns are connected" affordance the
+                     * straight-line routing already supports.
+                     */
+                    srcColumnUnid: srcCol.unid,
+                    dstColumnUnid: dstCol.unid
+                };
                 this._fkConnections.push({
                     srcTableUnid: srcTable.unid,
                     dstTableUnid: dstTable.unid,
                     fkUnid: fk.unid,
                     conn: conn
                 });
+                this._wireFkHoverHighlight(conn, srcTable.unid, srcCol.unid, dstTable.unid, dstCol.unid);
             }
         });
+    }
+
+    /**
+     * Add row-highlight on FK hover. When the user mouses over a
+     * connection line, the two paired column rows light up so the
+     * source ↔ destination pairing is unambiguous at a glance —
+     * even on composite FKs where multiple parallel lines run
+     * between the same two tables.
+     */
+    private _wireFkHoverHighlight(
+        conn: any,
+        srcTableUnid: string,
+        srcColumnUnid: string,
+        dstTableUnid: string,
+        dstColumnUnid: string
+    ): void {
+        const find = (tableUnid: string, columnUnid: string): HTMLElement | null => {
+            const card = this._tables.get(tableUnid)?.element;
+            return (card?.querySelector(`.db-table-column[data-column-unid="${columnUnid}"]`) as HTMLElement | null) ?? null;
+        };
+        const toggle = (on: boolean): void => {
+            for (const row of [find(srcTableUnid, srcColumnUnid), find(dstTableUnid, dstColumnUnid)]) {
+                row?.classList.toggle('db-table-column--fk-hover', on);
+            }
+        };
+        conn.bind('mouseover', () => toggle(true));
+        conn.bind('mouseout', () => toggle(false));
     }
 
     /**

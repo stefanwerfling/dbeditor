@@ -1252,6 +1252,11 @@ body {
 .db-table-column:hover {
   background-color: #fafbfd;
 }
+/* Lights up both ends of an FK pair while the connection line is hovered. */
+.db-table-column--fk-hover {
+  background-color: rgba(62, 156, 138, 0.18);
+  box-shadow: inset 2px 0 0 var(--c-fk, #3e9c8a), inset -2px 0 0 var(--c-fk, #3e9c8a);
+}
 .db-table-column.db-table-column--dragging {
   opacity: 0.4;
   background-color: var(--c-primary-soft);
