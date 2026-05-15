@@ -99,7 +99,7 @@ Die obere Zeile enthält sieben Menüs:
 - **Edit** — Undo / Redo, Bulk rename, Assign to EER diagram (Shortcut `L`)
 - **Insert** — Add Table, Add Enum, Add EER diagram
 - **View** — Zoom-Steuerung, Fit to view (`F`), N:N-Umschalter
-- **Generate** — SQL generieren, SQL-Vorschau, Markdown-Docs erzeugen
+- **Generate** — SQL generieren, ausgewähltes SQL kopieren, Markdown-Docs generieren / Vorschau
 - **Project** — Project info, Project settings, Add / Edit / Remove project
 - **Help** — Keyboard shortcuts, About
 
@@ -204,7 +204,9 @@ Zwei Output-Modi (`output.mode` in `dbeditor.json`):
 - **`ddl-files`** — eine `<tabelle>.sql` pro Tabelle, plus `<view>.view.sql`, plus `_enums.sql` (Postgres) und eine `_foreign_keys.sql` als letzte (damit alphabetisches Laden nicht crasht). Default.
 - **`migrations`** — ein zeitgestempeltes `*.up.sql` / `*.down.sql`-Paar pro Generate-Lauf.
 
-Generierung über **Generate → Generate SQL**. **Preview SQL** öffnet einen Dialog mit Datei-Liste + Inhalten ohne auf Platte zu schreiben. **Generate docs (Markdown)** macht das Gleiche für Markdown-Dokumentation.
+Generierung über **Generate → Generate SQL**. **Copy selected SQL** (`Strg+Shift+C`) legt das DDL für die aktuell markierten Karten in die Zwischenablage, ohne auf Platte zu schreiben. **Generate docs (Markdown)** schreibt pro Datenbank eine `.md`-Datei nach `<destinationPath>/docs/`; **Preview docs** macht das Gleiche in einem Dialog ohne zu schreiben.
+
+Für einen Preview-Run begrenzt auf eine Datenbank oder Tabelle ohne das Output-Verzeichnis anzufassen: Treeview-Zeile-`⋯`-Menü → **Generate SQL (this DB)…** / **Generate SQL (this table)…** — beide öffnen einen Dialog mit Datei-Liste + Inhalten.
 
 Bei `autoGenerate: true` schreibt jeder Save sowohl Schema-JSON als auch SQL-Output.
 

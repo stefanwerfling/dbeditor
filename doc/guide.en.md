@@ -99,7 +99,7 @@ The top row holds seven menus:
 - **Edit** — Undo / Redo, Bulk rename, Assign to EER diagram (shortcut `L`)
 - **Insert** — Add Table, Add Enum, Add EER diagram
 - **View** — Zoom controls, Fit to view (`F`), N:N toggle
-- **Generate** — Generate SQL, Preview SQL, Generate Markdown docs
+- **Generate** — Generate SQL, Copy selected SQL, Generate / Preview Markdown docs
 - **Project** — Project info, Project settings, Add / Edit / Remove project
 - **Help** — Keyboard shortcuts, About
 
@@ -204,7 +204,9 @@ Two output modes (`output.mode` in `dbeditor.json`):
 - **`ddl-files`** — one `<table>.sql` per table, plus `<view>.view.sql`, plus `_enums.sql` (Postgres) and a single `_foreign_keys.sql` listed last (so loading alphabetically doesn't fail). Default.
 - **`migrations`** — one timestamped `*.up.sql` / `*.down.sql` pair per generate run.
 
-Trigger a generation via **Generate → Generate SQL**. **Preview SQL** opens a dialog with the file list and contents without writing to disk. **Generate docs (Markdown)** does the same for Markdown documentation.
+Trigger a generation via **Generate → Generate SQL**. **Copy selected SQL** (`Ctrl+Shift+C`) puts the DDL for the currently-selected cards on the clipboard without writing to disk. **Generate docs (Markdown)** writes per-database `.md` files to `<destinationPath>/docs/`; **Preview docs** does the same in a dialog without writing.
+
+For a preview-only run scoped to one database or table without touching the output directory, use the treeview row's `⋯` menu → **Generate SQL (this DB)…** / **Generate SQL (this table)…** — both open a dialog with the file list and contents.
 
 If `autoGenerate: true` in the project config, every save flushes both the schema JSON and the SQL output.
 
