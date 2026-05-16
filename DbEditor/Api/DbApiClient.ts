@@ -550,6 +550,7 @@ export class DbApiClient {
             schemaCount: number; tableCount: number; columnCount: number;
             indexCount: number; foreignKeyCount: number; positionedTableCount: number;
             positionedViewCount: number;
+            multiDiagramTableCount: number;
             viewCount: number; routineCount: number; triggerCount: number;
             layerCount: number;
         };

@@ -3284,6 +3284,9 @@ export class DbEditor {
             if (res.stats.routineCount > 0) {extras.push(`${res.stats.routineCount} routine${res.stats.routineCount === 1 ? '' : 's'}`);}
             if (res.stats.triggerCount > 0) {extras.push(`${res.stats.triggerCount} trigger${res.stats.triggerCount === 1 ? '' : 's'}`);}
             if (res.stats.layerCount > 0)   {extras.push(`${res.stats.layerCount} EER diagram${res.stats.layerCount === 1 ? '' : 's'} as layers`);}
+            if (res.stats.multiDiagramTableCount > 0) {
+                extras.push(`${res.stats.multiDiagramTableCount} table${res.stats.multiDiagramTableCount === 1 ? '' : 's'} on multiple diagrams`);
+            }
             const extraSuffix = extras.length ? ` Also: ${extras.join(', ')}.` : '';
             const modeWord = res.mode === 'append' ? 'Appended' : 'Imported';
             await AlertDialog.showAlert(

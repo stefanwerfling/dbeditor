@@ -593,3 +593,87 @@ describe('parseMwb — view positions (synthetic)', () => {
     });
 
 });
+
+describe('parseMwb — multi-diagram table membership (synthetic)', () => {
+
+    /*
+     * Sample: one table appears as a TableFigure in two diagrams. The
+     * first figure's coords become the table's primary `pos` and
+     * `layerUnid` (pointing at the first synthesised diagram-layer);
+     * the second figure becomes a `layerPlacements` entry referencing
+     * the second diagram-layer. Position records its own coords
+     * (post-tiling) so the table sits at the right spot on each
+     * diagram.
+     */
+    it('records the second figure as a layerPlacements entry', () => {
+        const r = parseMwb(wrapWithDiagrams(
+            `<value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
+                <value type="object" struct-name="db.mysql.Table" id="t1">
+                    <value type="string" key="name">users</value>
+                    <value type="list" content-type="object" content-struct-name="db.mysql.Column" key="columns"/>
+                </value>
+            </value>`,
+            `<value type="object" struct-name="workbench.physical.Diagram" id="d1">
+                <value type="string" key="name">Schema A</value>
+                <value type="list" content-type="object" content-struct-name="model.Figure" key="figures">
+                    <value type="object" struct-name="workbench.physical.TableFigure" id="tf1a">
+                        <value type="real" key="left">100</value>
+                        <value type="real" key="top">100</value>
+                        <link type="object" struct-name="db.Table" key="table">t1</link>
+                        <link type="object" struct-name="model.Diagram" key="owner">d1</link>
+                    </value>
+                </value>
+            </value>
+            <value type="object" struct-name="workbench.physical.Diagram" id="d2">
+                <value type="string" key="name">Schema B</value>
+                <value type="list" content-type="object" content-struct-name="model.Figure" key="figures">
+                    <value type="object" struct-name="workbench.physical.TableFigure" id="tf1b">
+                        <value type="real" key="left">50</value>
+                        <value type="real" key="top">200</value>
+                        <link type="object" struct-name="db.Table" key="table">t1</link>
+                        <link type="object" struct-name="model.Diagram" key="owner">d2</link>
+                    </value>
+                </value>
+            </value>`
+        ));
+        expect(r.multiDiagramTableCount).toBe(1);
+        const table = r.databases[0].tables[0];
+        const layers = r.databases[0].layers ?? [];
+        expect(layers.length).toBe(2);
+        const primaryLayer = layers.find(l => l.unid === table.layerUnid);
+        expect(primaryLayer?.name).toBe('Schema A');
+        expect(table.pos).toEqual({x: 100, y: 100});
+
+        const placements = table.layerPlacements ?? [];
+        expect(placements).toHaveLength(1);
+        const secondaryLayer = layers.find(l => l.unid === placements[0].layerUnid);
+        expect(secondaryLayer?.name).toBe('Schema B');
+        /* Second diagram's coords are shifted past the first diagram's bbox + GAP. */
+        expect(placements[0].pos.x).toBeGreaterThan(100);
+        expect(placements[0].pos.y).toBe(200);
+    });
+
+    it('leaves single-diagram tables with no layerPlacements', () => {
+        const r = parseMwb(wrapWithDiagrams(
+            `<value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
+                <value type="object" struct-name="db.mysql.Table" id="t1">
+                    <value type="string" key="name">solo</value>
+                    <value type="list" content-type="object" content-struct-name="db.mysql.Column" key="columns"/>
+                </value>
+            </value>`,
+            `<value type="object" struct-name="workbench.physical.Diagram" id="d1">
+                <value type="list" content-type="object" content-struct-name="model.Figure" key="figures">
+                    <value type="object" struct-name="workbench.physical.TableFigure" id="tf1">
+                        <value type="real" key="left">10</value>
+                        <value type="real" key="top">20</value>
+                        <link type="object" struct-name="db.Table" key="table">t1</link>
+                        <link type="object" struct-name="model.Diagram" key="owner">d1</link>
+                    </value>
+                </value>
+            </value>`
+        ));
+        expect(r.multiDiagramTableCount).toBe(0);
+        expect(r.databases[0].tables[0].layerPlacements).toBeUndefined();
+    });
+
+});

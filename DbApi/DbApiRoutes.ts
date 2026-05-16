@@ -476,6 +476,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                         foreignKeyCount: result.foreignKeyCount,
                         positionedTableCount: result.positionedTableCount,
                         positionedViewCount: result.positionedViewCount,
+                        multiDiagramTableCount: result.multiDiagramTableCount,
                         viewCount: result.viewCount,
                         routineCount: result.routineCount,
                         triggerCount: result.triggerCount,
