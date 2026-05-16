@@ -123,6 +123,7 @@ export class DbEditor {
         const treeEl = document.getElementById('treeview');
         if (!this._grid || !this._zoomLayer || !treeEl) {throw new Error('missing #dbgrid / #dbgrid-zoom / #treeview');}
         this._wireZoomControls();
+        this._wireColumnHoverHighlight();
 
         /*
          * Mousedown on the grid background starts the rubber-band selection
@@ -1394,6 +1395,58 @@ export class DbEditor {
         };
         conn.bind('mouseover', () => toggle(true));
         conn.bind('mouseout', () => toggle(false));
+    }
+
+    /**
+     * Reciprocal of the FK-line hover: hovering an individual column
+     * row highlights every FK partner column it's wired to (and the
+     * hovered row itself). Composite FKs and tables with multiple
+     * outgoing/incoming references trigger multiple partner
+     * highlights at once. Delegated on the canvas grid so cards
+     * created on every `_renderCanvas` automatically participate
+     * without per-card wiring.
+     */
+    private _wireColumnHoverHighlight(): void {
+        if (!this._grid) {return;}
+        const find = (tableUnid: string, columnUnid: string): HTMLElement | null => {
+            const card = this._tables.get(tableUnid)?.element;
+            return (card?.querySelector(`.db-table-column[data-column-unid="${columnUnid}"]`) as HTMLElement | null) ?? null;
+        };
+        const partnersFor = (tableUnid: string, columnUnid: string): {tableUnid: string; columnUnid: string;}[] => {
+            const out: {tableUnid: string; columnUnid: string;}[] = [];
+            for (const fk of this._fkConnections) {
+                const data = (fk.conn as {data?: {srcColumnUnid?: string; dstColumnUnid?: string;};}).data ?? {};
+                if (data.srcColumnUnid === columnUnid && fk.srcTableUnid === tableUnid && data.dstColumnUnid) {
+                    out.push({tableUnid: fk.dstTableUnid, columnUnid: data.dstColumnUnid});
+                } else if (data.dstColumnUnid === columnUnid && fk.dstTableUnid === tableUnid && data.srcColumnUnid) {
+                    out.push({tableUnid: fk.srcTableUnid, columnUnid: data.srcColumnUnid});
+                }
+            }
+            return out;
+        };
+        const rowFromTarget = (target: EventTarget | null): HTMLElement | null => {
+            const el = target as HTMLElement | null;
+            return (el?.closest('.db-table-column') as HTMLElement | null) ?? null;
+        };
+        const setHover = (row: HTMLElement, on: boolean): void => {
+            const columnUnid = row.dataset.columnUnid;
+            const tableUnid = row.dataset.tableUnid;
+            if (!columnUnid || !tableUnid) {return;}
+            const partners = partnersFor(tableUnid, columnUnid);
+            if (partners.length === 0) {return;}
+            row.classList.toggle('db-table-column--fk-hover', on);
+            for (const p of partners) {
+                find(p.tableUnid, p.columnUnid)?.classList.toggle('db-table-column--fk-hover', on);
+            }
+        };
+        this._grid.addEventListener('mouseover', (e) => {
+            const row = rowFromTarget(e.target);
+            if (row) {setHover(row, true);}
+        });
+        this._grid.addEventListener('mouseout', (e) => {
+            const row = rowFromTarget(e.target);
+            if (row) {setHover(row, false);}
+        });
     }
 
     /**
