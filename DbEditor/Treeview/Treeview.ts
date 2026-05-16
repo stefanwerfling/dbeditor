@@ -5,10 +5,15 @@ import {ConfirmDialog} from '../Base/ConfirmDialog.js';
 import {
     iconChevronDown,
     iconChevronRight,
+    iconDatabase,
     iconDiamondHollow,
     iconDot,
     iconEllipsis,
-    iconRect
+    iconEye,
+    iconFolder,
+    iconProject,
+    iconRect,
+    iconTable
 } from '../Util/Icons.js';
 
 export type TreeviewMode = 'model' | 'live';
@@ -225,7 +230,7 @@ export class Treeview {
          * The repo's `createContainer(parentUnid, …)` looks up parents in
          * the data tree, so passing the runtime UUID would 404.
          */
-        const row = this._buildRow(p.data.unid, p.name, '🗄', JsonDataDBType.project);
+        const row = this._buildRow(p.data.unid, p.name, iconProject(), JsonDataDBType.project);
         wrap.append(row);
         const children = document.createElement('div');
         children.className = 'treeview-entry-children';
@@ -426,23 +431,22 @@ export class Treeview {
     }
 
     /**
-     * Per-node-kind icon. Geometric-shape glyphs and the no-icon
-     * default are returned as inline SVG (font-coverage agnostic);
-     * SMP emoji for database / folder / table / view / project are
-     * still returned as strings — replacing those with hand-drawn
-     * SVG is a follow-up. `routine` returns the basic-Latin `ƒ`
-     * which is universally covered.
+     * Per-node-kind icon. All returned as inline SVG so they render
+     * font-independently — previous SMP-emoji versions (🛢 📁 ⬜ 👁 🗄)
+     * rendered as tofu boxes on Linux without an installed emoji
+     * font. `routine` keeps the basic-Latin `ƒ` since it's covered
+     * by every default font stack.
      */
     private _iconFor(type: JsonDataDBType): string | SVGSVGElement {
         switch (type) {
-            case JsonDataDBType.database: return '🛢';
-            case JsonDataDBType.folder:   return '📁';
-            case JsonDataDBType.table:    return '⬜';
+            case JsonDataDBType.database: return iconDatabase();
+            case JsonDataDBType.folder:   return iconFolder();
+            case JsonDataDBType.table:    return iconTable();
             case JsonDataDBType.enum:     return iconDiamondHollow();
-            case JsonDataDBType.view:     return '👁';
+            case JsonDataDBType.view:     return iconEye();
             case JsonDataDBType.routine:  return 'ƒ';
             case JsonDataDBType.layer:    return iconRect();
-            case JsonDataDBType.project:  return '🗄';
+            case JsonDataDBType.project:  return iconProject();
             default:                      return iconDot();
         }
     }
