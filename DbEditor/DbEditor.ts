@@ -691,7 +691,17 @@ export class DbEditor {
             el.style.width = `${layer.width}px`;
             el.style.height = `${layer.height}px`;
             if (layer.color) {el.style.background = layer.color;}
-            this._buildLayerLabel(layer, el);
+            /*
+             * Suppress the in-canvas layer label when this layer is
+             * the currently scoped one — the scope banner above the
+             * canvas already names it, and the treeview shows it as
+             * the active row. Rename/delete actions remain reachable
+             * via the treeview's ⋯ menu. Resize handle still renders
+             * so the user can size the diagram area.
+             */
+            if (this._activeLayerUnid !== layer.unid) {
+                this._buildLayerLabel(layer, el);
+            }
             this._buildLayerResizeHandle(layer, el);
             cardHost.append(el);
         }
