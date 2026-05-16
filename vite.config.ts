@@ -259,8 +259,21 @@ const resolveListenPort = (): number => {
     }
 };
 
+/*
+ * Read app version once at dev-server startup so the topbar can
+ * display it next to the title. Vite's `define` substitutes the
+ * literal into the bundle at transpile time, so the browser never
+ * fetches package.json.
+ */
+const pkg = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')
+) as {version: string;};
+
 export default defineConfig(() => ({
     plugins: [expressMiddleware()],
+    define: {
+        __APP_VERSION__: JSON.stringify(pkg.version)
+    },
     server: {
         port: resolveListenPort(),
         /*

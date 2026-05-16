@@ -5,6 +5,9 @@
     "es6": true,
     "node": true
   },
+  "globals": {
+    "__APP_VERSION__": "readonly"
+  },
   "extends": [
     "eslint:all"
   ],

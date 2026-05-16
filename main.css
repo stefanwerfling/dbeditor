@@ -57,6 +57,17 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
+.topbar-logo {
+  color: var(--c-primary);
+  flex-shrink: 0;
+}
+#topbar-version {
+  color: var(--c-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  margin-left: -4px;
+}
 #topbar-database {
   color: var(--c-text-muted);
   font-weight: 400;
