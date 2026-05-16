@@ -609,9 +609,14 @@ export class DbEditor {
 
     private _renderTopbarStatus(): void {
         const status = document.getElementById('topbar-database');
-        if (!status) {return;}
-        if (!this._activeProject) { status.textContent = ''; return; }
-        status.textContent = ` · ${this._activeProject.name} (${this._activeProject.dialect})`;
+        if (status) {
+            if (this._activeProject) {
+                status.textContent = ` · ${this._activeProject.name} (${this._activeProject.dialect})`;
+            } else {
+                status.textContent = '';
+            }
+        }
+        this._renderUndoRedoButtons();
     }
 
     private _renderCanvas(): void {
@@ -690,8 +695,17 @@ export class DbEditor {
             this._buildLayerResizeHandle(layer, el);
             cardHost.append(el);
         }
+        /*
+         * Pass active-layer context to each card so its ⋯ menu can
+         * surface the "Remove from this diagram" entry when scoped.
+         * `layers` was filtered to a single entry above when
+         * `_activeLayerUnid` is set, so `layers[0]` is that layer.
+         */
+        const activeLayerCtx = this._activeLayerUnid && layers.length === 1
+            ? {unid: layers[0].unid, name: layers[0].name}
+            : null;
         for (const t of tables) {
-            const card = new DbTable(t, jsp, enums);
+            const card = new DbTable(t, jsp, enums, activeLayerCtx);
             card.attach(cardHost);
             this._tables.set(t.unid, card);
         }
@@ -1678,6 +1692,10 @@ export class DbEditor {
 
     private _wireTopbar(): void {
         this._wireMenubar();
+        const undoBtn = document.getElementById('undoBtn') as HTMLButtonElement | null;
+        const redoBtn = document.getElementById('redoBtn') as HTMLButtonElement | null;
+        undoBtn?.addEventListener('click', () => this._undo());
+        redoBtn?.addEventListener('click', () => this._redo());
         /*
          * Keyboard: Ctrl/Cmd + Z = undo; Ctrl/Cmd + Shift + Z = redo
          * (we also accept Ctrl + Y for redo, the legacy Windows shortcut).
@@ -1696,6 +1714,20 @@ export class DbEditor {
                 this._redo();
             }
         });
+    }
+
+    /**
+     * Refresh the topbar Undo/Redo buttons' enabled state from the
+     * active project's undo/redo stack flags. Mirrors what the Edit
+     * menu does at open time, but for the always-visible buttons it
+     * has to be pushed on every reload (and every mutation that
+     * shifts the stack depth).
+     */
+    private _renderUndoRedoButtons(): void {
+        const undoBtn = document.getElementById('undoBtn') as HTMLButtonElement | null;
+        const redoBtn = document.getElementById('redoBtn') as HTMLButtonElement | null;
+        if (undoBtn) {undoBtn.disabled = !this._activeProject?.canUndo;}
+        if (redoBtn) {redoBtn.disabled = !this._activeProject?.canRedo;}
     }
 
     /**
@@ -2086,6 +2118,30 @@ export class DbEditor {
             if ((current.layerPlacements ?? []).some(p => p.layerUnid === layerUnid)) {return;}
             const nextPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], layerUnid, current.pos);
             this._mutate(p => this._api.updateTable(p.unid, tableUnid, {layerPlacements: nextPlacements})).then(() => this._reload());
+        });
+        window.addEventListener(EditorEvents.removeTableFromLayer, (e) => {
+            const { tableUnid, layerUnid } = (e as CustomEvent).detail as {tableUnid: string; layerUnid: string;};
+            const current = this._findTableInProject(tableUnid);
+            if (!current) {return;}
+            /*
+             * Symmetric to assignTableToLayer: take whichever membership
+             * exists (primary, placement, or both) and clear it. The
+             * table remains in the model and still renders unscoped; it
+             * just no longer belongs to this EER diagram. We patch only
+             * the fields that change so we don't accidentally clobber
+             * concurrent edits to the rest of the table.
+             */
+            const patch: {layerUnid?: string | null; layerPlacements?: {layerUnid: string; pos: {x: number; y: number;};}[];} = {};
+            if (current.layerUnid === layerUnid) {
+                patch.layerUnid = '';
+            }
+            const placements = current.layerPlacements ?? [];
+            if (placements.some(p => p.layerUnid === layerUnid)) {
+                patch.layerPlacements = placements.filter(p => p.layerUnid !== layerUnid);
+            }
+            if (patch.layerUnid === undefined && patch.layerPlacements === undefined) {return;}
+            this._mutate(p => this._api.updateTable(p.unid, tableUnid, patch as Record<string, unknown>))
+            .then(() => this._reload());
         });
         window.addEventListener(EditorEvents.createLayerIn, (e) => {
             const { containerUnid, name } = (e as CustomEvent).detail;
@@ -3202,8 +3258,16 @@ export class DbEditor {
             const res = await this._mutate(p => this._api.importMwb(p.unid, bytes, mode));
             if (!res) {return;}
             const pos = res.stats.positionedTableCount;
-            const posSuffix = pos > 0
-                ? ` Placed ${pos} of ${res.stats.tableCount} table${res.stats.tableCount === 1 ? '' : 's'} from the Workbench diagram.`
+            const vpos = res.stats.positionedViewCount;
+            const placedParts: string[] = [];
+            if (pos > 0) {
+                placedParts.push(`${pos} of ${res.stats.tableCount} table${res.stats.tableCount === 1 ? '' : 's'}`);
+            }
+            if (vpos > 0) {
+                placedParts.push(`${vpos} of ${res.stats.viewCount} view${res.stats.viewCount === 1 ? '' : 's'}`);
+            }
+            const posSuffix = placedParts.length > 0
+                ? ` Placed ${placedParts.join(' and ')} from the Workbench diagram.`
                 : '';
             const extras: string[] = [];
             if (res.stats.viewCount > 0)    {extras.push(`${res.stats.viewCount} view${res.stats.viewCount === 1 ? '' : 's'}`);}

@@ -491,3 +491,105 @@ describe('parseMwb — Phase E passthrough capture', () => {
     });
 
 });
+
+/*
+ * View canvas positions — ViewFigure parallel to TableFigure. The
+ * synthetic wrapper below adds a `diagrams` sibling next to `catalog`
+ * inside the physical model, holding one Diagram with hand-authored
+ * figures. The reader's `findStructs` walks the whole document, but
+ * the per-diagram tiling logic groups figures by their `owner` link,
+ * so figures need a proper Diagram parent to land in the same
+ * coordinate bucket as their fellow figures.
+ */
+const wrapWithDiagrams = (schemaInner: string, diagramsInner: string): Buffer => {
+    const xml = `<?xml version="1.0"?>
+<data>
+  <value type="object" struct-name="workbench.Document" id="doc1">
+    <value type="list" content-type="object" content-struct-name="workbench.physical.Model" key="physicalModels">
+      <value type="object" struct-name="workbench.physical.Model" id="pm1">
+        <value type="object" struct-name="db.mysql.Catalog" key="catalog" id="cat1">
+          <value type="list" content-type="object" content-struct-name="db.mysql.Schema" key="schemata">
+            <value type="object" struct-name="db.mysql.Schema" id="sch1">
+              <value type="string" key="name">testdb</value>
+              ${schemaInner}
+            </value>
+          </value>
+        </value>
+        <value type="list" content-type="object" content-struct-name="workbench.physical.Diagram" key="diagrams">
+          ${diagramsInner}
+        </value>
+      </value>
+    </value>
+  </value>
+</data>`;
+    const zip = new AdmZip();
+    zip.addFile('document.mwb.xml', Buffer.from(xml, 'utf-8'));
+    return zip.toBuffer();
+};
+
+describe('parseMwb — view positions (synthetic)', () => {
+
+    it('reads a ViewFigure into JsonView.pos and counts it as positioned', () => {
+        const r = parseMwb(wrapWithDiagrams(
+            `<value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
+                <value type="object" struct-name="db.mysql.View" id="v1">
+                    <value type="string" key="name">active_users</value>
+                    <value type="string" key="sqlDefinition">SELECT 1</value>
+                </value>
+            </value>`,
+            `<value type="object" struct-name="workbench.physical.Diagram" id="d1">
+                <value type="string" key="name">Main</value>
+                <value type="list" content-type="object" content-struct-name="model.Figure" key="figures">
+                    <value type="object" struct-name="workbench.physical.ViewFigure" id="vf1">
+                        <value type="real" key="left">420</value>
+                        <value type="real" key="top">240</value>
+                        <link type="object" struct-name="db.View" key="view">v1</link>
+                        <link type="object" struct-name="model.Diagram" key="owner">d1</link>
+                        <value type="string" key="name">active_users</value>
+                    </value>
+                </value>
+            </value>`
+        ));
+        expect(r.positionedViewCount).toBe(1);
+        expect(r.databases[0].views[0].pos).toEqual({x: 420, y: 240});
+    });
+
+    it('falls back to (80, 80) when a view has no ViewFigure', () => {
+        const r = parseMwb(wrap(`
+          <value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
+            <value type="object" struct-name="db.mysql.View" id="v1">
+              <value type="string" key="name">orphan_view</value>
+              <value type="string" key="sqlDefinition">SELECT 1</value>
+            </value>
+          </value>
+        `));
+        expect(r.positionedViewCount).toBe(0);
+        expect(r.databases[0].views[0].pos).toEqual({x: 80, y: 80});
+    });
+
+    it('rounds real-valued ViewFigure coordinates to integers', () => {
+        const r = parseMwb(wrapWithDiagrams(
+            `<value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
+                <value type="object" struct-name="db.mysql.View" id="v1">
+                    <value type="string" key="name">v1</value>
+                    <value type="string" key="sqlDefinition">SELECT 1</value>
+                </value>
+            </value>`,
+            `<value type="object" struct-name="workbench.physical.Diagram" id="d1">
+                <value type="list" content-type="object" content-struct-name="model.Figure" key="figures">
+                    <value type="object" struct-name="workbench.physical.ViewFigure" id="vf1">
+                        <value type="real" key="left">123.6</value>
+                        <value type="real" key="top">87.4</value>
+                        <link type="object" struct-name="db.View" key="view">v1</link>
+                        <link type="object" struct-name="model.Diagram" key="owner">d1</link>
+                    </value>
+                </value>
+            </value>`
+        ));
+        const v = r.databases[0].views[0];
+        expect(Number.isInteger(v.pos.x)).toBe(true);
+        expect(Number.isInteger(v.pos.y)).toBe(true);
+        expect(v.pos).toEqual({x: 124, y: 87});
+    });
+
+});

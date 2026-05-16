@@ -720,27 +720,44 @@ body {
 }
 
 /* ------- topbar zoom controls ------- */
-.zoombar {
+.zoombar,
+.undoredobar {
   display: inline-flex;
   gap: 0;
   margin-left: 6px;
 }
-.zoombar .btn-grey {
+.zoombar .btn-grey,
+.undoredobar .btn-grey {
   border-radius: 0;
   min-width: 32px;
   padding: 0 8px;
 }
-.zoombar .btn-grey:first-child {
+.zoombar .btn-grey:first-child,
+.undoredobar .btn-grey:first-child {
   border-top-left-radius: 4px;
   border-bottom-left-radius: 4px;
 }
-.zoombar .btn-grey:last-child {
+.zoombar .btn-grey:last-child,
+.undoredobar .btn-grey:last-child {
   border-top-right-radius: 4px;
   border-bottom-right-radius: 4px;
 }
 .zoombar #zoomResetBtn {
   min-width: 52px;
   font-variant-numeric: tabular-nums;
+}
+/* Generic disabled state for topbar icon buttons. The undo/redo
+   pair starts disabled and toggles on every reload depending on the
+   project's undo/redo stack depth. */
+.undoredobar .btn-grey:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background-color: var(--c-panel);
+  border-color: var(--c-border-strong);
+}
+.undoredobar .btn-grey:disabled:hover {
+  background-color: var(--c-panel);
+  border-color: var(--c-border-strong);
 }
 
 /* ------- treeview ------- */
@@ -910,6 +927,25 @@ body {
 }
 .treeview-bucket-list--collapsed {
   display: none;
+}
+/* Empty-state hint inside an otherwise empty bucket. Faint italic
+   text that resolves to a prompt-and-create action on click — same
+   flow the bucket parent's context menu uses, but discoverable
+   right where the user is looking for things. */
+.treeview-bucket-empty-hint {
+  padding: 3px 8px 3px 20px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--c-text-muted);
+  opacity: 0.7;
+  cursor: pointer;
+  border-radius: 4px;
+  user-select: none;
+}
+.treeview-bucket-empty-hint:hover {
+  background-color: #eef2f7;
+  opacity: 1;
+  color: var(--c-primary);
 }
 /* When the substring filter is active, override the per-bucket
    collapse so matches inside a closed bucket still surface. The
@@ -2023,6 +2059,24 @@ body {
   background-color: var(--c-primary-soft);
   color: var(--c-primary);
   font-weight: 600;
+}
+/* Small pill on the Live tab indicating how many DB connections the
+   project has configured. Inline with the button label, picks up the
+   primary colour scheme so it looks at home next to the active-state
+   styling. */
+.treeview-modebar-badge {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 5px;
+  margin-left: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  color: #fff;
+  background-color: var(--c-primary);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
 }
 .treeview-modebar--live + * .treeview-entry-row {
   font-style: italic;

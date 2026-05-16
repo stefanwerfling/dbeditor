@@ -16,17 +16,26 @@ import {iconDiamondFilled, iconDiamondHollow, iconEllipsis} from '../Util/Icons.
  * The controller owns the data; this class re-renders from data when
  * `setData()` is called.
  */
+export type ActiveLayerContext = { unid: string; name: string; };
+
 export class DbTable {
 
     private _el: HTMLDivElement;
     private _data: JsonTable;
     private readonly _jsp: BrowserJsPlumbInstance;
     private readonly _enums: JsonEnum[];
+    private readonly _activeLayer: ActiveLayerContext | null;
 
-    public constructor(table: JsonTable, jsp: BrowserJsPlumbInstance, enums: JsonEnum[]) {
+    public constructor(
+        table: JsonTable,
+        jsp: BrowserJsPlumbInstance,
+        enums: JsonEnum[],
+        activeLayer: ActiveLayerContext | null = null
+    ) {
         this._data = table;
         this._jsp = jsp;
         this._enums = enums;
+        this._activeLayer = activeLayer;
         this._el = document.createElement('div');
         this._el.className = 'db-table';
         this._el.dataset.tableUnid = table.unid;
@@ -161,14 +170,33 @@ export class DbTable {
         more.title = 'More actions';
         more.addEventListener('click', (e) => {
             e.stopPropagation();
-            openContextMenu(more, [
+            const items: Parameters<typeof openContextMenu>[1] = [
                 {label: 'Rename table', onClick: (): void => this._renameInline(title)},
                 {label: 'Table options…', onClick: (): void => dispatch(EditorEvents.editTableOptions, {tableUnid: this._data.unid})},
-                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickLayerForTables, {tableUnids: [this._data.unid]})},
+                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickLayerForTables, {tableUnids: [this._data.unid]})}
+            ];
+            /*
+             * Symmetric "remove from this diagram" only when the canvas
+             * is currently scoped to a single diagram. Without that
+             * scope, "this diagram" is ambiguous so the option would be
+             * confusing. The handler clears primary `layerUnid` if it
+             * matches and drops any matching `layerPlacements` entry —
+             * the table stays in the model, just no longer belongs to
+             * this EER diagram.
+             */
+            if (this._activeLayer) {
+                const layer = this._activeLayer;
+                items.push({label: `Remove from "${layer.name}"`, onClick: (): void => dispatch(EditorEvents.removeTableFromLayer, {
+                    tableUnid: this._data.unid,
+                    layerUnid: layer.unid
+                })});
+            }
+            items.push(
                 {label: 'Duplicate', onClick: (): void => dispatch(EditorEvents.duplicateTable, {tableUnid: this._data.unid})},
                 {kind: 'separator'},
                 {label: 'Delete table', danger: true, onClick: (): void => { this._confirmDeleteTable(); }}
-            ]);
+            );
+            openContextMenu(more, items);
         });
         actions.append(more);
         h.append(actions);

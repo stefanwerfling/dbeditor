@@ -498,13 +498,18 @@ const stripViewPrefix = (sql: string): string => {
     return sql.substring(m[0].length).trim();
 };
 
-const parseView = (v: GrtNode): JsonView => {
+const parseView = (
+    v: GrtNode,
+    viewPositions: Map<string, {x: number; y: number;}>
+): JsonView => {
     const sql = childStr(v, 'sqlDefinition');
     const comment = childStr(v, 'comment');
+    const wbId = v['@_id'] ?? '';
+    const pos = viewPositions.get(wbId) ?? {x: 80, y: 80};
     const result: JsonView = {
         unid: randomUUID(),
         name: childStr(v, 'name'),
-        pos: {x: 80, y: 80},
+        pos: pos,
         select: stripViewPrefix(sql)
     };
     if (comment) {result.description = comment;}
@@ -630,11 +635,14 @@ const parseTable = (
  * Output of `buildFigureData`: per-table effective canvas position
  * (after diagram tiling), per-table backing-layer reference (direct),
  * and the layers themselves (either authored from the .mwb or
- * synthesised one-per-diagram when none authored).
+ * synthesised one-per-diagram when none authored). Views get the same
+ * tiling treatment via a parallel `viewPositions` map.
  */
 type FigureData = {
     /** `wbTableId → {x, y}` effective canvas coords. */
     positions: Map<string, {x: number; y: number;}>;
+    /** `wbViewId → {x, y}` effective canvas coords. */
+    viewPositions: Map<string, {x: number; y: number;}>;
     /** `wbTableId → JsonLayer.unid` — direct mapping, no diagram pivot. */
     tableToLayer: Map<string, string>;
     /**
@@ -644,6 +652,8 @@ type FigureData = {
      */
     layers: JsonLayer[];
 };
+
+type FigureEntry = {fig: GrtNode; kind: 'table' | 'view';};
 
 /**
  * Walk every `workbench.physical.TableFigure` and produce both the
@@ -680,7 +690,8 @@ const PALETTE = [
 ];
 
 const buildFigureData = (root: GrtNode): FigureData => {
-    const figures = findStructs(root, 'workbench.physical.TableFigure');
+    const tableFigures = findStructs(root, 'workbench.physical.TableFigure');
+    const viewFigures = findStructs(root, 'workbench.physical.ViewFigure');
 
     /*
      * Index Workbench diagrams by ID so we can recover their `name`
@@ -700,15 +711,26 @@ const buildFigureData = (root: GrtNode): FigureData => {
     }
 
     /*
-     * Group figures by `owner` link (the diagram UUID). Map
-     * insertion order matches document order of the *first* figure
-     * for each diagram, which is stable across runs.
+     * Group figures (tables AND views) by `owner` link (the diagram
+     * UUID). One unified map so the per-diagram bbox and the xShift
+     * tiling apply consistently to both kinds — a view and a table on
+     * the same diagram share the coordinate system. Map insertion
+     * order matches document order of the *first* figure for each
+     * diagram, which is stable across runs. Tables are inserted before
+     * views so a diagram with only views still groups under its own
+     * owner key.
      */
-    const byDiagram = new Map<string, GrtNode[]>();
-    for (const fig of figures) {
+    const byDiagram = new Map<string, FigureEntry[]>();
+    for (const fig of tableFigures) {
         const owner = childLink(fig, 'owner') ?? 'unknown';
         const list = byDiagram.get(owner) ?? [];
-        list.push(fig);
+        list.push({fig: fig, kind: 'table'});
+        byDiagram.set(owner, list);
+    }
+    for (const fig of viewFigures) {
+        const owner = childLink(fig, 'owner') ?? 'unknown';
+        const list = byDiagram.get(owner) ?? [];
+        list.push({fig: fig, kind: 'view'});
         byDiagram.set(owner, list);
     }
 
@@ -717,6 +739,7 @@ const buildFigureData = (root: GrtNode): FigureData => {
     const FALLBACK_WIDTH = 200;
     const FALLBACK_HEIGHT = 150;
     const positions = new Map<string, {x: number; y: number;}>();
+    const viewPositions = new Map<string, {x: number; y: number;}>();
     const tableToLayer = new Map<string, string>();
     const layers: JsonLayer[] = [];
     let isFirst = true;
@@ -728,11 +751,11 @@ const buildFigureData = (root: GrtNode): FigureData => {
         let dMinTop = Infinity;
         let dMaxRight = -Infinity;
         let dMaxBottom = -Infinity;
-        for (const fig of figs) {
-            const left = childIntRound(fig, 'left');
-            const top = childIntRound(fig, 'top');
-            const width = childIntRound(fig, 'width') || FALLBACK_WIDTH;
-            const height = childIntRound(fig, 'height') || FALLBACK_HEIGHT;
+        for (const entry of figs) {
+            const left = childIntRound(entry.fig, 'left');
+            const top = childIntRound(entry.fig, 'top');
+            const width = childIntRound(entry.fig, 'width') || FALLBACK_WIDTH;
+            const height = childIntRound(entry.fig, 'height') || FALLBACK_HEIGHT;
             if (left < dMinLeft) {dMinLeft = left;}
             if (top < dMinTop) {dMinTop = top;}
             if (left + width > dMaxRight) {dMaxRight = left + width;}
@@ -799,24 +822,35 @@ const buildFigureData = (root: GrtNode): FigureData => {
         /*
          * Per-figure: record the canvas position and (if applicable)
          * the layer link. With authored layers, each figure carries
-         * its own `layer` link → use that. Without, every figure
-         * falls under the synthesised diagram layer.
+         * its own `layer` link → use that. Without, every table figure
+         * falls under the synthesised diagram layer. Views currently
+         * have no layer membership (JsonView has no `layerUnid`), so
+         * we only record their position.
          */
-        for (const fig of figs) {
-            const tableWbId = childLink(fig, 'table');
-            if (!tableWbId || positions.has(tableWbId)) {continue;}
-            positions.set(tableWbId, {
-                x: childIntRound(fig, 'left') + xShift,
-                y: childIntRound(fig, 'top')
-            });
-            if (wbLayerToUnid.size > 0) {
-                const figLayerWbId = childLink(fig, 'layer');
-                if (figLayerWbId) {
-                    const layerUnid = wbLayerToUnid.get(figLayerWbId);
-                    if (layerUnid) {tableToLayer.set(tableWbId, layerUnid);}
+        for (const entry of figs) {
+            if (entry.kind === 'table') {
+                const tableWbId = childLink(entry.fig, 'table');
+                if (!tableWbId || positions.has(tableWbId)) {continue;}
+                positions.set(tableWbId, {
+                    x: childIntRound(entry.fig, 'left') + xShift,
+                    y: childIntRound(entry.fig, 'top')
+                });
+                if (wbLayerToUnid.size > 0) {
+                    const figLayerWbId = childLink(entry.fig, 'layer');
+                    if (figLayerWbId) {
+                        const layerUnid = wbLayerToUnid.get(figLayerWbId);
+                        if (layerUnid) {tableToLayer.set(tableWbId, layerUnid);}
+                    }
+                } else if (synthLayerUnid) {
+                    tableToLayer.set(tableWbId, synthLayerUnid);
                 }
-            } else if (synthLayerUnid) {
-                tableToLayer.set(tableWbId, synthLayerUnid);
+            } else {
+                const viewWbId = childLink(entry.fig, 'view');
+                if (!viewWbId || viewPositions.has(viewWbId)) {continue;}
+                viewPositions.set(viewWbId, {
+                    x: childIntRound(entry.fig, 'left') + xShift,
+                    y: childIntRound(entry.fig, 'top')
+                });
             }
         }
 
@@ -824,7 +858,12 @@ const buildFigureData = (root: GrtNode): FigureData => {
         isFirst = false;
         diagramIndex++;
     }
-    return {positions: positions, tableToLayer: tableToLayer, layers: layers};
+    return {
+        positions: positions,
+        viewPositions: viewPositions,
+        tableToLayer: tableToLayer,
+        layers: layers
+    };
 };
 
 export type MwbImportResult = {
@@ -835,6 +874,8 @@ export type MwbImportResult = {
     foreignKeyCount: number;
     /** Tables that received a non-default canvas position from a TableFigure. */
     positionedTableCount: number;
+    /** Views that received a non-default canvas position from a ViewFigure. */
+    positionedViewCount: number;
     viewCount: number;
     /** Stored procedures + functions (schema-level routines). Triggers are counted separately. */
     routineCount: number;
@@ -875,6 +916,7 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
     const schemas = findStructs(grtRoot, 'db.mysql.Schema');
     const figureData = buildFigureData(grtRoot);
     const figurePos = figureData.positions;
+    const viewFigurePos = figureData.viewPositions;
     const tableToLayer = figureData.tableToLayer;
 
     const databases: JsonDataDB[] = [];
@@ -883,6 +925,7 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
     let indexCount = 0;
     let fkCount = 0;
     let positionedTableCount = 0;
+    let positionedViewCount = 0;
     let viewCount = 0;
     let routineCount = 0;
     let triggerCount = 0;
@@ -944,8 +987,10 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         const wbViews = viewsNode ? asArray(viewsNode.value) : [];
         const views: JsonView[] = [];
         for (const v of wbViews) {
-            views.push(parseView(v));
+            views.push(parseView(v, viewFigurePos));
             viewCount++;
+            const wbViewId = v['@_id'] ?? '';
+            if (viewFigurePos.has(wbViewId)) {positionedViewCount++;}
         }
 
         const routinesNode = child(schema, 'routines');
@@ -1028,6 +1073,7 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         indexCount: indexCount,
         foreignKeyCount: fkCount,
         positionedTableCount: positionedTableCount,
+        positionedViewCount: positionedViewCount,
         viewCount: viewCount,
         routineCount: routineCount,
         triggerCount: triggerCount,

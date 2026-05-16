@@ -114,6 +114,8 @@ type IdMaps = {
     fkId: Map<string, string>;
     /** Model layer unid → minted GRT layer ID. Populated up-front from collected layers so figure→layer links can resolve. */
     layerId: Map<string, string>;
+    /** Model view unid → minted GRT view ID. Populated up-front so ViewFigure can point at its view. */
+    viewId: Map<string, string>;
 };
 
 const newIdMaps = (): IdMaps => ({
@@ -121,7 +123,8 @@ const newIdMaps = (): IdMaps => ({
     columnId: new Map(),
     indexId: new Map(),
     fkId: new Map(),
-    layerId: new Map()
+    layerId: new Map(),
+    viewId: new Map()
 });
 
 /* ------------------------------------------------------------------ */
@@ -346,8 +349,9 @@ const writeTable = (table: JsonTable, schemaId: string, ids: IdMaps, depth: numb
     return s;
 };
 
-const writeView = (v: JsonView, schemaId: string, depth: number): string => {
-    const id = randomUUID();
+const writeView = (v: JsonView, schemaId: string, ids: IdMaps, depth: number): string => {
+    const id = ids.viewId.get(v.unid) ?? randomUUID();
+    ids.viewId.set(v.unid, id);
     const ptAttrs = writePassthroughAttrs(v.wbPassthrough);
     let s = `${I(depth)}<value type="object" struct-name="db.mysql.View" id="${id}"${ptAttrs}>\n`;
     s += vStr('sqlDefinition', v.select, depth + 1);
@@ -437,7 +441,7 @@ const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number): string => {
 
     s += `${I(depth + 1)}<value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">\n`;
     for (const v of db.views ?? []) {
-        s += writeView(v, schemaId, depth + 2);
+        s += writeView(v, schemaId, ids, depth + 2);
     }
     s += `${I(depth + 1)}</value>\n`;
 
@@ -485,12 +489,12 @@ const collectDatabases = (node: JsonDataDB): JsonDataDB[] => {
  * disk or streams them to the browser.
  */
 /**
- * Walk every positioned table across all databases and emit one
- * `workbench.physical.TableFigure` per table. We bundle them into a
- * single `model.Diagram` named "EER Diagram" — the user can split into
- * multiple diagrams from inside Workbench afterwards. A table is
+ * Walk every positioned table AND view across all databases and emit
+ * one figure per entity (TableFigure / ViewFigure). We bundle them into
+ * a single `model.Diagram` named "EER Diagram" — the user can split
+ * into multiple diagrams from inside Workbench afterwards. An entity is
  * "positioned" if its `pos` differs from the (80, 80) default fallback
- * the importer uses; tables without an authored position are skipped
+ * the importer uses; entities without an authored position are skipped
  * so Workbench's auto-layout can place them.
  */
 const writeDiagramFigures = (
@@ -500,13 +504,18 @@ const writeDiagramFigures = (
     depth: number
 ): string => {
     const positionedTables: JsonTable[] = [];
+    const positionedViews: JsonView[] = [];
     for (const db of databases) {
         for (const tbl of db.tables ?? []) {
             if (tbl.pos.x === 80 && tbl.pos.y === 80) {continue;}
             positionedTables.push(tbl);
         }
+        for (const v of db.views ?? []) {
+            if (v.pos.x === 80 && v.pos.y === 80) {continue;}
+            positionedViews.push(v);
+        }
     }
-    if (positionedTables.length === 0) {return '';}
+    if (positionedTables.length === 0 && positionedViews.length === 0) {return '';}
 
     let s = `${I(depth)}<value type="list" content-type="object" content-struct-name="model.Figure" key="figures">\n`;
     for (const tbl of positionedTables) {
@@ -526,6 +535,21 @@ const writeDiagramFigures = (
         }
         s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
         s += vStr('name', tbl.name, depth + 2);
+        s += `${I(depth + 1)}</value>\n`;
+    }
+    for (const v of positionedViews) {
+        const viewId = ids.viewId.get(v.unid);
+        if (!viewId) {continue;}
+        const figId = randomUUID();
+        s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.ViewFigure" id="${figId}">\n`;
+        s += vInt('expanded', 1, depth + 2);
+        s += vInt('visible', 1, depth + 2);
+        s += vInt('locked', 0, depth + 2);
+        s += `${I(depth + 2)}<value type="real" key="left">${v.pos.x}</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="top">${v.pos.y}</value>\n`;
+        s += lStr('view', 'db.View', viewId, depth + 2);
+        s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
+        s += vStr('name', v.name, depth + 2);
         s += `${I(depth + 1)}</value>\n`;
     }
     s += `${I(depth)}</value>\n`;
@@ -598,6 +622,9 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB): Buffer => {
             for (const col of tbl.columns) {
                 ids.columnId.set(col.unid, randomUUID());
             }
+        }
+        for (const v of db.views ?? []) {
+            ids.viewId.set(v.unid, randomUUID());
         }
     }
     /* Layers are minted before figures so figure→layer links resolve. */

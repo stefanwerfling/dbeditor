@@ -311,6 +311,37 @@ describe('writeMwb — synthetic build', () => {
         expect(reTable.layerUnid).toBe(reLayers[0].unid);
     });
 
+    it('write a positioned view and re-parse the pos via ViewFigure', () => {
+        /*
+         * Phase C — view-position round-trip parallel to the existing
+         * table-position one. A view with a non-default `pos` must
+         * emit a `workbench.physical.ViewFigure` so a re-parse lands
+         * the same coordinates back on the model. Views at the
+         * (80, 80) fallback are skipped (Workbench auto-layouts).
+         */
+        const db: JsonDataDB = {
+            unid: 'db-1', name: 'mini', type: JsonDataDBType.database, entrys: [],
+            tables: [],
+            views: [
+                {
+                    unid: 'v-placed', name: 'placed_view',
+                    pos: {x: 420, y: 240}, select: 'SELECT 1'
+                },
+                {
+                    unid: 'v-default', name: 'default_view',
+                    pos: {x: 80, y: 80}, select: 'SELECT 2'
+                }
+            ],
+            enums: [], routines: []
+        };
+        const r = parseMwb(writeMwb([db]));
+        expect(r.positionedViewCount).toBe(1);
+        const placed = r.databases[0].views.find(v => v.name === 'placed_view')!;
+        const defaulted = r.databases[0].views.find(v => v.name === 'default_view')!;
+        expect(placed.pos).toEqual({x: 420, y: 240});
+        expect(defaulted.pos).toEqual({x: 80, y: 80});
+    });
+
     it('write view + routine + trigger and re-parse them', () => {
         const db: JsonDataDB = {
             unid: 'db-1', name: 'mini', type: JsonDataDBType.database, entrys: [],

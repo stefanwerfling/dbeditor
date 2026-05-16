@@ -90,7 +90,26 @@ export class Treeview {
             });
             return b;
         };
-        bar.append(mkBtn('Modell', 'model'), mkBtn('Live', 'live'));
+        const modelBtn = mkBtn('Modell', 'model');
+        const liveBtn = mkBtn('Live', 'live');
+        /*
+         * Connection-count badge on the Live tab so the user can see at
+         * a glance whether the live view is hooked up to anything. Count
+         * comes from `_connectableDatabaseUnids` which DbEditor sets on
+         * every reload before render(), so the badge always reflects
+         * current config.
+         */
+        const connCount = this._connectableDatabaseUnids.size;
+        if (connCount > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'treeview-modebar-badge';
+            badge.textContent = String(connCount);
+            liveBtn.append(' ', badge);
+            liveBtn.title = `${connCount} live DB connection${connCount === 1 ? '' : 's'} configured`;
+        } else {
+            liveBtn.title = 'No live DB connections — add one in dbeditor.json';
+        }
+        bar.append(modelBtn, liveBtn);
         return bar;
     }
 
@@ -243,26 +262,68 @@ export class Treeview {
                  */
                 const layers = node.layers ?? [];
                 const routines = node.routines ?? [];
-                if (layers.length > 0) {
-                    children.append(this._renderBucket(node.unid, 'layers', 'EER diagrams', JsonDataDBType.layer,
-                        layers.map(l => ({unid: l.unid, name: l.name, parentDbUnid: node.unid}))));
+                /*
+                 * Render all buckets unconditionally so empty ones can
+                 * show a "+ Add X" hint and the user discovers where to
+                 * click to populate the database. Each bucket carries
+                 * an `addHint` config the bucket renderer falls back to
+                 * when `items.length === 0`. EER diagrams are
+                 * database-scoped, so the layer bucket only renders on
+                 * a database, never on a folder.
+                 */
+                if (node.type === JsonDataDBType.database) {
+                    children.append(this._renderBucket(
+                        node.unid, 'layers', 'EER diagrams', JsonDataDBType.layer,
+                        layers.map(l => ({unid: l.unid, name: l.name, parentDbUnid: node.unid})),
+                        {
+                            label: '+ Add EER diagram',
+                            event: EditorEvents.createLayerIn,
+                            promptLabel: 'New EER diagram name?',
+                            suggested: 'New diagram'
+                        }
+                    ));
                 }
-                if (node.tables.length > 0) {
-                    children.append(this._renderBucket(node.unid, 'tables', 'Tables', JsonDataDBType.table,
-                        node.tables.map(t => ({unid: t.unid, name: t.name, parentDbUnid: node.unid}))));
-                }
-                if (node.views.length > 0) {
-                    children.append(this._renderBucket(node.unid, 'views', 'Views', JsonDataDBType.view,
-                        node.views.map(v => ({unid: v.unid, name: v.name, parentDbUnid: node.unid}))));
-                }
-                if (node.enums.length > 0) {
-                    children.append(this._renderBucket(node.unid, 'enums', 'Enums', JsonDataDBType.enum,
-                        node.enums.map(e => ({unid: e.unid, name: e.name, parentDbUnid: node.unid}))));
-                }
-                if (routines.length > 0) {
-                    children.append(this._renderBucket(node.unid, 'routines', 'Routines', JsonDataDBType.routine,
-                        routines.map(r => ({unid: r.unid, name: r.name, parentDbUnid: node.unid}))));
-                }
+                children.append(this._renderBucket(
+                    node.unid, 'tables', 'Tables', JsonDataDBType.table,
+                    node.tables.map(t => ({unid: t.unid, name: t.name, parentDbUnid: node.unid})),
+                    {
+                        label: '+ Add table',
+                        event: EditorEvents.createTableIn,
+                        promptLabel: 'New table name?',
+                        suggested: 'new_table'
+                    }
+                ));
+                children.append(this._renderBucket(
+                    node.unid, 'views', 'Views', JsonDataDBType.view,
+                    node.views.map(v => ({unid: v.unid, name: v.name, parentDbUnid: node.unid})),
+                    {
+                        label: '+ Add view',
+                        event: EditorEvents.createViewIn,
+                        promptLabel: 'New view name?',
+                        suggested: 'new_view'
+                    }
+                ));
+                children.append(this._renderBucket(
+                    node.unid, 'enums', 'Enums', JsonDataDBType.enum,
+                    node.enums.map(e => ({unid: e.unid, name: e.name, parentDbUnid: node.unid})),
+                    {
+                        label: '+ Add enum',
+                        event: EditorEvents.createEnumIn,
+                        promptLabel: 'New enum name?',
+                        suggested: 'new_enum'
+                    }
+                ));
+                children.append(this._renderBucket(
+                    node.unid, 'routines', 'Routines', JsonDataDBType.routine,
+                    routines.map(r => ({unid: r.unid, name: r.name, parentDbUnid: node.unid})),
+                    {
+                        label: '+ Add routine',
+                        event: EditorEvents.createRoutineIn,
+                        promptLabel: 'New routine name?',
+                        suggested: 'new_routine',
+                        extraPayload: {kind: 'procedure'}
+                    }
+                ));
             } else {
                 /* Pre-bucket layout for non-container nodes (which don't usually have leafs anyway). */
                 for (const t of node.tables) {children.append(this._renderLeaf(t.unid, t.name, JsonDataDBType.table));}
@@ -286,7 +347,14 @@ export class Treeview {
         kind: string,
         label: string,
         leafType: JsonDataDBType,
-        items: {unid: string; name: string; parentDbUnid: string;}[]
+        items: {unid: string; name: string; parentDbUnid: string;}[],
+        addHint?: {
+            label: string;
+            event: string;
+            promptLabel: string;
+            suggested: string;
+            extraPayload?: Record<string, unknown>;
+        }
     ): HTMLElement {
         const wrap = document.createElement('div');
         wrap.className = 'treeview-bucket';
@@ -313,6 +381,29 @@ export class Treeview {
         if (collapsed) {list.classList.add('treeview-bucket-list--collapsed');}
         for (const item of items) {
             list.append(this._renderLeaf(item.unid, item.name, leafType, item.parentDbUnid));
+        }
+        /*
+         * Empty-state hint: a faint "+ Add X" row that triggers the
+         * same prompt + dispatch as the container's context-menu add
+         * action. Hidden in live mode since the live tree is read-only
+         * by design.
+         */
+        if (items.length === 0 && addHint && this._mode !== 'live') {
+            const hint = document.createElement('div');
+            hint.className = 'treeview-bucket-empty-hint';
+            hint.textContent = addHint.label;
+            hint.addEventListener('click', () => {
+                const v = window.prompt(addHint.promptLabel, addHint.suggested);
+                const trimmed = v === null ? null : v.trim() || null;
+                if (!trimmed) {return;}
+                const extra = addHint.extraPayload ?? {};
+                dispatch(addHint.event, {
+                    containerUnid: parentUnid,
+                    name: trimmed,
+                    ...extra
+                });
+            });
+            list.append(hint);
         }
 
         header.addEventListener('click', () => {

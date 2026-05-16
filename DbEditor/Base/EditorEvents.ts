@@ -82,6 +82,13 @@ export const EditorEvents = {
     /** UI directly assigns one table to a specific layer (drag-drop, no picker). Detail: { tableUnid, layerUnid }. */
     assignTableToLayer: 'dbeditor:assign-table-to-layer',
 
+    /**
+     * UI asks to detach one table from a specific EER diagram. The
+     * controller clears `layerUnid` when it matches and removes the
+     * matching entry from `layerPlacements`. Detail: { tableUnid, layerUnid }.
+     */
+    removeTableFromLayer: 'dbeditor:remove-table-from-layer',
+
     /** UI asks to rename an enum. Detail: { unid, name }. */
     renameEnum: 'dbeditor:rename-enum',
 
