@@ -110,6 +110,12 @@ export const EditorEvents = {
     /** UI asks to open the view editor (name + SELECT body). Detail: { unid }. */
     editView: 'dbeditor:edit-view',
 
+    /** UI asks to pick / clear a view's EER-diagram membership. Detail: { viewUnid }. */
+    pickLayerForView: 'dbeditor:pick-layer-for-view',
+
+    /** UI asks to detach a view from a specific EER diagram. Detail: { viewUnid, layerUnid }. */
+    removeViewFromLayer: 'dbeditor:remove-view-from-layer',
+
     /** A view card was moved on the canvas. Detail: { viewUnid, x, y }. */
     viewMoved: 'dbeditor:view-moved',
 

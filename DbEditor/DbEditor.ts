@@ -662,11 +662,15 @@ export class DbEditor {
              * from `pos` (the primary diagram's home position). We
              * swap `pos` on a shallow clone so DbTable's read-only
              * positioning logic doesn't need to know about placements.
+             *
+             * Views have single-membership only (no per-diagram
+             * placements yet) — include a view in this scope iff its
+             * `layerUnid` matches.
              */
             tables = tables
             .filter(t => DbEditor._tableInLayer(t, layerUnid))
             .map(t => DbEditor._tableWithEffectivePos(t, layerUnid));
-            views = [];
+            views = views.filter(v => v.layerUnid === layerUnid);
             layers = layers.filter(l => l.unid === layerUnid);
         }
         this._renderScopeBanner(layers.length === 1 && this._activeLayerUnid ? layers[0].name : null);
@@ -720,7 +724,7 @@ export class DbEditor {
             this._tables.set(t.unid, card);
         }
         for (const v of views) {
-            const card = new DbView(v, jsp);
+            const card = new DbView(v, jsp, activeLayerCtx);
             card.attach(cardHost);
             this._views.set(v.unid, card);
         }
@@ -2222,6 +2226,17 @@ export class DbEditor {
         window.addEventListener(EditorEvents.pickLayerForTables, (e) => {
             const { tableUnids } = (e as CustomEvent).detail as {tableUnids: string[];};
             this._pickLayerForTables(tableUnids).catch((err: unknown): void => console.error('[DbEditor] layer pick failed:', err));
+        });
+        window.addEventListener(EditorEvents.pickLayerForView, (e) => {
+            const { viewUnid } = (e as CustomEvent).detail as {viewUnid: string;};
+            this._pickLayerForView(viewUnid).catch((err: unknown): void => console.error('[DbEditor] view layer pick failed:', err));
+        });
+        window.addEventListener(EditorEvents.removeViewFromLayer, (e) => {
+            const { viewUnid, layerUnid } = (e as CustomEvent).detail as {viewUnid: string; layerUnid: string;};
+            const view = this._findViewInProject(viewUnid);
+            if (!view || view.layerUnid !== layerUnid) {return;}
+            this._mutate(p => this._api.updateView(p.unid, viewUnid, {layerUnid: ''}))
+            .then(() => this._reload());
         });
         window.addEventListener(EditorEvents.addForeignKey, (e) => {
             const { tableUnid, fk } = (e as CustomEvent).detail;
@@ -3780,6 +3795,42 @@ export class DbEditor {
             if (t.unid === tableUnid) {return t;}
         }
         return null;
+    }
+
+    private _collectAllViews(node: JsonDataDB): JsonView[] {
+        const out = [...node.views];
+        for (const c of node.entrys as JsonDataDB[]) {out.push(...this._collectAllViews(c));}
+        return out;
+    }
+
+    private _findViewInProject(viewUnid: string): JsonView | null {
+        if (!this._activeProject) {return null;}
+        for (const v of this._collectAllViews(this._activeProject.data)) {
+            if (v.unid === viewUnid) {return v;}
+        }
+        return null;
+    }
+
+    /**
+     * Single-membership picker for a view. Opens the same
+     * `LayerPickerDialog` used for bulk-table assignment so the UI is
+     * consistent. Empty selection clears the assignment. Views don't
+     * yet support multi-diagram membership, hence the single-select
+     * flavour.
+     */
+    private async _pickLayerForView(viewUnid: string): Promise<void> {
+        if (!this._activeProject) {return;}
+        const view = this._findViewInProject(viewUnid);
+        if (!view) {return;}
+        const container = this._activeContainerUnid
+            ? this._findContainer(this._activeProject.data, this._activeContainerUnid)
+            : null;
+        const layers = container ? this._collectLayers(container) : [];
+        if (layers.length === 0) {return;}
+        const result = await new LayerPickerDialog(layers, 1, view.layerUnid ?? null).show();
+        if (result === null) {return;}
+        await this._mutate(p => this._api.updateView(p.unid, viewUnid, {layerUnid: result}));
+        await this._reload();
     }
 
     /**

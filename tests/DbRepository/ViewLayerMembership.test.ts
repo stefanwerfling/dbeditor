@@ -1,0 +1,130 @@
+/*
+ * Tests for the `layerUnid` field on `JsonView` and its set/clear
+ * semantics via `DbFsRepository.updateView`. Mirrors the
+ * already-tested table-side membership: empty string clears,
+ * non-empty value sets, no key in the patch means leave alone.
+ */
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {DbFsRepository} from '../../DbRepository/DbFsRepository.js';
+import {DbProject} from '../../DbProject/DbProject.js';
+import {ConfigDialect, ConfigOutputMode} from '../../Config/Config.js';
+import {JsonDataDB, JsonDataDBType} from '../../DbEditor/JsonData.js';
+
+let tmpFile = '';
+const DB_UNID = 'db-main';
+const LAYER_UNID = 'lay-1';
+const VIEW_UNID = 'view-1';
+
+const projectFor = (file: string): DbProject => ({
+    name: 'test',
+    schemaPath: file,
+    dialect: ConfigDialect.mysql,
+    output: {
+        mode: ConfigOutputMode.ddl_files,
+        destinationPath: '/tmp/out',
+        destinationClear: false,
+        sqlComment: true,
+        sqlIndent: '    ',
+        statementTerminator: ';',
+        migrationFilenamePattern: '{timestamp}__{name}'
+    },
+    autoGenerate: false,
+    scripts_before_generate: [],
+    scripts_after_generate: [],
+    connections: [],
+    sync: {ignoreTables: [], ignoreColumnAttributes: []}
+});
+
+const seed = (initialLayerUnid?: string): void => {
+    const view: Record<string, unknown> = {
+        unid: VIEW_UNID,
+        name: 'active_users',
+        pos: {x: 100, y: 100},
+        select: 'SELECT * FROM users WHERE active = 1'
+    };
+    if (initialLayerUnid !== undefined) {view.layerUnid = initialLayerUnid;}
+    const data = {
+        fs: {
+            unid: 'root',
+            name: 'root',
+            type: JsonDataDBType.root,
+            entrys: [{
+                unid: DB_UNID,
+                name: 'main',
+                type: JsonDataDBType.database,
+                istoggle: true,
+                entrys: [],
+                tables: [],
+                views: [view],
+                enums: [],
+                layers: [{
+                    unid: LAYER_UNID,
+                    name: 'EER Diagram 1',
+                    pos: {x: 50, y: 60},
+                    width: 400,
+                    height: 300
+                }]
+            }],
+            tables: [],
+            views: [],
+            enums: []
+        },
+        editor: {}
+    };
+    fs.writeFileSync(tmpFile, JSON.stringify(data));
+};
+
+beforeEach(() => {
+    tmpFile = path.join(os.tmpdir(), `dbed-view-mem-${process.pid}-${Date.now()}-${Math.random()}.json`);
+});
+
+afterEach(() => {
+    if (tmpFile && fs.existsSync(tmpFile)) {fs.unlinkSync(tmpFile);}
+});
+
+const viewNode = (repo: DbFsRepository): Record<string, unknown> => {
+    const db = repo.data.fs.entrys[0] as JsonDataDB;
+    return db.views[0] as unknown as Record<string, unknown>;
+};
+
+describe('DbFsRepository.updateView — layerUnid membership', () => {
+
+    it('sets layerUnid when patch carries a non-empty string', () => {
+        seed();
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        expect(viewNode(repo).layerUnid).toBeUndefined();
+        repo.updateView(VIEW_UNID, {layerUnid: LAYER_UNID}, null);
+        expect(viewNode(repo).layerUnid).toBe(LAYER_UNID);
+    });
+
+    it('clears layerUnid when patch carries an empty string', () => {
+        seed(LAYER_UNID);
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        expect(viewNode(repo).layerUnid).toBe(LAYER_UNID);
+        repo.updateView(VIEW_UNID, {layerUnid: ''}, null);
+        expect(viewNode(repo).layerUnid).toBeUndefined();
+    });
+
+    it('leaves layerUnid alone when key is omitted from the patch', () => {
+        seed(LAYER_UNID);
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        repo.updateView(VIEW_UNID, {name: 'renamed'}, null);
+        expect(viewNode(repo).name).toBe('renamed');
+        expect(viewNode(repo).layerUnid).toBe(LAYER_UNID);
+    });
+
+    it('publishes view.update and is undoable', () => {
+        seed();
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        const events: string[] = [];
+        repo.bus.subscribe(ev => events.push(ev.op));
+        repo.updateView(VIEW_UNID, {layerUnid: LAYER_UNID}, null);
+        expect(events).toContain('view.update');
+        repo.undo(null);
+        expect(viewNode(repo).layerUnid).toBeUndefined();
+    });
+
+});

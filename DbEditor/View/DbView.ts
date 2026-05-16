@@ -4,6 +4,7 @@ import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
 import {openContextMenu} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
 import {iconEllipsis} from '../Util/Icons.js';
+import {ActiveLayerContext} from '../Table/DbTable.js';
 
 /**
  * Draggable view card on the canvas. Mirrors `DbTable` but much simpler:
@@ -21,10 +22,16 @@ export class DbView {
     private _el: HTMLDivElement;
     private _data: JsonView;
     private readonly _jsp: BrowserJsPlumbInstance;
+    private readonly _activeLayer: ActiveLayerContext | null;
 
-    public constructor(view: JsonView, jsp: BrowserJsPlumbInstance) {
+    public constructor(
+        view: JsonView,
+        jsp: BrowserJsPlumbInstance,
+        activeLayer: ActiveLayerContext | null = null
+    ) {
         this._data = view;
         this._jsp = jsp;
+        this._activeLayer = activeLayer;
         this._el = document.createElement('div');
         this._el.className = 'db-view';
         this._el.dataset.viewUnid = view.unid;
@@ -102,11 +109,22 @@ export class DbView {
         more.title = 'More actions';
         more.addEventListener('click', (e) => {
             e.stopPropagation();
-            openContextMenu(more, [
+            const items: Parameters<typeof openContextMenu>[1] = [
                 {label: 'Edit body…',  onClick: (): void => dispatch(EditorEvents.editView, {unid: this._data.unid})},
+                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickLayerForView, {viewUnid: this._data.unid})}
+            ];
+            if (this._activeLayer) {
+                const layer = this._activeLayer;
+                items.push({label: `Remove from "${layer.name}"`, onClick: (): void => dispatch(EditorEvents.removeViewFromLayer, {
+                    viewUnid: this._data.unid,
+                    layerUnid: layer.unid
+                })});
+            }
+            items.push(
                 {kind: 'separator'},
                 {label: 'Delete view', danger: true, onClick: (): void => { this._confirmDelete(); }}
-            ]);
+            );
+            openContextMenu(more, items);
         });
         actions.append(more);
 

@@ -155,7 +155,9 @@ export const SchemaUpdateViewBody = Vts.object({
     pos: Vts.optional(SchemaJsonPosition),
     select: Vts.optional(Vts.string()),
     materialized: Vts.optional(Vts.boolean()),
-    description: Vts.optional(Vts.string())
+    description: Vts.optional(Vts.string()),
+    /** Single EER-diagram membership. Empty string clears the assignment. */
+    layerUnid: Vts.optional(Vts.string())
 });
 
 export const SchemaCreateRoutineBody = Vts.object({
