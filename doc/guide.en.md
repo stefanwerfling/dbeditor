@@ -82,10 +82,13 @@ What gets imported:
 
 - Schemas and their default charset / collation
 - Tables, columns (with PK / NN / AI / UNSIGNED / UNIQUE / default / comment), indexes, foreign keys
-- Views and their `SELECT` body
+- Views and their `SELECT` body, plus their canvas position (from `ViewFigure`)
 - Routines (procedures, functions) and table-nested triggers
 - Canvas positions for tables that had a `TableFigure` in any Workbench diagram
 - EER diagrams (Workbench "Layers"), with each table assigned to its diagram
+- **Multi-diagram table membership** — a table placed on more than one Workbench diagram becomes a member of each, with its per-diagram position preserved
+
+The success alert reports how many of each (`Placed N of M tables and K of L views`, `Also: ... N tables on multiple diagrams`).
 
 Roundtrip-preserving fields Workbench needs but dbeditor doesn't model are captured opaquely and re-emitted on export, so you can open → edit → save back to `.mwb` without losing data. The sample at `sample/example.mwb` is a small demo schema used by the round-trip tests.
 
@@ -93,7 +96,7 @@ Roundtrip-preserving fields Workbench needs but dbeditor doesn't model are captu
 
 ### Menubar
 
-The top row holds seven menus:
+The top row carries the app name + version, the seven menus, inline **Undo / Redo** buttons, the zoom controls, and the auto-save indicator.
 
 - **File** — Import / Export `.mwb`, Reload config
 - **Edit** — Undo / Redo, Bulk rename, Assign to EER diagram (shortcut `L`)
@@ -102,6 +105,8 @@ The top row holds seven menus:
 - **Generate** — Generate SQL, Copy selected SQL, Generate / Preview Markdown docs
 - **Project** — Project info, Project settings, Add / Edit / Remove project
 - **Help** — Keyboard shortcuts, About
+
+The Undo / Redo arrows next to the zoom controls mirror the Edit-menu entries; they grey out when the active project has nothing on its stack.
 
 ![Insert menu showing "Add EER diagram"](./screenshots/08-menubar-insert.png)
 
@@ -115,7 +120,9 @@ The Project menu:
 
 ### Treeview
 
-The left panel groups everything inside each database into collapsible buckets: **EER diagrams**, **Tables**, **Views**, **Enums**, **Routines**. A filter field on top hides non-matching rows while keeping their ancestors visible.
+The left panel groups everything inside each database into collapsible buckets: **EER diagrams**, **Tables**, **Views**, **Enums**, **Routines**. A filter field on top hides non-matching rows while keeping their ancestors visible. Empty buckets show a faint **+ Add &lt;kind&gt;** hint that opens the same creation prompt as the container's `⋯` menu.
+
+Above the tree, a **Modell / Live** toggle switches between the design view (Modell) and a read-only live snapshot of the configured database (Live). The Live tab carries a small badge with the number of databases that have a connection configured — when it's blank, there's nothing to switch to.
 
 Click a row to make it the **active container** (the canvas shows everything in that scope). Click an EER diagram row to scope the canvas to that diagram only — the rest fades out and the diagram name appears as a sticky banner above the canvas:
 
@@ -131,6 +138,8 @@ Tables, views, and EER-diagram backdrops sit on the canvas. Drag a card to move 
 
 Foreign keys are drawn as ER-style lines between two tables with crow's-foot or one-bar terminations. Dashed lines mean the FK is nullable; auto-cardinality reads the column's PK / UNIQUE / NOT NULL flags. N:N relationships through a junction table get an extra dashed line directly between the outer tables (toggle visibility with **View → N:N**).
 
+Hovering an FK line highlights both endpoint column rows in a teal tint; hovering a column row from the other direction highlights every FK partner column it's wired to (and the hovered row itself). For a PK with many incoming references, this reveals at a glance how many tables depend on it.
+
 ### Warnings panel
 
 Below the treeview, the warnings panel lists schema-validation issues (table without PK, AI without PK, dangling FK refs, …). Click a warning to jump to its database.
@@ -144,6 +153,7 @@ Each card has a hover-only `⋯` menu in its header:
 - **Rename table** — inline rename of the table name
 - **Table options…** — engine, charset, collation, tablespace, comment
 - **Assign to EER diagram…** — single-table multi-select dialog (this table can be in several diagrams)
+- **Remove from "&lt;diagram&gt;"** — only when the canvas is scoped to a single EER diagram; clears the table's membership in that diagram without deleting it from the schema
 - **Duplicate** — deep clone with `_copy` suffix
 - **Delete table** — drops the table; cascades to FKs in other tables
 
@@ -193,7 +203,7 @@ A table that's in two diagrams can sit at different coordinates in each. When th
 
 ## Views, enums, routines
 
-- **Views** — open the view dialog (treeview double-click or canvas `⋯` → Edit body); fields: name + raw SELECT body in a monospace textarea + `MATERIALIZED` flag (Postgres only).
+- **Views** — open the view dialog (treeview double-click or canvas `⋯` → Edit body); fields: name + raw SELECT body in a monospace textarea + `MATERIALIZED` flag (Postgres only). Each view can be assigned to a single EER diagram via the card's `⋯ → Assign to EER diagram…`; in scoped view, only views belonging to that diagram appear.
 - **Enums** — name + values list with inline editing. The dialog diffs your changes against the current state and fires the matching API calls.
 - **Routines** — procedures, functions, and triggers. Body is raw SQL; the editor doesn't parse parameters.
 

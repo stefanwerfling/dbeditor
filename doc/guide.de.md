@@ -82,10 +82,13 @@ Was importiert wird:
 
 - Schemata und deren Default-Charset / Collation
 - Tabellen, Spalten (PK / NN / AI / UNSIGNED / UNIQUE / Default / Comment), Indizes, Foreign Keys
-- Views inkl. `SELECT`-Body
+- Views inkl. `SELECT`-Body und ihre Canvas-Position (`ViewFigure`)
 - Routinen (Procedures, Functions) und Trigger (tabellenintern)
 - Canvas-Positionen für Tabellen, die in irgendeinem Workbench-Diagramm eine `TableFigure` hatten
 - EER-Diagramme (Workbench "Layers") mit Tabellen-Zuordnung pro Diagramm
+- **Mehrfach-Zugehörigkeit von Tabellen** — eine Tabelle, die auf mehreren Workbench-Diagrammen platziert ist, wird in jedem Diagramm Mitglied und behält dort ihre eigene Position
+
+Die Erfolgsmeldung zählt das Ergebnis auf (`Placed N of M tables and K of L views`, `Also: ... N tables on multiple diagrams`).
 
 Roundtrip-relevante Felder, die Workbench braucht, dbeditor aber nicht modelliert, werden opak mitgeschleppt und beim Export wieder herausgeschrieben — so kannst du `.mwb` öffnen → editieren → zurückspeichern ohne Datenverlust. Das Sample unter `sample/example.mwb` ist ein kleines Demo-Schema, das die Roundtrip-Tests benutzen.
 
@@ -93,7 +96,7 @@ Roundtrip-relevante Felder, die Workbench braucht, dbeditor aber nicht modellier
 
 ### Menüleiste
 
-Die obere Zeile enthält sieben Menüs:
+Die obere Zeile trägt den App-Namen + Version, die sieben Menüs, inline **Undo / Redo**-Buttons, die Zoom-Steuerung und den Auto-Save-Indikator.
 
 - **File** — Import / Export `.mwb`, Reload config
 - **Edit** — Undo / Redo, Bulk rename, Assign to EER diagram (Shortcut `L`)
@@ -102,6 +105,8 @@ Die obere Zeile enthält sieben Menüs:
 - **Generate** — SQL generieren, ausgewähltes SQL kopieren, Markdown-Docs generieren / Vorschau
 - **Project** — Project info, Project settings, Add / Edit / Remove project
 - **Help** — Keyboard shortcuts, About
+
+Die Undo / Redo-Pfeile neben der Zoom-Steuerung spiegeln die Edit-Menü-Einträge; sie werden ausgegraut, wenn der aktive Projekt-Stack leer ist.
 
 ![Insert-Menü mit "Add EER diagram"](./screenshots/08-menubar-insert.png)
 
@@ -115,7 +120,9 @@ Das Project-Menü:
 
 ### Treeview
 
-Das linke Panel gruppiert alles unter jeder Datenbank in zusammenklappbare Buckets: **EER diagrams**, **Tables**, **Views**, **Enums**, **Routines**. Das Filter-Feld oben blendet nicht-passende Zeilen aus, hält aber deren Eltern sichtbar.
+Das linke Panel gruppiert alles unter jeder Datenbank in zusammenklappbare Buckets: **EER diagrams**, **Tables**, **Views**, **Enums**, **Routines**. Das Filter-Feld oben blendet nicht-passende Zeilen aus, hält aber deren Eltern sichtbar. Leere Buckets zeigen einen blassen **+ Add &lt;Kind&gt;**-Hinweis, der denselben Anlege-Dialog wie das `⋯`-Menü des Containers öffnet.
+
+Über dem Baum schaltet ein **Modell / Live**-Toggle zwischen der Design-Ansicht (Modell) und einem read-only Live-Snapshot der konfigurierten Datenbank (Live) um. Der Live-Tab trägt ein kleines Badge mit der Anzahl der Datenbanken, für die eine Connection konfiguriert ist — ist es leer, gibt es nichts umzuschalten.
 
 Klick auf eine Zeile macht sie zum **aktiven Container** (der Canvas zeigt nur deren Inhalt). Klick auf eine EER-Diagramm-Zeile scoped den Canvas auf nur dieses Diagramm — der Rest wird ausgeblendet und der Diagramm-Name erscheint als Sticky-Banner über dem Canvas:
 
@@ -131,6 +138,8 @@ Tabellen, Views und EER-Diagramm-Hintergründe liegen auf dem Canvas. Karte zieh
 
 Foreign Keys werden als ER-Style-Linien mit Crow's-Foot- oder One-Bar-Terminierungen gezeichnet. Gestrichelte Linie heißt nullable; die Kardinalität ergibt sich automatisch aus PK / UNIQUE / NOT NULL der Spalten. N:N-Beziehungen über eine Junction-Tabelle bekommen eine zusätzliche gestrichelte Linie direkt zwischen den Außen-Tabellen (Sichtbarkeit umschaltbar über **View → N:N**).
 
+Wenn du eine FK-Linie überfährst, werden beide Endpunkt-Spalten in einem Teal-Ton hervorgehoben; umgekehrt — fährst du über eine Spaltenzeile, werden alle FK-Partner-Spalten markiert (und die überfahrene Zeile selbst). Bei einem PK mit vielen eingehenden Referenzen sieht man so auf einen Blick, wie viele Tabellen davon abhängen.
+
 ### Warnungs-Panel
 
 Unter der Treeview listet das Warnungs-Panel Schema-Validierungs-Probleme (Tabelle ohne PK, AI ohne PK, hängende FK-Referenzen, …). Klick auf eine Warnung springt zur betroffenen Datenbank.
@@ -144,6 +153,7 @@ Jede Karte hat ein nur-bei-Hover sichtbares `⋯`-Menü im Header:
 - **Rename table** — Inline-Rename des Tabellennamens
 - **Table options…** — Engine, Charset, Collation, Tablespace, Comment
 - **Assign to EER diagram…** — Single-Table Multi-Select-Dialog (Tabelle kann in mehreren Diagrammen sein)
+- **Remove from "&lt;Diagramm&gt;"** — nur wenn der Canvas auf ein einzelnes EER-Diagramm gescoped ist; entfernt die Tabelle aus genau diesem Diagramm, ohne sie aus dem Schema zu löschen
 - **Duplicate** — Deep-Clone mit `_copy`-Suffix
 - **Delete table** — löscht die Tabelle und kaskadiert auf FKs in anderen Tabellen
 
@@ -193,7 +203,7 @@ Eine Tabelle, die in zwei Diagrammen ist, kann in jedem eine andere Position hab
 
 ## Views, Enums, Routinen
 
-- **Views** — View-Dialog öffnen (Treeview-Doppelklick oder Canvas-`⋯` → Edit body); Felder: Name + Raw-SELECT-Body in Monospace-Textfeld + `MATERIALIZED`-Flag (nur Postgres).
+- **Views** — View-Dialog öffnen (Treeview-Doppelklick oder Canvas-`⋯` → Edit body); Felder: Name + Raw-SELECT-Body in Monospace-Textfeld + `MATERIALIZED`-Flag (nur Postgres). Jede View kann über das Karten-`⋯ → Assign to EER diagram…` einem einzelnen EER-Diagramm zugeordnet werden; im Diagramm-Scope erscheinen nur Views, die zu diesem Diagramm gehören.
 - **Enums** — Name + Werte-Liste mit Inline-Edit. Der Dialog diffed deine Änderungen gegen den aktuellen Stand und feuert die passenden API-Calls.
 - **Routinen** — Procedures, Functions und Trigger. Body ist Raw-SQL; der Editor parst keine Parameter.
 
