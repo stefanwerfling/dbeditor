@@ -245,7 +245,13 @@ export class Treeview {
             || node.tables.length || node.enums.length || node.views.length
             || (node.routines && node.routines.length)
             || (node.layers && node.layers.length);
-        if (hasChildren) {
+        /*
+         * Containers always render their bucket structure so the
+         * empty-state "+ Add X" hints are reachable on a fresh
+         * database. Non-container leafs only render children when
+         * they have any.
+         */
+        if (hasChildren || isContainer) {
             const children = document.createElement('div');
             children.className = 'treeview-entry-children';
             /* Folders/databases render entries (sub-containers) inline; non-container nodes don't have entrys-as-children. */
