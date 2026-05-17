@@ -84,6 +84,17 @@ export class DbFsRepository {
     private _undoStack: JsonData[] = [];
     private _redoStack: JsonData[] = [];
 
+    /*
+     * Whole-file MWB roundtrip preservation. Set immediately after a
+     * `.mwb` import in replace mode; cleared by `_commit` on any
+     * mutation. While present, `export-mwb` returns these bytes
+     * verbatim instead of regenerating via MwbWriter — useful when
+     * the user opens a .mwb in dbeditor, makes no changes, and saves
+     * it back: byte-identical output. The persisted store ignores
+     * this field; restart drops it (in-memory only).
+     */
+    private _mwbOriginalBytes: Buffer | null = null;
+
     public constructor(project: DbProject) {
         this._project = project;
         this._data = this._loadFromDisk();
@@ -225,9 +236,25 @@ export class DbFsRepository {
     private _commit(op: string, body: unknown, clientId: string | null): number {
         this._rev += 1;
         this._pushUndoSnapshot();
+        /*
+         * Any mutation invalidates the byte-identical roundtrip
+         * passthrough — the model and the cached original-bytes are
+         * now divergent. The import route re-arms via
+         * `setMwbOriginalBytes` AFTER calling `replaceFs` so the
+         * incoming bytes don't get cleared by their own commit.
+         */
+        this._mwbOriginalBytes = null;
         this._bus.publish({ rev: this._rev, op: op, clientId: clientId, body: body });
         this._scheduleFlush();
         return this._rev;
+    }
+
+    public setMwbOriginalBytes(bytes: Buffer): void {
+        this._mwbOriginalBytes = bytes;
+    }
+
+    public getMwbOriginalBytes(): Buffer | null {
+        return this._mwbOriginalBytes;
     }
 
     /*

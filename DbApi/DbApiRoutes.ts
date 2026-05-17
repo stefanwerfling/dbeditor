@@ -460,6 +460,14 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                         routines: []
                     };
                     rev = repo.replaceFs(fsRoot as any, clientId(req));
+                    /*
+                     * Re-arm the whole-file roundtrip passthrough so
+                     * the very next `export-mwb` (with no edits) gives
+                     * back byte-identical bytes. Replace-mode only —
+                     * append doesn't make sense here since the model
+                     * now has more than just the imported content.
+                     */
+                    repo.setMwbOriginalBytes(buf);
                 } else {
                     res.status(400).json({error: `unknown mode "${mode}" — must be "replace" or "append"`});
                     return;
@@ -502,7 +510,18 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
     app.post('/api/projects/:pid/export-mwb', (req, res) => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}
         try {
-            const buf = writeMwb(repo.data.fs);
+            /*
+             * Phase E whole-file passthrough: if the project was
+             * imported from a .mwb in this session AND nothing has
+             * been edited since, hand back the original bytes
+             * verbatim. Lets users open → save round-trip without
+             * the generator's normalisation drift (attribute order,
+             * default placeholders, whitespace). Any mutation since
+             * import flips this to null and we fall back to
+             * regeneration.
+             */
+            const original = repo.getMwbOriginalBytes();
+            const buf = original ?? writeMwb(repo.data.fs);
             res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Length', String(buf.length));
             res.end(buf);
