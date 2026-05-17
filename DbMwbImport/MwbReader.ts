@@ -978,6 +978,8 @@ export type MwbImportResult = {
      * been touched since import.
      */
     routineOriginalXml: Map<string, string>;
+    /** Same as `routineOriginalXml` but for `db.mysql.View` blocks. */
+    viewOriginalXml: Map<string, string>;
 };
 
 /**
@@ -1015,13 +1017,16 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
     const tablePlacementsMap = figureData.tablePlacements;
     /*
      * Phase E.2 per-object cache: capture the raw bytes of every
-     * `db.mysql.Routine` block once from the source XML. Keyed by
-     * the GRT id; later mapped to our JsonRoutine.unid as routines
-     * are parsed. Triggers (`db.mysql.Trigger`, nested in tables)
-     * are deliberately out of scope for this pilot.
+     * `db.mysql.Routine` and `db.mysql.View` block once from the
+     * source XML. Keyed by the GRT id; later mapped to our model
+     * `.unid` as the entity is parsed. Triggers (nested in tables)
+     * and Tables (FK cross-ref id consistency) are still out of
+     * scope.
      */
     const routineXmlByWbId = extractObjectXmlByGrtId(xml, 'db.mysql.Routine');
     const routineOriginalXml = new Map<string, string>();
+    const viewXmlByWbId = extractObjectXmlByGrtId(xml, 'db.mysql.View');
+    const viewOriginalXml = new Map<string, string>();
 
     const databases: JsonDataDB[] = [];
     let tableCount = 0;
@@ -1093,10 +1098,13 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         const wbViews = viewsNode ? asArray(viewsNode.value) : [];
         const views: JsonView[] = [];
         for (const v of wbViews) {
-            views.push(parseView(v, viewFigurePos));
+            const parsedView = parseView(v, viewFigurePos);
+            views.push(parsedView);
             viewCount++;
             const wbViewId = v['@_id'] ?? '';
             if (viewFigurePos.has(wbViewId)) {positionedViewCount++;}
+            const rawV = viewXmlByWbId.get(wbViewId);
+            if (rawV) {viewOriginalXml.set(parsedView.unid, rawV);}
         }
 
         const routinesNode = child(schema, 'routines');
@@ -1190,7 +1198,8 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         triggerCount: triggerCount,
         layerCount: figureData.layers.length,
         databases: databases,
-        routineOriginalXml: routineOriginalXml
+        routineOriginalXml: routineOriginalXml,
+        viewOriginalXml: viewOriginalXml
     };
 };
 

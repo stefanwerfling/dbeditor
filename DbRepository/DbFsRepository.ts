@@ -104,6 +104,7 @@ export class DbFsRepository {
      * `replaceFs` clears all entries.
      */
     private _mwbOriginalRoutineXml: Map<string, string> = new Map();
+    private _mwbOriginalViewXml: Map<string, string> = new Map();
 
     public constructor(project: DbProject) {
         this._project = project;
@@ -273,6 +274,14 @@ export class DbFsRepository {
 
     public getMwbRoutineOriginalXml(): Map<string, string> {
         return this._mwbOriginalRoutineXml;
+    }
+
+    public setMwbViewOriginalXml(map: Map<string, string>): void {
+        this._mwbOriginalViewXml = new Map(map);
+    }
+
+    public getMwbViewOriginalXml(): Map<string, string> {
+        return this._mwbOriginalViewXml;
     }
 
     /*
@@ -733,6 +742,7 @@ export class DbFsRepository {
     }
 
     public updateView(unid: string, patch: Partial<Pick<JsonView, 'name' | 'pos' | 'select' | 'materialized' | 'description' | 'layerUnid' | 'layerPlacements'>>, clientId: string | null): number {
+        this._mwbOriginalViewXml.delete(unid);
         const hit = DbFsTreeWalker.findView(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`view ${unid} not found`);}
         if (patch.name !== undefined) {hit.view.name = patch.name;}
@@ -753,6 +763,7 @@ export class DbFsRepository {
     }
 
     public deleteView(unid: string, clientId: string | null): number {
+        this._mwbOriginalViewXml.delete(unid);
         const hit = DbFsTreeWalker.findView(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`view ${unid} not found`);}
         hit.container.views = hit.container.views.filter(v => v.unid !== unid);
@@ -893,6 +904,7 @@ export class DbFsRepository {
     public replaceFs(newFs: JsonDataDB, clientId: string | null): number {
         /* Whole tree changed — every per-object cache is now stale. */
         this._mwbOriginalRoutineXml.clear();
+        this._mwbOriginalViewXml.clear();
         this._data = { ...this._data, fs: structuredClone(newFs) };
         return this._commit('fs.replaced', { kind: 'import' }, clientId);
     }

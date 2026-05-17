@@ -233,3 +233,73 @@ describe('DbFsRepository — Phase E.2 per-routine XML cache', () => {
     });
 
 });
+
+describe('DbFsRepository — Phase E.2 per-view XML cache', () => {
+
+    const seedWithView = (): {repo: DbFsRepository; viewUnid: string;} => {
+        const data = {
+            fs: {
+                unid: 'root',
+                name: 'root',
+                type: JsonDataDBType.root,
+                entrys: [{
+                    unid: 'db-1',
+                    name: 'main',
+                    type: JsonDataDBType.database,
+                    istoggle: true,
+                    entrys: [],
+                    tables: [],
+                    views: [{
+                        unid: 'v-1',
+                        name: 'active_users',
+                        pos: {x: 0, y: 0},
+                        select: 'SELECT * FROM users WHERE active = 1'
+                    }],
+                    enums: []
+                }],
+                tables: [], views: [], enums: []
+            },
+            editor: {}
+        };
+        fs.writeFileSync(tmpFile, JSON.stringify(data));
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        return {repo: repo, viewUnid: 'v-1'};
+    };
+
+    it('updateView drops the matching entry', () => {
+        const {repo, viewUnid} = seedWithView();
+        repo.setMwbViewOriginalXml(new Map([[viewUnid, '<raw/>']]));
+        expect(repo.getMwbViewOriginalXml().has(viewUnid)).toBe(true);
+        repo.updateView(viewUnid, {select: 'SELECT 2'}, null);
+        expect(repo.getMwbViewOriginalXml().has(viewUnid)).toBe(false);
+    });
+
+    it('deleteView drops the matching entry', () => {
+        const {repo, viewUnid} = seedWithView();
+        repo.setMwbViewOriginalXml(new Map([[viewUnid, '<raw/>']]));
+        repo.deleteView(viewUnid, null);
+        expect(repo.getMwbViewOriginalXml().has(viewUnid)).toBe(false);
+    });
+
+    it('routine + view caches are independent — updating one keeps the other', () => {
+        const {repo, viewUnid} = seedWithView();
+        repo.setMwbViewOriginalXml(new Map([[viewUnid, '<v/>']]));
+        repo.setMwbRoutineOriginalXml(new Map([['some-routine', '<r/>']]));
+        repo.updateView(viewUnid, {select: 'SELECT 3'}, null);
+        expect(repo.getMwbRoutineOriginalXml().has('some-routine')).toBe(true);
+    });
+
+    it('replaceFs clears the view map too', () => {
+        const {repo, viewUnid} = seedWithView();
+        repo.setMwbViewOriginalXml(new Map([[viewUnid, '<raw/>']]));
+        repo.replaceFs({
+            unid: 'root',
+            name: 'root',
+            type: JsonDataDBType.root,
+            entrys: [],
+            tables: [], views: [], enums: []
+        }, null);
+        expect(repo.getMwbViewOriginalXml().size).toBe(0);
+    });
+
+});

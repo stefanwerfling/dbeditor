@@ -477,6 +477,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                      * for that single routine.
                      */
                     repo.setMwbRoutineOriginalXml(result.routineOriginalXml);
+                    repo.setMwbViewOriginalXml(result.viewOriginalXml);
                 } else {
                     res.status(400).json({error: `unknown mode "${mode}" — must be "replace" or "append"`});
                     return;
@@ -531,7 +532,8 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
              */
             const original = repo.getMwbOriginalBytes();
             const buf = original ?? writeMwb(repo.data.fs, {
-                routineXmlByUnid: repo.getMwbRoutineOriginalXml()
+                routineXmlByUnid: repo.getMwbRoutineOriginalXml(),
+                viewXmlByUnid: repo.getMwbViewOriginalXml()
             });
             res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Length', String(buf.length));

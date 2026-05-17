@@ -349,7 +349,37 @@ const writeTable = (table: JsonTable, schemaId: string, ids: IdMaps, depth: numb
     return s;
 };
 
-const writeView = (v: JsonView, schemaId: string, ids: IdMaps, depth: number): string => {
+/*
+ * Phase E.2 owner-link rewrite. Cached entity XML carries the
+ * original Workbench schema id in its owner link; we point it at
+ * the current schemaId so the cross-reference resolves in the
+ * regenerated document scaffold.
+ */
+const rewriteOwnerLink = (xml: string, newOwner: string): string =>
+    xml.replace(/(<link\b[^>]*\bkey="owner"[^>]*>)[^<]+(<\/link>)/gu, `$1${newOwner}$2`);
+
+/*
+ * Phase E.2 root-id extraction. The cached XML opens with
+ * `<value type="object" ... id="UUID">` — pull UUID so other
+ * entities that cross-ref this one (ViewFigures pointing at a
+ * view, etc.) emit links that resolve in the regenerated doc.
+ */
+const extractRootId = (xml: string): string | null => {
+    const m = xml.match(/<value\b[^>]*\bid="([^"]+)"/u);
+    return m ? m[1] : null;
+};
+
+const writeView = (
+    v: JsonView,
+    schemaId: string,
+    ids: IdMaps,
+    depth: number,
+    cachedXml: string | undefined
+): string => {
+    if (cachedXml) {
+        const patched = rewriteOwnerLink(cachedXml, schemaId);
+        return patched.endsWith('\n') ? patched : `${patched}\n`;
+    }
     const id = ids.viewId.get(v.unid) ?? randomUUID();
     ids.viewId.set(v.unid, id);
     const ptAttrs = writePassthroughAttrs(v.wbPassthrough);
@@ -363,15 +393,6 @@ const writeView = (v: JsonView, schemaId: string, ids: IdMaps, depth: number): s
     s += `${I(depth)}</value>\n`;
     return s;
 };
-
-/*
- * Phase E.2 owner-link rewrite. Cached routine XML carries the
- * original Workbench schema id in its owner link; we point it at
- * the current schemaId so the cross-reference resolves in the
- * regenerated document scaffold.
- */
-const rewriteOwnerLink = (xml: string, newOwner: string): string =>
-    xml.replace(/(<link\b[^>]*\bkey="owner"[^>]*>)[^<]+(<\/link>)/gu, `$1${newOwner}$2`);
 
 const writeRoutine = (
     r: JsonRoutine,
@@ -411,13 +432,17 @@ const writeRoutine = (
 
 type WriteMwbOptions = {
     /**
-     * Phase E.2 per-object roundtrip cache. Map of routine.unid →
-     * raw outer-XML bytes of the source `db.mysql.Routine` struct.
-     * When provided, `writeRoutine` re-emits these bytes (with the
-     * owner link patched to the current schemaId) instead of
+     * Phase E.2 per-object roundtrip caches. Map of model unid →
+     * raw outer-XML bytes of the matching source struct. When
+     * provided, the writer re-emits these bytes (with the owner
+     * link patched to the current schemaId) instead of
      * regenerating. Missing entries fall back to regeneration.
+     * For views, the writer also pre-populates ids.viewId from the
+     * cached XML's `id="…"` attribute so ViewFigures keep pointing
+     * at the actual cached struct rather than a fresh randomUUID().
      */
     routineXmlByUnid?: Map<string, string>;
+    viewXmlByUnid?: Map<string, string>;
 };
 
 const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number, opts: WriteMwbOptions): string => {
@@ -480,7 +505,7 @@ const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number, opts: WriteMwbO
 
     s += `${I(depth + 1)}<value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">\n`;
     for (const v of db.views ?? []) {
-        s += writeView(v, schemaId, ids, depth + 2);
+        s += writeView(v, schemaId, ids, depth + 2, opts.viewXmlByUnid?.get(v.unid));
     }
     s += `${I(depth + 1)}</value>\n`;
 
@@ -663,7 +688,15 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions
             }
         }
         for (const v of db.views ?? []) {
-            ids.viewId.set(v.unid, randomUUID());
+            /*
+             * Cached view? Lift the original GRT id out of the
+             * cached XML so ViewFigures' `view` links still resolve
+             * after re-emit. Without this, ids.viewId would mint a
+             * new randomUUID() and the figure would dangle.
+             */
+            const cached = opts.viewXmlByUnid?.get(v.unid);
+            const id = (cached && extractRootId(cached)) ?? randomUUID();
+            ids.viewId.set(v.unid, id);
         }
     }
     /* Layers are minted before figures so figure→layer links resolve. */

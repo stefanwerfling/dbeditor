@@ -473,4 +473,31 @@ describe('writeMwb — Phase E.2 per-routine passthrough', () => {
         expect(re.databases[0].routines?.[0]?.name).toBe('fresh_sp');
     });
 
+    it('view cache wins over model + pre-mints ids.viewId from cached GRT id', () => {
+        const db: JsonDataDB = {
+            unid: 'db-1', name: 'app', type: JsonDataDBType.database, entrys: [],
+            tables: [], enums: [], routines: [],
+            views: [{
+                unid: 'v-cached', name: 'WRITER_NAME', pos: {x: 0, y: 0},
+                select: 'WRITER_BODY'
+            }]
+        };
+        const cachedViewXml = `      <value type="object" struct-name="db.mysql.View" id="wb-view-id-99">
+        <value type="string" key="sqlDefinition">SELECT cached_body FROM original</value>
+        <value type="string" key="name">preserved_view</value>
+        <value type="string" key="oldName">preserved_view</value>
+        <link type="object" struct-name="GrtObject" key="owner">OLD_OWNER</link>
+      </value>`;
+        const out = writeMwb([db], {viewXmlByUnid: new Map([['v-cached', cachedViewXml]])});
+        const re = parseMwb(out);
+        const v = re.databases[0].views[0];
+        expect(v.name).toBe('preserved_view');
+        expect(v.select).toBe('SELECT cached_body FROM original');
+        /* Owner placeholder gone after rewrite. */
+        const xmlBack = new AdmZip(out).getEntry('document.mwb.xml')!.getData().toString('utf-8');
+        expect(xmlBack).not.toContain('OLD_OWNER');
+        /* Cached id is what the document carries (proves ids.viewId pre-mint). */
+        expect(xmlBack).toContain('id="wb-view-id-99"');
+    });
+
 });
