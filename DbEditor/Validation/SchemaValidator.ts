@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonEnum, JsonLayer, JsonTable} from '../JsonData.js';
+import {JsonDataDB, JsonEnum, JsonLayer, JsonTable, JsonView} from '../JsonData.js';
 
 export type WarningSeverity = 'error' | 'warning' | 'info';
 
@@ -28,6 +28,8 @@ const checkTable = (
      * `deleteLayer` deliberately leaves the ref intact so undo can
      * restore the layer; this surfaces it in the warnings panel so
      * the user can clear it (or recreate the layer) when they're done.
+     * Multi-membership placements get the same treatment — one warning
+     * per dangling reference rather than collapsing to one summary.
      */
     if (t.layerUnid && !layersByUnid.has(t.layerUnid)) {
         out.push({
@@ -35,6 +37,15 @@ const checkTable = (
             message: `Table "${t.name}" references a deleted layer.`,
             ...base
         });
+    }
+    for (const p of t.layerPlacements ?? []) {
+        if (!layersByUnid.has(p.layerUnid)) {
+            out.push({
+                severity: 'warning',
+                message: `Table "${t.name}" placement references a deleted layer.`,
+                ...base
+            });
+        }
     }
 
     if (!t.columns.length) {
@@ -144,6 +155,21 @@ const checkTable = (
     }
 };
 
+const checkView = (
+    v: JsonView,
+    container: JsonDataDB | null,
+    layersByUnid: Map<string, JsonLayer>,
+    out: SchemaWarning[]
+): void => {
+    if (v.layerUnid && !layersByUnid.has(v.layerUnid)) {
+        out.push({
+            severity: 'warning',
+            message: `View "${v.name}" references a deleted layer.`,
+            containerUnid: container?.unid
+        });
+    }
+};
+
 const walk = (
     node: JsonDataDB,
     container: JsonDataDB | null,
@@ -154,6 +180,9 @@ const walk = (
     const myContainer = isContainer(node) ? node : container;
     for (const t of node.tables) {
         checkTable(t, myContainer, enumsByUnid, layersByUnid, out);
+    }
+    for (const v of node.views) {
+        checkView(v, myContainer, layersByUnid, out);
     }
     for (const child of node.entrys as JsonDataDB[]) {
         walk(child, myContainer, enumsByUnid, layersByUnid, out);

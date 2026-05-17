@@ -173,6 +173,39 @@ describe('SchemaValidator — dangling layerUnid', () => {
         expect(w.find(x => x.message.includes('deleted layer'))).toBeUndefined();
     });
 
+    it('flags a layerPlacements entry pointing at a deleted layer', () => {
+        const w = validateSchema(root([db('mydb', {
+            tables: [{
+                unid: 't-1', name: 'user', pos: {x: 0, y: 0},
+                columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
+                indexes: [], foreignKeys: [],
+                layerUnid: 'L1',
+                layerPlacements: [
+                    {layerUnid: 'L1', pos: {x: 0, y: 0}},
+                    {layerUnid: 'gone', pos: {x: 100, y: 100}}
+                ]
+            }],
+            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+        })]));
+        expect(messages(w)).toContain('Table "user" placement references a deleted layer.');
+    });
+
+    it('flags a view whose layerUnid does not resolve', () => {
+        const dbNode = db('mydb', {});
+        dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', layerUnid: 'gone'}];
+        const w = validateSchema(root([dbNode]));
+        expect(messages(w)).toContain('View "active_users" references a deleted layer.');
+    });
+
+    it('does not flag a view whose layerUnid resolves', () => {
+        const dbNode = db('mydb', {
+            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+        });
+        dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', layerUnid: 'L1'}];
+        const w = validateSchema(root([dbNode]));
+        expect(w.find(x => x.message.includes('deleted layer'))).toBeUndefined();
+    });
+
 });
 
 describe('SchemaValidator — duplicate table names within database', () => {
