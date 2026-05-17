@@ -49,8 +49,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
     {category: 'Selection', keys: 'Shift + click',          label: 'Add card to selection'},
     {category: 'Selection', keys: 'Ctrl/Cmd + click',       label: 'Toggle card in selection'},
     {category: 'Selection', keys: 'Drag from background',   label: 'Rubber-band select'},
-    {category: 'Selection', keys: 'Click background',       label: 'Clear selection'},
-    {category: 'Canvas',    keys: 'Alt + drag background',  label: 'Sketch a new EER diagram (asks for name on release)'}
+    {category: 'Selection', keys: 'Click background',       label: 'Clear selection'}
 ];
 
 export const categoriesInOrder: ShortcutCategory[] = ['Edit', 'Navigate', 'Canvas', 'Selection'];

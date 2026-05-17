@@ -146,7 +146,7 @@ Every row has a hover-only `⋯` menu with row-appropriate actions (rename inlin
 
 ### Canvas
 
-Tables, views, and EER-diagram backdrops sit on the canvas. Drag a card to move it; drag the SE corner of a diagram backdrop to resize it; double-click an item's title to rename inline.
+Tables and views sit on the canvas. Drag a card to move it; double-click an item's title to rename inline. When scoped to an EER diagram, any "Group" rectangles defined inside that diagram are also visible — drag their label to move them, drag the SE corner to resize, click the `⋯` to rename or delete.
 
 Foreign keys are drawn as ER-style lines between two tables with crow's-foot or one-bar terminations. Dashed lines mean the FK is nullable; auto-cardinality reads the column's PK / UNIQUE / NOT NULL flags. N:N relationships through a junction table get an extra dashed line directly between the outer tables (toggle visibility with **View → N:N**).
 
@@ -190,28 +190,32 @@ Composite foreign keys are rendered as one line per column pair so you can see e
 
 ## EER diagrams
 
-EER diagrams are visual grouping rectangles for a subset of your tables. A single schema can have many diagrams; tables can belong to one or several diagrams, each with its own per-diagram position.
+An EER diagram is a named "tab" that scopes the canvas to a subset of your tables and views. A single schema can have many diagrams; tables can belong to one or several diagrams, each with its own per-diagram position. Diagrams are purely logical — they have no canvas rectangle of their own. Click a diagram in the treeview to scope the canvas to it; click the scope-banner `×` (or another container) to clear the scope.
+
+In the treeview, every diagram row carries a chevron when it has members; click it to expand and see the member tables and views as nested rows.
 
 ### Creating a diagram
 
-Three ways:
+Two ways:
 
 1. Treeview → database row `⋯` → **Add EER diagram** (see screenshot above)
 2. Topbar **Insert → Add EER diagram**
-3. **Alt + drag** on empty canvas space to sketch the bounding rectangle, name on release
 
 ### Adding tables to a diagram
 
-Four ways:
+Three ways:
 
-1. **Drag a table card** onto a diagram's rectangle on the canvas. If the drop position lands inside the rectangle, the table becomes a member (its primary `layerUnid` is set if empty, otherwise an additional placement is added).
-2. **Drag a treeview table row** onto a treeview EER-diagram row (blue drop-target highlight).
-3. **Table card ⋯ menu → Assign to EER diagram…** opens a checkbox dialog. Tick every diagram this table should appear in. First checked becomes the primary diagram; the rest become additional placements with independent positions.
-4. **Press `L`** with one or more tables selected.
+1. **Drag a treeview table row** onto a treeview EER-diagram row (blue drop-target highlight).
+2. **Table card ⋯ menu → Assign to EER diagram…** opens a checkbox dialog. Tick every diagram this table should appear in. First checked becomes the primary diagram; the rest become additional placements with independent positions.
+3. **Press `L`** with one or more tables selected.
 
 ### Multi-diagram positions
 
 A table that's in two diagrams can sit at different coordinates in each. When the canvas is scoped to a diagram (you clicked the diagram's treeview row), dragging a card writes to that diagram's per-placement position. Outside any diagram scope, dragging writes to the table's "home" position used in the unscoped view.
+
+### Groups (visual grouping rectangles)
+
+Inside a diagram you can draw "Group" rectangles to visually cluster related cards — the same concept as Workbench's Layers. Groups have a name, position, size, and optional background color, and they only render when the canvas is scoped to their parent diagram. Group membership is implicit: a card is "in" a group when its position falls inside the group's bbox. Imported Workbench Layers (non-rootLayer) become Groups automatically.
 
 ## Views, enums, routines
 
@@ -328,7 +332,6 @@ Open with **Help → Keyboard shortcuts** or `?`. Highlights:
 | `L` | Assign selected table(s) to an EER diagram |
 | `F` | Fit canvas to view |
 | `Delete` / `Backspace` | Delete selected |
-| `Alt + drag` (empty canvas) | Sketch a new EER diagram |
 | `Shift / Ctrl + click` | Additive / toggle selection |
 | `Drag` (empty canvas) | Rubber-band select |
 | `?` | This help dialog |

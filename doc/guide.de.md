@@ -146,7 +146,7 @@ Jede Zeile hat ein nur-bei-Hover sichtbares `⋯`-Menü mit zeilen-passenden Akt
 
 ### Canvas
 
-Tabellen, Views und EER-Diagramm-Hintergründe liegen auf dem Canvas. Karte ziehen verschiebt sie; SE-Ecke eines Diagramm-Hintergrunds zieht ihn größer/kleiner; Doppelklick auf den Titel-Bereich erlaubt Inline-Rename.
+Tabellen und Views liegen auf dem Canvas. Karte ziehen verschiebt sie; Doppelklick auf den Titel-Bereich erlaubt Inline-Rename. Im Diagramm-Scope sind zusätzlich die in diesem Diagramm definierten "Group"-Rechtecke sichtbar — Label ziehen verschiebt, SE-Ecke ziehen ändert die Größe, `⋯` öffnet Rename/Delete.
 
 Foreign Keys werden als ER-Style-Linien mit Crow's-Foot- oder One-Bar-Terminierungen gezeichnet. Gestrichelte Linie heißt nullable; die Kardinalität ergibt sich automatisch aus PK / UNIQUE / NOT NULL der Spalten. N:N-Beziehungen über eine Junction-Tabelle bekommen eine zusätzliche gestrichelte Linie direkt zwischen den Außen-Tabellen (Sichtbarkeit umschaltbar über **View → N:N**).
 
@@ -190,28 +190,32 @@ Composite Foreign Keys werden als eine Linie pro Spalten-Paar gezeichnet, damit 
 
 ## EER-Diagramme
 
-EER-Diagramme sind visuelle Gruppierungs-Rechtecke für eine Teilmenge deiner Tabellen. Ein einzelnes Schema kann beliebig viele Diagramme haben; Tabellen können einem oder mehreren Diagrammen angehören, jeweils mit eigener Position pro Diagramm.
+Ein EER-Diagramm ist ein benannter "Tab", der den Canvas auf eine Teilmenge deiner Tabellen und Views einschränkt. Ein Schema kann beliebig viele Diagramme haben; Tabellen können einem oder mehreren Diagrammen angehören, jeweils mit eigener Position pro Diagramm. Diagramme sind rein logisch — sie haben kein eigenes Rechteck auf dem Canvas. Klick auf ein Diagramm in der Treeview scoped den Canvas darauf; `×` auf dem Scope-Banner (oder ein anderer Container) hebt den Scope auf.
+
+In der Treeview hat jede Diagramm-Zeile einen Chevron, wenn sie Mitglieder hat — Klick darauf klappt die enthaltenen Tabellen und Views als verschachtelte Zeilen auf.
 
 ### Diagramm erstellen
 
-Drei Wege:
+Zwei Wege:
 
 1. Treeview → Datenbank-Zeile `⋯` → **Add EER diagram** (Screenshot oben)
 2. Menüleiste **Insert → Add EER diagram**
-3. **Alt + drag** auf leerem Canvas zieht das Bounding-Rectangle, Name beim Loslassen
 
 ### Tabellen zu einem Diagramm hinzufügen
 
-Vier Wege:
+Drei Wege:
 
-1. **Tabellen-Karte** auf das Diagramm-Rechteck auf dem Canvas droppen. Wenn die Drop-Position innerhalb des Rechtecks landet, wird die Tabelle Mitglied (primärer `layerUnid` wird gesetzt, falls leer, sonst kommt eine zusätzliche Placement-Entry dazu).
-2. **Treeview-Tabellenzeile** auf eine Treeview-EER-Diagramm-Zeile ziehen (blaue Drop-Target-Hervorhebung).
-3. **Tabellen-Karten-`⋯`-Menü → Assign to EER diagram…** öffnet einen Checkbox-Dialog. Jedes Diagramm anhaken, in dem die Tabelle erscheinen soll. Erstes angehaktes wird primäres Diagramm; Rest werden zusätzliche Placements mit unabhängigen Positionen.
-4. **Taste `L`** mit einer oder mehreren markierten Tabellen.
+1. **Treeview-Tabellenzeile** auf eine Treeview-EER-Diagramm-Zeile ziehen (blaue Drop-Target-Hervorhebung).
+2. **Tabellen-Karten-`⋯`-Menü → Assign to EER diagram…** öffnet einen Checkbox-Dialog. Jedes Diagramm anhaken, in dem die Tabelle erscheinen soll. Erstes angehaktes wird primäres Diagramm; Rest werden zusätzliche Placements mit unabhängigen Positionen.
+3. **Taste `L`** mit einer oder mehreren markierten Tabellen.
 
 ### Multi-Diagramm-Positionen
 
 Eine Tabelle, die in zwei Diagrammen ist, kann in jedem eine andere Position haben. Im Diagramm-Scope (du hast auf eine Diagramm-Treeview-Zeile geklickt) schreibt das Ziehen einer Karte in die Placement-Position dieses Diagramms. Außerhalb jedes Scopes schreibt das Ziehen in die "Home-Position" der Tabelle, die im unscoped View benutzt wird.
+
+### Groups (visuelle Gruppierungs-Rechtecke)
+
+Innerhalb eines Diagramms kannst du "Group"-Rechtecke zeichnen, um zusammengehörige Karten visuell zu clustern — dasselbe Konzept wie Workbench-Layers. Groups haben Name, Position, Größe und optionale Hintergrundfarbe und sind nur sichtbar, wenn der Canvas auf ihr Parent-Diagramm gescoped ist. Group-Mitgliedschaft ist implizit: eine Karte ist "in" einer Group, wenn ihre Position in deren Bbox liegt. Beim Workbench-Import werden non-rootLayer-Strukturen automatisch zu Groups.
 
 ## Views, Enums, Routinen
 
@@ -328,7 +332,6 @@ Aufrufbar über **Help → Keyboard shortcuts** oder `?`. Auszug:
 | `L` | Markierte Tabelle(n) einem EER-Diagramm zuweisen |
 | `F` | Canvas an View anpassen |
 | `Entf` / `Backspace` | Markierte löschen |
-| `Alt + drag` (leerer Canvas) | Neues EER-Diagramm sketchen |
 | `Shift / Strg + Klick` | Additive / Toggle-Auswahl |
 | `Drag` (leerer Canvas) | Rubber-Band-Selektion |
 | `?` | Diesen Hilfe-Dialog |
