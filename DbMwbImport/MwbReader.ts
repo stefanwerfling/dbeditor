@@ -20,6 +20,7 @@ import {
     JsonIndexColumn,
     JsonIndexType,
     JsonDiagram,
+    JsonLayer,
     JsonRoutine,
     JsonRoutineKind,
     JsonTable,
@@ -703,16 +704,18 @@ type FigureData = {
      * Secondary placements: every additional diagram a table appears
      * in (beyond its primary). Mirrors `JsonTable.diagramPlacements`
      * shape so `parseTable` can drop the value straight onto the
-     * model. Empty / missing entries mean the table is only on its
-     * primary diagram.
+     * model.
      */
     tablePlacements: Map<string, {diagramUnid: string; pos: {x: number; y: number;};}[]>;
-    /**
-     * Layers — when the .mwb has user-authored layers, those (with
-     * their original bounds/name/color); otherwise one synthesised
-     * diagram per Workbench diagram so the user sees the same grouping.
-     */
+    /** One JsonDiagram per Workbench `workbench.physical.Diagram`. */
     diagrams: JsonDiagram[];
+    /**
+     * One JsonLayer per authored `workbench.physical.Layer`
+     * (excluding the implicit per-diagram `rootLayer`). Each
+     * carries `diagramUnid` linking it to its parent diagram +
+     * pos/size/color from the Workbench source.
+     */
+    layers: JsonLayer[];
 };
 
 type FigureEntry = {fig: GrtNode; kind: 'table' | 'view';};
@@ -745,11 +748,15 @@ export type MwbTableCacheEntry = {
  * additional figure becomes a `diagramPlacements` entry so the table
  * keeps its per-diagram position in every diagram it lives in.
  *
- * **Diagrams**: when a `.mwb` carries no user-authored EER Layers —
- * i.e. every `workbench.physical.Layer` struct is `key="rootLayer"`
- * (one per diagram) — we model each Workbench DIAGRAM as a
- * JsonDiagram so the user sees each tab as a logical scope. When
- * authored layers DO exist, each becomes its own JsonDiagram.
+ * **Diagrams / Layers**: each Workbench `workbench.physical.Diagram`
+ * becomes one `JsonDiagram` (logical EER tab, named after the
+ * Workbench diagram). User-authored `workbench.physical.Layer`
+ * structs — i.e. those whose `@_key` is NOT `rootLayer` (the
+ * implicit per-diagram root container) — become `JsonLayer`s
+ * attached to that diagram with their original pos/size/color
+ * preserved. Tables/views always belong to the parent Workbench
+ * diagram regardless of which authored Layer their figure links to;
+ * layer membership in our model is implicit (by bbox overlap).
  */
 
 const buildFigureData = (root: GrtNode): FigureData => {
@@ -803,7 +810,8 @@ const buildFigureData = (root: GrtNode): FigureData => {
     const viewPositions = new Map<string, {x: number; y: number;}>();
     const tableToLayer = new Map<string, string>();
     const tablePlacements = new Map<string, {diagramUnid: string; pos: {x: number; y: number;};}[]>();
-    const layers: JsonDiagram[] = [];
+    const outDiagrams: JsonDiagram[] = [];
+    const outLayers: JsonLayer[] = [];
     let isFirst = true;
     let runningRight = 0;
     let diagramIndex = 0;
@@ -822,69 +830,58 @@ const buildFigureData = (root: GrtNode): FigureData => {
         const xShift = isFirst ? 0 : runningRight + GAP - dMinLeft;
 
         /*
-         * Discover authored layers for this diagram: any
-         * `workbench.physical.Layer` descendants whose `@_key` is
-         * NOT 'rootLayer' (the rootLayer is a Workbench-implicit
-         * container, not a user-visible group). If none, we'll
-         * fall through to per-diagram synthesis below.
+         * One JsonDiagram per Workbench diagram. Named from the
+         * Workbench `name` value, falling back to a positional
+         * label when the import was unnamed.
+         */
+        const diagramUnid = randomUUID();
+        const namedFromMwb = diagramName.get(diagramId);
+        const diagramTabName = namedFromMwb && namedFromMwb.length > 0
+            ? namedFromMwb
+            : `EER Diagram ${diagramIndex + 1}`;
+        outDiagrams.push({
+            unid: diagramUnid,
+            name: diagramTabName
+        });
+
+        /*
+         * Authored layers (non-rootLayer) → JsonLayer, with their
+         * parent diagramUnid set to the just-created JsonDiagram.
+         * pos/size/color carry over so the user sees the same
+         * decoration after import. `rootLayer` is skipped (it's
+         * the implicit per-diagram container, not user-visible).
          */
         const diagramNode = diagramById.get(diagramId);
-        const wbLayerToUnid = new Map<string, string>();
         if (diagramNode) {
             const allLayers = findStructs(diagramNode, 'workbench.physical.Layer');
             for (const l of allLayers) {
                 if (l['@_key'] === 'rootLayer') {continue;}
-                const wbLayerId = l['@_id'] ?? '';
-                if (!wbLayerId) {continue;}
-                const diagramUnid = randomUUID();
-                wbLayerToUnid.set(wbLayerId, diagramUnid);
-                layers.push({
-                    unid: diagramUnid,
-                    name: childStr(l, 'name') || `Layer ${layers.length + 1}`
+                outLayers.push({
+                    unid: randomUUID(),
+                    name: childStr(l, 'name') || `Layer ${outLayers.length + 1}`,
+                    diagramUnid: diagramUnid,
+                    pos: {
+                        x: childIntRound(l, 'left') + xShift,
+                        y: childIntRound(l, 'top')
+                    },
+                    width: childIntRound(l, 'width') || 400,
+                    height: childIntRound(l, 'height') || 300,
+                    color: childStr(l, 'color') || undefined
                 });
             }
         }
 
         /*
-         * If no authored layers, synthesise one JsonDiagram per
-         * Workbench diagram so each tab still surfaces as a scope.
-         */
-        let synthLayerUnid: string | null = null;
-        if (wbLayerToUnid.size === 0) {
-            synthLayerUnid = randomUUID();
-            const namedFromMwb = diagramName.get(diagramId);
-            const layerName = namedFromMwb && namedFromMwb.length > 0
-                ? namedFromMwb
-                : `EER Diagram ${diagramIndex + 1}`;
-            layers.push({
-                unid: synthLayerUnid,
-                name: layerName
-            });
-        }
-
-        /*
-         * Per-figure: record the canvas position and (if applicable)
-         * the diagram link. With authored layers, each figure carries
-         * its own `diagram` link → use that. Without, every table figure
-         * falls under the synthesised diagram diagram. Views currently
-         * have no diagram membership (JsonView has no `diagramUnid`), so
-         * we only record their position.
+         * Per-figure: record the canvas position and the diagram
+         * link. Tables always belong to the parent Workbench
+         * diagram → outDiagrams[diagramIndex]. Views currently have
+         * no diagram membership rendered explicitly (JsonView has
+         * `diagramUnid` but we just position them).
          *
-         * Multi-membership: when a table figure for `tableWbId` has
-         * already been seen (in a prior diagram), the second figure
-         * becomes a `diagramPlacements` entry instead of being dropped.
-         * The placement records this diagram's coords + the diagram the
-         * figure belongs to (authored fig.diagram link, or the
-         * synthesised diagram-diagram if no authored layers exist).
+         * Multi-membership: when a tableWbId has already been seen
+         * in a prior diagram, the second figure becomes a
+         * `diagramPlacements` entry instead of being dropped.
          */
-        const resolveFigLayer = (fig: GrtNode): string | undefined => {
-            if (wbLayerToUnid.size > 0) {
-                const figLayerWbId = childLink(fig, 'layer');
-                if (figLayerWbId) {return wbLayerToUnid.get(figLayerWbId);}
-                return undefined;
-            }
-            return synthLayerUnid ?? undefined;
-        };
         for (const entry of figs) {
             if (entry.kind === 'table') {
                 const tableWbId = childLink(entry.fig, 'table');
@@ -893,20 +890,13 @@ const buildFigureData = (root: GrtNode): FigureData => {
                     x: childIntRound(entry.fig, 'left') + xShift,
                     y: childIntRound(entry.fig, 'top')
                 };
-                const figLayerUnid = resolveFigLayer(entry.fig);
                 if (!positions.has(tableWbId)) {
                     positions.set(tableWbId, figPos);
-                    if (figLayerUnid) {tableToLayer.set(tableWbId, figLayerUnid);}
-                } else if (figLayerUnid && figLayerUnid !== tableToLayer.get(tableWbId)) {
-                    /*
-                     * Secondary diagram membership. Skip when the
-                     * figure resolved to no diagram (defensive — the
-                     * primary loop also gates on diagram presence) and
-                     * when it would duplicate the primary's diagram.
-                     */
+                    tableToLayer.set(tableWbId, diagramUnid);
+                } else if (diagramUnid !== tableToLayer.get(tableWbId)) {
                     const list = tablePlacements.get(tableWbId) ?? [];
-                    if (!list.some(p => p.diagramUnid === figLayerUnid)) {
-                        list.push({diagramUnid: figLayerUnid, pos: figPos});
+                    if (!list.some(p => p.diagramUnid === diagramUnid)) {
+                        list.push({diagramUnid: diagramUnid, pos: figPos});
                         tablePlacements.set(tableWbId, list);
                     }
                 }
@@ -929,7 +919,8 @@ const buildFigureData = (root: GrtNode): FigureData => {
         viewPositions: viewPositions,
         tableToLayer: tableToLayer,
         tablePlacements: tablePlacements,
-        diagrams: layers
+        diagrams: outDiagrams,
+        layers: outLayers
     };
 };
 
@@ -1134,14 +1125,14 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         for (const tg of triggersForSchema) {routines.push(tg);}
 
         /*
-         * Attach all synthesised layers to the first schema. Workbench
+         * Attach all diagrams + layers to the first schema. Workbench
          * diagrams aren't scoped per-schema, but realistic models
          * exported by Workbench so far always carry a single schema;
-         * if a future multi-schema model needs per-schema diagram
-         * scoping we'd partition layers by which schema's tables
-         * they cover.
+         * if a future multi-schema model needs per-schema scoping
+         * we'd partition them by which schema's tables they cover.
          */
-        const dbLayers = databases.length === 0 ? figureData.diagrams : [];
+        const dbDiagrams = databases.length === 0 ? figureData.diagrams : [];
+        const dbLayers = databases.length === 0 ? figureData.layers : [];
 
         const dbNode: JsonDataDB = {
             unid: randomUUID(),
@@ -1154,7 +1145,8 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
             enums: [],
             routines: routines
         };
-        if (dbLayers.length > 0) {dbNode.diagrams = dbLayers;}
+        if (dbDiagrams.length > 0) {dbNode.diagrams = dbDiagrams;}
+        if (dbLayers.length > 0) {dbNode.layers = dbLayers;}
         /*
          * Surface Workbench's schema-level inheritance defaults on the
          * `JsonDataDB`. Workbench stores `defaultCharacterSetName` and

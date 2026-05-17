@@ -329,6 +329,18 @@ export class DbApiClient {
         return this._request('DELETE', `/api/projects/${pid}/diagrams/${unid}`);
     }
 
+    public createLayer(pid: string, containerUnid: string, diagramUnid: string, name: string, opts: {pos?: {x: number; y: number;}; width?: number; height?: number; color?: string;} = {}): Promise<any> {
+        return this._request('POST', `/api/projects/${pid}/layers`, {containerUnid: containerUnid, diagramUnid: diagramUnid, name: name, ...opts});
+    }
+
+    public updateLayer(pid: string, unid: string, patch: {name?: string; pos?: {x: number; y: number;}; width?: number; height?: number; color?: string; description?: string;}): Promise<any> {
+        return this._request('PATCH', `/api/projects/${pid}/layers/${unid}`, patch);
+    }
+
+    public deleteLayer(pid: string, unid: string): Promise<any> {
+        return this._request('DELETE', `/api/projects/${pid}/layers/${unid}`);
+    }
+
     /* routines */
 
     public createRoutine(pid: string, containerUnid: string, name: string, kind: string, pos?: {x: number; y: number;}): Promise<any> {

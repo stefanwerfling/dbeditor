@@ -147,22 +147,33 @@ describe('parseMwb — example.mwb integration', () => {
         expect(collisions).toEqual([]);
     });
 
-    it('imports the authored EER diagram ("Authoring") as a JsonDiagram', () => {
+    it('imports the authored Workbench Layer ("Authoring") as a JsonLayer with bounds', () => {
         const r = parseMwb(fs.readFileSync(SAMPLE));
-        const layers = r.databases[0].diagrams ?? [];
+        const layers = r.databases[0].layers ?? [];
         expect(layers.length).toBeGreaterThanOrEqual(1);
         const authoring = layers.find(l => l.name === 'Authoring');
         expect(authoring).toBeDefined();
         expect(authoring!.unid).toBeTruthy();
+        expect(authoring!.diagramUnid).toBeTruthy();
+        expect(authoring!.width).toBeGreaterThan(0);
+        expect(authoring!.height).toBeGreaterThan(0);
     });
 
-    it('tables tagged with a diagram get a diagramUnid pointing at that diagram', () => {
+    it('every imported JsonLayer points at a real JsonDiagram parent', () => {
         const r = parseMwb(fs.readFileSync(SAMPLE));
-        const layerByName = new Map((r.databases[0].diagrams ?? []).map(l => [l.name, l]));
-        const authoring = layerByName.get('Authoring');
-        expect(authoring).toBeDefined();
-        const members = r.databases[0].tables.filter(t => t.diagramUnid === authoring!.unid);
-        expect(members.map(t => t.name).sort()).toEqual(['posts', 'users']);
+        const diagramUnids = new Set((r.databases[0].diagrams ?? []).map(d => d.unid));
+        for (const l of r.databases[0].layers ?? []) {
+            expect(diagramUnids).toContain(l.diagramUnid);
+        }
+    });
+
+    it('every table belongs to its parent Workbench diagram (via diagramUnid)', () => {
+        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const diagrams = r.databases[0].diagrams ?? [];
+        expect(diagrams.length).toBeGreaterThanOrEqual(1);
+        const diagramUnids = new Set(diagrams.map(d => d.unid));
+        const taggedTables = r.databases[0].tables.filter(t => t.diagramUnid && diagramUnids.has(t.diagramUnid));
+        expect(taggedTables.length).toBeGreaterThanOrEqual(2);
     });
 
     it('positions land in the diagram coordinate space (not all clustered at fallback)', () => {

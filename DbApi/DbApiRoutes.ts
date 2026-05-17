@@ -379,6 +379,43 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         } catch (err) { handleRepoError(err, res); }
     });
 
+    // ---------------- layers (Workbench Groups — visual grouping rectangles inside a diagram) ----------------
+    app.post('/api/projects/:pid/layers', (req, res) => {
+        const repo = getRepo(req, res, deps); if (!repo) {return;}
+        if (!validate(Bodies.SchemaCreateLayerBody, req.body, res)) {return;}
+        try {
+            const {containerUnid, diagramUnid, name, pos, width, height, color} = req.body;
+            const result = repo.createLayer(
+                containerUnid,
+                diagramUnid,
+                name,
+                pos ?? null,
+                typeof width === 'number' ? width : null,
+                typeof height === 'number' ? height : null,
+                typeof color === 'string' ? color : null,
+                clientId(req)
+            );
+            res.json({ success: true, rev: result.rev, layer: result.layer });
+        } catch (err) { handleRepoError(err, res); }
+    });
+
+    app.patch('/api/projects/:pid/layers/:unid', (req, res) => {
+        const repo = getRepo(req, res, deps); if (!repo) {return;}
+        if (!validate(Bodies.SchemaUpdateLayerBody, req.body, res)) {return;}
+        try {
+            const rev = repo.updateLayer(req.params.unid, req.body, clientId(req));
+            res.json({ success: true, rev: rev });
+        } catch (err) { handleRepoError(err, res); }
+    });
+
+    app.delete('/api/projects/:pid/layers/:unid', (req, res) => {
+        const repo = getRepo(req, res, deps); if (!repo) {return;}
+        try {
+            const rev = repo.deleteLayer(req.params.unid, clientId(req));
+            res.json({ success: true, rev: rev });
+        } catch (err) { handleRepoError(err, res); }
+    });
+
     // ---------------- routines (procedures / functions / triggers) ----------------
     app.post('/api/projects/:pid/routines', (req, res) => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}

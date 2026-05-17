@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonTable, JsonView, JsonEnum, JsonDiagram, JsonRoutine} from '../DbEditor/JsonData.js';
+import {JsonDataDB, JsonTable, JsonView, JsonEnum, JsonDiagram, JsonLayer, JsonRoutine} from '../DbEditor/JsonData.js';
 
 /**
  * Tree-walk helpers. The recursive tree mixes `entrys` (subfolders/databases)
@@ -92,6 +92,24 @@ export class DbFsTreeWalker {
             if (hit) {return hit;}
         }
         return null;
+    }
+
+    public static findLayer(root: JsonDataDB, unid: string): { container: JsonDataDB; layer: JsonLayer; } | null {
+        for (const l of root.layers ?? []) {
+            if (l.unid === unid) {return { container: root, layer: l };}
+        }
+        for (const child of root.entrys as JsonDataDB[]) {
+            const hit = DbFsTreeWalker.findLayer(child, unid);
+            if (hit) {return hit;}
+        }
+        return null;
+    }
+
+    public static* allLayers(root: JsonDataDB): Generator<{ container: JsonDataDB; layer: JsonLayer; }> {
+        for (const l of root.layers ?? []) {yield { container: root, layer: l };}
+        for (const child of root.entrys as JsonDataDB[]) {
+            yield* DbFsTreeWalker.allLayers(child);
+        }
     }
 
     public static findRoutine(root: JsonDataDB, unid: string): { container: JsonDataDB; routine: JsonRoutine; } | null {

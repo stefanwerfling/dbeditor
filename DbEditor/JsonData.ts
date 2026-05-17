@@ -282,6 +282,37 @@ export type JsonDiagram = ExtractSchemaResultType<typeof SchemaJsonDiagram>;
 
 /*
  * ---------------------------------------------------------------------------
+ * Layer — visual grouping rectangle within a diagram
+ *   (Workbench's `workbench.physical.Layer` with a non-rootLayer key,
+ *    aka the "Group" feature)
+ *
+ * A coloured rectangle the user draws on the canvas to visually
+ * group related tables/views. Pure decoration: membership is
+ * implicit — a card is "in" a layer when its position falls inside
+ * the layer's bbox. The layer has no membership list and the cards
+ * have no layerUnid.
+ *
+ * Layers belong to exactly one parent diagram (`diagramUnid`). They
+ * only render when that diagram is the active canvas scope.
+ * ---------------------------------------------------------------------------
+ */
+
+export const SchemaJsonLayer = Vts.object({
+    unid: Vts.string(),
+    name: Vts.string(),
+    /** Parent diagram. Workbench: `layer.owner` → `workbench.physical.Diagram`. */
+    diagramUnid: Vts.string(),
+    pos: SchemaJsonPosition,
+    width: Vts.number(),
+    height: Vts.number(),
+    color: Vts.optional(Vts.string()),
+    description: Vts.optional(Vts.string()),
+    wbPassthrough: Vts.optional(SchemaWbPassthrough)
+});
+export type JsonLayer = ExtractSchemaResultType<typeof SchemaJsonLayer>;
+
+/*
+ * ---------------------------------------------------------------------------
  * View
  * ---------------------------------------------------------------------------
  */
@@ -389,6 +420,13 @@ export const SchemaJsonDataDB = Vts.object({
      * diagrams.
      */
     diagrams: Vts.optional(Vts.array(SchemaJsonDiagram)),
+    /*
+     * Visual grouping rectangles ("Groups" in Workbench). Each
+     * carries a `diagramUnid` linking it to its parent diagram and
+     * only renders when that diagram is the active scope. Optional
+     * for backward compat.
+     */
+    layers: Vts.optional(Vts.array(SchemaJsonLayer)),
     /*
      * Database-level defaults inherited by every contained table.
      * Mirrors MySQL's DB → table → column inheritance. When a table's

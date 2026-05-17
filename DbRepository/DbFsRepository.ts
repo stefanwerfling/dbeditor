@@ -13,6 +13,7 @@ import {
     JsonEnum,
     JsonEnumValue,
     JsonDiagram,
+    JsonLayer,
     JsonView,
     JsonEditorSettings,
     JsonOutputSettings,
@@ -219,13 +220,19 @@ export class DbFsRepository {
     /*
      * Phase 1 + 2 layer→diagram migration. Legacy schemas have:
      *  - `layerUnid` / `layerPlacements` on tables / views,
-     *  - `layers` on db / folder / project nodes,
-     *  - `type: 'layer'` on the diagram-row node itself,
-     *  - `pos` / `width` / `height` / `color` on the (then visual)
-     *    layer entries.
-     * Phase 2 drops the visual fields — a JsonDiagram is now a pure
-     * logical container. Strip them at load time so Vts validation
-     * passes against the new schema.
+     *  - `layers` on db / folder / project nodes (visual rects with
+     *    pos/width/height/color, no parent diagram),
+     *  - `type: 'layer'` on the diagram-row node itself.
+     *
+     * Phase 2 turned JsonDiagram into a pure logical container —
+     * strip the visual fields at load time so Vts validation passes.
+     *
+     * Phase 3 reintroduces `layers` at the DataDB level, but with a
+     * different shape (a `JsonLayer` carries `diagramUnid` linking
+     * it to a parent diagram). Files written by Phase 3+ already
+     * have a `diagrams` array, so the `layers → diagrams` rename
+     * below is guarded by `!Array.isArray(node.diagrams)` and only
+     * fires on pre-Phase-1 files. Phase-3 layers are NOT touched.
      */
     private static _migrateLegacyLayerSchema(raw: any): void {
         if (!raw || typeof raw !== 'object' || !raw.fs) {return;}
@@ -911,7 +918,78 @@ export class DbFsRepository {
         const hit = DbFsTreeWalker.findDiagram(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`diagram ${unid} not found`);}
         hit.container.diagrams = (hit.container.diagrams ?? []).filter(l => l.unid !== unid);
+        /*
+         * Cascade: layers belong to a diagram and have no meaning
+         * without one. Removing the parent removes its layer set.
+         * Persisted under the same commit so undo restores both.
+         */
+        hit.container.layers = (hit.container.layers ?? []).filter(l => l.diagramUnid !== unid);
         return this._commit('diagram.delete', { unid: unid }, clientId);
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Layer ops — Workbench "Group" rectangle within a diagram
+     *
+     * A `JsonLayer` is a visual grouping rectangle the user draws on
+     * the canvas while scoped to its parent diagram. Membership is
+     * implicit (cards "in" the layer are the ones whose pos falls
+     * inside the bbox). The parent diagram must exist when a layer
+     * is created; deleting a diagram cascades to its layers above.
+     * ---------------------------------------------------------------------
+     */
+
+    public createLayer(
+        containerUnid: string,
+        diagramUnid: string,
+        name: string,
+        pos: JsonPosition | null,
+        width: number | null,
+        height: number | null,
+        color: string | null,
+        clientId: string | null
+    ): { rev: number; layer: JsonLayer; } {
+        const container = DbFsTreeWalker.findContainer(this._data.fs, containerUnid);
+        if (!container) {throw new RepoNotFoundError(`container ${containerUnid} not found`);}
+        const diagram = DbFsTreeWalker.findDiagram(this._data.fs, diagramUnid);
+        if (!diagram) {throw new RepoNotFoundError(`diagram ${diagramUnid} not found`);}
+        const trimmed = name.trim();
+        if (!trimmed) {throw new RepoInvalidError('layer name must not be empty');}
+        const layer: JsonLayer = {
+            unid: randomUUID(),
+            name: trimmed,
+            diagramUnid: diagramUnid,
+            pos: pos || {x: 80, y: 80},
+            width: width && width > 0 ? width : 400,
+            height: height && height > 0 ? height : 300
+        };
+        if (color) {layer.color = color;}
+        container.layers = [...container.layers ?? [], layer];
+        const rev = this._commit('layer.create', { containerUnid: containerUnid, layer: layer }, clientId);
+        return { rev: rev, layer: layer };
+    }
+
+    public updateLayer(
+        unid: string,
+        patch: Partial<Pick<JsonLayer, 'name' | 'pos' | 'width' | 'height' | 'color' | 'description'>>,
+        clientId: string | null
+    ): number {
+        const hit = DbFsTreeWalker.findLayer(this._data.fs, unid);
+        if (!hit) {throw new RepoNotFoundError(`layer ${unid} not found`);}
+        if (patch.name !== undefined) {hit.layer.name = patch.name;}
+        if (patch.pos !== undefined) {hit.layer.pos = patch.pos;}
+        if (patch.width !== undefined) {hit.layer.width = patch.width;}
+        if (patch.height !== undefined) {hit.layer.height = patch.height;}
+        if (patch.color !== undefined) {hit.layer.color = patch.color;}
+        if (patch.description !== undefined) {hit.layer.description = patch.description;}
+        return this._commit('layer.update', { unid: unid, patch: patch }, clientId);
+    }
+
+    public deleteLayer(unid: string, clientId: string | null): number {
+        const hit = DbFsTreeWalker.findLayer(this._data.fs, unid);
+        if (!hit) {throw new RepoNotFoundError(`layer ${unid} not found`);}
+        hit.container.layers = (hit.container.layers ?? []).filter(l => l.unid !== unid);
+        return this._commit('layer.delete', { unid: unid }, clientId);
     }
 
     /*

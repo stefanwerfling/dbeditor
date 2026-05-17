@@ -1077,6 +1077,83 @@ body {
   font-size: 11px;
 }
 
+/* ------- db layer (Workbench "Group" rectangle within a diagram) ------- */
+.db-layer {
+  position: absolute;
+  border: 1px dashed rgba(15, 23, 42, 0.30);
+  border-radius: var(--radius-md);
+  /* Sit behind table cards but above the grid background. */
+  z-index: 0;
+  pointer-events: none;
+}
+.db-layer-label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Override the parent layer's pointer-events: none so the label is interactive. */
+  pointer-events: auto;
+  /* Drag affordance — the whole label is the layer's drag handle. */
+  cursor: grab;
+}
+.db-layer-label:active {
+  cursor: grabbing;
+}
+.db-layer-label-name {
+  cursor: text;
+}
+.db-layer-label-menu {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 80ms;
+}
+.db-layer:hover .db-layer-label-menu {
+  opacity: 1;
+}
+.db-layer-label-input {
+  font: inherit;
+  font-size: 11px;
+  padding: 0 4px;
+  border: 1px solid var(--c-primary);
+  border-radius: var(--radius-sm);
+  width: 160px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.db-layer-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  pointer-events: auto;
+  background: linear-gradient(135deg, transparent 50%, rgba(15, 23, 42, 0.30) 50%);
+  border-bottom-right-radius: var(--radius-md);
+  opacity: 0;
+  transition: opacity 80ms;
+}
+.db-layer:hover .db-layer-resize {
+  opacity: 1;
+}
+
 /* Floating banner shown when canvas is scoped to one EER diagram.
    Sits on the grid container (outside the zoom-scaled wrapper) so
    it stays a constant size regardless of canvas zoom. */

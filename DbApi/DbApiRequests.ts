@@ -186,6 +186,25 @@ export const SchemaCreateDiagramBody = Vts.object({
     name: Vts.string()
 });
 
+export const SchemaCreateLayerBody = Vts.object({
+    containerUnid: Vts.string(),
+    diagramUnid: Vts.string(),
+    name: Vts.string(),
+    pos: Vts.optional(SchemaJsonPosition),
+    width: Vts.optional(Vts.number()),
+    height: Vts.optional(Vts.number()),
+    color: Vts.optional(Vts.string())
+});
+
+export const SchemaUpdateLayerBody = Vts.object({
+    name: Vts.optional(Vts.string()),
+    pos: Vts.optional(SchemaJsonPosition),
+    width: Vts.optional(Vts.number()),
+    height: Vts.optional(Vts.number()),
+    color: Vts.optional(Vts.string()),
+    description: Vts.optional(Vts.string())
+});
+
 export const SchemaUpdateEditorSettingsBody = Vts.object({
     controls_width: Vts.optional(Vts.number()),
     active_entry_unid: Vts.optional(Vts.string()),

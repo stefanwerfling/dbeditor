@@ -10,6 +10,7 @@ import {
     JsonIndex,
     JsonIndexType,
     JsonDiagram,
+    JsonLayer,
     JsonRoutine,
     JsonRoutineKind,
     JsonTable,
@@ -618,10 +619,6 @@ const writeDiagramFigures = (
         s += `${I(depth + 2)}<value type="real" key="left">${tbl.pos.x}</value>\n`;
         s += `${I(depth + 2)}<value type="real" key="top">${tbl.pos.y}</value>\n`;
         s += lStr('table', 'db.Table', tableId, depth + 2);
-        if (tbl.diagramUnid) {
-            const layerGrtId = ids.layerId.get(tbl.diagramUnid);
-            if (layerGrtId) {s += lStr('layer', 'model.Layer', layerGrtId, depth + 2);}
-        }
         s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
         s += vStr('name', tbl.name, depth + 2);
         s += `${I(depth + 1)}</value>\n`;
@@ -646,39 +643,38 @@ const writeDiagramFigures = (
 };
 
 /**
- * Emit one `workbench.physical.Layer` per JsonDiagram inside the
+ * Emit one `workbench.physical.Layer` per JsonLayer inside the
  * diagram's `layers` list. We deliberately do NOT key these as
  * `rootLayer` — Workbench autocreates the rootLayer per diagram;
- * what we want here are user-visible child layers. Each diagram has
- * its bounds (top/left/width/height), name, color, and an `owner`
- * link back to the diagram.
+ * what we want here are user-visible child layers. Each Layer
+ * carries its bounds (top/left/width/height), name, color, and an
+ * `owner` link back to the parent Diagram.
+ *
+ * Until the writer supports per-JsonDiagram fanout into multiple
+ * Workbench Diagrams, EVERY JsonLayer is emitted under the single
+ * Workbench Diagram that holds all figures. This loses the
+ * "this layer belongs to diagram X" partitioning on round-trip
+ * but matches the existing single-Workbench-Diagram export shape.
  */
 const writeLayersForDiagram = (
-    diagrams: JsonDiagram[],
+    layers: JsonLayer[],
     ids: IdMaps,
     diagramId: string,
     depth: number
 ): string => {
-    if (diagrams.length === 0) {return '';}
+    if (layers.length === 0) {return '';}
     let s = `${I(depth)}<value type="list" content-type="object" content-struct-name="workbench.physical.Layer" key="layers">\n`;
-    /*
-     * Diagrams are pure logical containers in our model — no
-     * position/size/color. Workbench's `workbench.physical.Layer`
-     * requires them, so we emit defaults. A re-import will simply
-     * drop these visual fields again (the schema migration strips
-     * them at load time). Lossy round-trip is acceptable scope.
-     */
-    for (const diagram of diagrams) {
-        const layerGrtId = ids.layerId.get(diagram.unid);
+    for (const layer of layers) {
+        const layerGrtId = ids.layerId.get(layer.unid);
         if (!layerGrtId) {continue;}
         s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.Layer" id="${layerGrtId}">\n`;
-        s += `${I(depth + 2)}<value type="real" key="left">0</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="top">0</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="width">1200</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="height">800</value>\n`;
-        s += vStr('color', '', depth + 2);
-        s += vStr('description', diagram.description ?? '', depth + 2);
-        s += vStr('name', diagram.name, depth + 2);
+        s += `${I(depth + 2)}<value type="real" key="left">${layer.pos.x}</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="top">${layer.pos.y}</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="width">${layer.width}</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="height">${layer.height}</value>\n`;
+        s += vStr('color', layer.color ?? '', depth + 2);
+        s += vStr('description', layer.description ?? '', depth + 2);
+        s += vStr('name', layer.name, depth + 2);
         s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
         s += `${I(depth + 1)}</value>\n`;
     }
@@ -686,8 +682,18 @@ const writeLayersForDiagram = (
     return s;
 };
 
-/** Walk every database (recursing through folders) and collect all layers. */
-const collectLayers = (databases: JsonDataDB[]): JsonDiagram[] => {
+/** Walk every database (recursing through folders) and collect all JsonLayers. */
+const collectLayers = (databases: JsonDataDB[]): JsonLayer[] => {
+    const out: JsonLayer[] = [];
+    const walk = (n: JsonDataDB): void => {
+        if (n.layers) {out.push(...n.layers);}
+        for (const child of n.entrys as JsonDataDB[]) {walk(child);}
+    };
+    for (const db of databases) {walk(db);}
+    return out;
+};
+
+const collectDiagrams = (databases: JsonDataDB[]): JsonDiagram[] => {
     const out: JsonDiagram[] = [];
     const walk = (n: JsonDataDB): void => {
         if (n.diagrams) {out.push(...n.diagrams);}
@@ -746,12 +752,22 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions
             ids.viewId.set(v.unid, id);
         }
     }
-    /* Layers are minted before figures so figure→diagram links resolve. */
+    /* Mint Workbench Layer GRT-ids per JsonLayer, before any cross-link emission. */
     const allLayers = collectLayers(databases);
-    for (const diagram of allLayers) {
-        ids.layerId.set(diagram.unid, randomUUID());
+    for (const layer of allLayers) {
+        ids.layerId.set(layer.unid, randomUUID());
     }
+    /*
+     * Single-Workbench-Diagram export: collapse every JsonDiagram
+     * into one Workbench `workbench.physical.Diagram`. We borrow the
+     * first JsonDiagram's name (alphabetical-first is too clever —
+     * insertion order matches user intent best) so a single-diagram
+     * round-trip preserves the tab label. With multiple JsonDiagrams
+     * the secondary names are lost on export.
+     */
+    const allDiagrams = collectDiagrams(databases);
     const diagramId = randomUUID();
+    const wbDiagramName = allDiagrams.length > 0 ? allDiagrams[0].name : 'EER Diagram';
 
     let xml = '<?xml version="1.0"?>\n';
     xml += '<data grt_format="2.0" document_type="MySQL Workbench Model" version="1.4.4">\n';
@@ -793,7 +809,7 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions
         } else {
             xml += layersXml;
         }
-        xml += vStr('name', 'EER Diagram', 6);
+        xml += vStr('name', wbDiagramName, 6);
         xml += `${I(5)}</value>\n`;
         xml += `${I(4)}</value>\n`;
     }

@@ -28,6 +28,7 @@ import {AddConnectionDialog, AddConnectionDatabaseChoice} from './Settings/AddCo
 import {EditConnectionDialog} from './Settings/EditConnectionDialog.js';
 import {RebindConnectionDialog} from './Settings/RebindConnectionDialog.js';
 import {DatabasePropertiesDialog} from './Database/DatabasePropertiesDialog.js';
+import {iconEllipsis} from './Util/Icons.js';
 import {DbRoutineDialog} from './Routine/DbRoutineDialog.js';
 import {SearchPalette} from './Search/SearchPalette.js';
 import {buildSearchIndex} from './Util/SearchIndex.js';
@@ -39,7 +40,7 @@ import {crowsFoot, oneBar} from './Util/CrowsFoot.js';
 import {isOneToOneFk} from './Util/FkCardinality.js';
 import {ZOOM_DEFAULT, clampZoom, formatZoom, isAtDefault, snapToStep, stepZoom, zoomFocalScroll} from './Util/Zoom.js';
 import {rectFromCorners, rectsIntersect} from './Util/Rect.js';
-import {JsonColumn, JsonDataDB, JsonDataDBType, JsonEnum, JsonForeignKey, JsonDiagram, JsonRoutine, JsonTable, JsonView} from './JsonData.js';
+import {JsonColumn, JsonDataDB, JsonDataDBType, JsonEnum, JsonForeignKey, JsonDiagram, JsonLayer, JsonRoutine, JsonTable, JsonView} from './JsonData.js';
 
 type LoadedProject = {
     unid: string;
@@ -681,9 +682,24 @@ export class DbEditor {
         }
         const cardHost = this._zoomLayer ?? this._grid;
         /*
-         * Diagrams are now pure logical containers — no canvas
-         * rectangle. Scoping is communicated via the scope banner and
-         * by filtering which cards render below. The active-diagram
+         * Layers (Workbench Groups) only render when the canvas is
+         * scoped to a single diagram — they belong to exactly one
+         * diagram and would be visually confusing if shown across
+         * multiple scopes. Rendered before cards so they sit behind
+         * in stacking order.
+         */
+        cardHost.querySelectorAll('.db-layer').forEach(e => e.remove());
+        if (this._activeDiagramUnid && container) {
+            const diagramUnid = this._activeDiagramUnid;
+            const layersForDiagram = this._collectLayers(container).filter(l => l.diagramUnid === diagramUnid);
+            for (const layer of layersForDiagram) {
+                cardHost.append(this._renderLayerRect(layer));
+            }
+        }
+        /*
+         * Diagrams are pure logical containers — no canvas rectangle.
+         * Scoping is communicated via the scope banner and by
+         * filtering which cards render below. The active-diagram
          * context is still passed to each card so its ⋯ menu can
          * surface the "Remove from this diagram" entry when scoped.
          */
@@ -761,6 +777,175 @@ export class DbEditor {
         });
         banner.append(lbl, close);
         this._grid.append(banner);
+    }
+
+    /**
+     * Build a Workbench-style Group rectangle: positioned div with a
+     * top-left label (drag handle + rename + delete via ⋯) and a
+     * bottom-right resize handle. `pointer-events: none` on the box
+     * itself so clicks pass through to underlying cards; the label
+     * and handle re-enable pointer events on themselves.
+     */
+    private _renderLayerRect(layer: JsonLayer): HTMLElement {
+        const el = document.createElement('div');
+        el.className = 'db-layer';
+        el.dataset.layerUnid = layer.unid;
+        el.style.left = `${layer.pos.x}px`;
+        el.style.top = `${layer.pos.y}px`;
+        el.style.width = `${layer.width}px`;
+        el.style.height = `${layer.height}px`;
+        if (layer.color) {el.style.background = layer.color;}
+        this._buildLayerRectLabel(layer, el);
+        this._buildLayerRectResize(layer, el);
+        return el;
+    }
+
+    private _buildLayerRectLabel(layer: JsonLayer, host: HTMLElement): void {
+        const lbl = document.createElement('div');
+        lbl.className = 'db-layer-label';
+        lbl.addEventListener('mousedown', (e: MouseEvent) => {
+            if (e.button !== 0) {return;}
+            this._startLayerRectDrag(layer, host, e);
+        });
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'db-layer-label-name';
+        nameSpan.textContent = layer.name;
+        nameSpan.addEventListener('mousedown', e => e.stopPropagation());
+        nameSpan.addEventListener('dblclick', e => {
+            e.stopPropagation();
+            this._startLayerRectRename(nameSpan, layer);
+        });
+
+        const menuBtn = document.createElement('button');
+        menuBtn.type = 'button';
+        menuBtn.className = 'db-layer-label-menu';
+        menuBtn.replaceChildren(iconEllipsis());
+        menuBtn.title = 'Layer actions';
+        menuBtn.addEventListener('mousedown', e => e.stopPropagation());
+        menuBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            openContextMenu(menuBtn, [
+                {label: 'Rename…', onSelect: (): void => this._startLayerRectRename(nameSpan, layer)},
+                {
+                    label: 'Delete layer',
+                    danger: true,
+                    onSelect: async(): Promise<void> => {
+                        const ok = await ConfirmDialog.showConfirm(
+                            'Delete layer',
+                            `Delete the "${layer.name}" group? Tables inside are not deleted — they remain on the diagram, just without the visual grouping.\n\nUse Ctrl+Z to undo.`,
+                            'danger'
+                        );
+                        if (!ok) {return;}
+                        await this._mutate(p => this._api.deleteLayer(p.unid, layer.unid));
+                        await this._reload();
+                    }
+                }
+            ]);
+        });
+
+        lbl.append(nameSpan, menuBtn);
+        host.append(lbl);
+    }
+
+    private _buildLayerRectResize(layer: JsonLayer, host: HTMLElement): void {
+        const handle = document.createElement('div');
+        handle.className = 'db-layer-resize';
+        handle.title = 'Drag to resize';
+        handle.addEventListener('mousedown', (downEv: MouseEvent) => {
+            if (downEv.button !== 0) {return;}
+            downEv.preventDefault();
+            downEv.stopPropagation();
+            const startScreenX = downEv.clientX;
+            const startScreenY = downEv.clientY;
+            const startW = layer.width;
+            const startH = layer.height;
+            const zoom = this._zoomLevel || 1;
+            const MIN = 60;
+            let moved = false;
+            const onMove = (ev: MouseEvent): void => {
+                const dx = (ev.clientX - startScreenX) / zoom;
+                const dy = (ev.clientY - startScreenY) / zoom;
+                if (!moved && Math.hypot(dx, dy) < 4) {return;}
+                moved = true;
+                const nw = Math.max(MIN, Math.round(startW + dx));
+                const nh = Math.max(MIN, Math.round(startH + dy));
+                host.style.width = `${nw}px`;
+                host.style.height = `${nh}px`;
+                layer.width = nw;
+                layer.height = nh;
+            };
+            const onUp = (): void => {
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+                if (!moved) {return;}
+                this._mutate(p => this._api.updateLayer(p.unid, layer.unid, {width: layer.width, height: layer.height}))
+                .then(() => this._reload());
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        });
+        host.append(handle);
+    }
+
+    private _startLayerRectDrag(layer: JsonLayer, host: HTMLElement, downEv: MouseEvent): void {
+        downEv.preventDefault();
+        downEv.stopPropagation();
+        const startScreenX = downEv.clientX;
+        const startScreenY = downEv.clientY;
+        const startPosX = layer.pos.x;
+        const startPosY = layer.pos.y;
+        const zoom = this._zoomLevel || 1;
+        let moved = false;
+        const onMove = (ev: MouseEvent): void => {
+            const dx = (ev.clientX - startScreenX) / zoom;
+            const dy = (ev.clientY - startScreenY) / zoom;
+            if (!moved && Math.hypot(dx, dy) < 4) {return;}
+            moved = true;
+            const nx = Math.round(startPosX + dx);
+            const ny = Math.round(startPosY + dy);
+            host.style.left = `${nx}px`;
+            host.style.top = `${ny}px`;
+            layer.pos.x = nx;
+            layer.pos.y = ny;
+        };
+        const onUp = (): void => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            if (!moved) {return;}
+            this._mutate(p => this._api.updateLayer(p.unid, layer.unid, {pos: {x: layer.pos.x, y: layer.pos.y}}))
+            .then(() => this._reload());
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    }
+
+    private _startLayerRectRename(nameSpan: HTMLSpanElement, layer: JsonLayer): void {
+        const input = document.createElement('input');
+        input.className = 'db-layer-label-input';
+        input.value = layer.name;
+        nameSpan.replaceWith(input);
+        input.focus();
+        input.select();
+        let committed = false;
+        const commit = (): void => {
+            if (committed) {return;}
+            committed = true;
+            const next = input.value.trim();
+            input.replaceWith(nameSpan);
+            if (next && next !== layer.name) {
+                this._mutate(p => this._api.updateLayer(p.unid, layer.unid, {name: next}))
+                .then(() => this._reload());
+            }
+        };
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {e.preventDefault(); input.blur();}
+            else if (e.key === 'Escape') {e.preventDefault(); committed = true; input.replaceWith(nameSpan);}
+            e.stopPropagation();
+        });
+        input.addEventListener('mousedown', e => e.stopPropagation());
+        input.addEventListener('click', e => e.stopPropagation());
     }
 
     /**
@@ -3423,11 +3608,20 @@ export class DbEditor {
         return out;
     }
 
-    /** Collect layers from this container and its subfolders. */
+    /** Collect diagrams from this container and its subfolders. */
     private _collectDiagrams(node: JsonDataDB): JsonDiagram[] {
         const out = [...node.diagrams ?? []];
         for (const c of node.entrys as JsonDataDB[]) {
             if (c.type === JsonDataDBType.folder) {out.push(...this._collectDiagrams(c));}
+        }
+        return out;
+    }
+
+    /** Collect layers (Group rectangles) from this container and its subfolders. */
+    private _collectLayers(node: JsonDataDB): JsonLayer[] {
+        const out = [...node.layers ?? []];
+        for (const c of node.entrys as JsonDataDB[]) {
+            if (c.type === JsonDataDBType.folder) {out.push(...this._collectLayers(c));}
         }
         return out;
     }
