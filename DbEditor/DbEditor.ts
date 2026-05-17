@@ -22,7 +22,6 @@ import {InputDialog} from './Base/InputDialog.js';
 import {ChoiceDialog} from './Base/ChoiceDialog.js';
 import {ConfirmDialog} from './Base/ConfirmDialog.js';
 import {SqlPreviewDialog} from './Base/SqlPreviewDialog.js';
-import {ProjectSettingsDialog} from './Settings/ProjectSettingsDialog.js';
 import {ProjectInfoDialog} from './Settings/ProjectInfoDialog.js';
 import {AddProjectDialog} from './Settings/AddProjectDialog.js';
 import {EditProjectDialog} from './Settings/EditProjectDialog.js';
@@ -1898,15 +1897,9 @@ export class DbEditor {
             case 'project':
                 return [
                     {
-                        label: 'Project info…',
+                        label: 'Project…',
                         onClick: (): void => {
                             this._openProjectInfo().catch((err: unknown): void => console.error('[DbEditor] info failed:', err));
-                        }
-                    },
-                    {
-                        label: 'Project settings…',
-                        onClick: (): void => {
-                            this._openProjectSettings().catch((err: unknown): void => console.error('[DbEditor] settings failed:', err));
                         }
                     },
                     {kind: 'separator'},
@@ -2377,7 +2370,7 @@ export class DbEditor {
             if (!this._activeProject.connectableDatabaseUnids.includes(databaseUnid)) {
                 await AlertDialog.showAlert(
                     'No connection configured',
-                    'This database has no live connection in dbeditor.json. Open Project info → Add connection to set one up.'
+                    'This database has no live connection in dbeditor.json. Open Project → Add connection to set one up.'
                 );
                 return;
             }
@@ -3044,6 +3037,10 @@ export class DbEditor {
                      * needed.
                      */
                 },
+                saveOutputSettings: async(patch): Promise<void> => {
+                    await this._mutate(p => this._api.updateOutputSettings(p.unid, patch));
+                    await this._reload();
+                },
                 confirmRemoveConnection: (databaseName: string | null, databaseUnid: string): Promise<boolean> => {
                     const label = databaseName ?? databaseUnid;
                     return ConfirmDialog.showConfirm(
@@ -3302,28 +3299,6 @@ export class DbEditor {
             /* Restart → full-page-reload. */
         } catch (err) {
             await AlertDialog.showAlert('Failed to update project', String((err as Error).message ?? err));
-        }
-    }
-
-    private async _openProjectSettings(): Promise<void> {
-        if (!this._activeProject) {return;}
-        const projectUnid = this._activeProject.unid;
-        const projectName = this._activeProject.name;
-        let current;
-        try {
-            const res = await this._api.getOutputSettings(projectUnid);
-            current = res.output;
-        } catch (err) {
-            await AlertDialog.showAlert('Failed to load settings', String(err));
-            return;
-        }
-        const patch = await new ProjectSettingsDialog(projectName, current).show();
-        if (!patch || Object.keys(patch).length === 0) {return;}
-        try {
-            await this._mutate(p => this._api.updateOutputSettings(p.unid, patch));
-            await this._reload();
-        } catch (err) {
-            await AlertDialog.showAlert('Failed to save settings', String(err));
         }
     }
 

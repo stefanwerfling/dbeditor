@@ -72,7 +72,7 @@ The full reference is at the bottom of this file. A minimal example:
 }
 ```
 
-You can edit `dbeditor.json` directly, or use **Project → Add project / Edit project / Project info** from the menubar. The dev server restarts automatically when the file changes.
+You can edit `dbeditor.json` directly, or use **Project → Add project / Edit project / Project…** from the menubar. The dev server restarts automatically when the file changes.
 
 ## Importing from a `.mwb` file
 
@@ -103,7 +103,7 @@ The top row carries the app name + version, the seven menus, inline **Undo / Red
 - **Insert** — Add Table, Add Enum, Add EER diagram
 - **View** — Zoom controls, Fit to view (`F`), N:N toggle
 - **Generate** — Generate SQL, Copy selected SQL, Generate / Preview Markdown docs
-- **Project** — Project info, Project settings, Add / Edit / Remove project
+- **Project** — Project (info + editable output settings), Add / Edit / Remove project
 - **Help** — Keyboard shortcuts, About
 
 The Undo / Redo arrows next to the zoom controls mirror the Edit-menu entries; they grey out when the active project has nothing on its stack.
@@ -249,7 +249,7 @@ Add a connection to `dbeditor.json`:
 
 The `${VAR}` and `${VAR:-default}` placeholders are resolved from `.env` at server boot, so credentials don't have to live in the JSON.
 
-The same data is editable in the UI: **Project → Project info** lists connections with Test / Edit / Rebind / Remove actions, and **+ Add connection…** writes a new one. **Rebind** swaps a connection's `databaseUnid` when a schema reload regenerated UUIDs — preserves credentials.
+The same data is editable in the UI: **Project → Project…** lists connections with Test / Edit / Rebind / Remove actions, and **+ Add connection…** writes a new one. The same dialog also carries the editable Output settings (dialect, paths, indent, terminator, …) — no separate Settings menu entry. **Rebind** swaps a connection's `databaseUnid` when a schema reload regenerated UUIDs — preserves credentials.
 
 ### Preview the diff
 

@@ -72,7 +72,7 @@ Die vollständige Referenz steht unten. Ein minimales Beispiel:
 }
 ```
 
-Du kannst `dbeditor.json` direkt editieren oder über **Project → Add project / Edit project / Project info** in der Menüleiste verwalten. Der Dev-Server startet bei Änderungen automatisch neu.
+Du kannst `dbeditor.json` direkt editieren oder über **Project → Add project / Edit project / Project…** in der Menüleiste verwalten. Der Dev-Server startet bei Änderungen automatisch neu.
 
 ## Import aus `.mwb`-Datei
 
@@ -103,7 +103,7 @@ Die obere Zeile trägt den App-Namen + Version, die sieben Menüs, inline **Undo
 - **Insert** — Add Table, Add Enum, Add EER diagram
 - **View** — Zoom-Steuerung, Fit to view (`F`), N:N-Umschalter
 - **Generate** — SQL generieren, ausgewähltes SQL kopieren, Markdown-Docs generieren / Vorschau
-- **Project** — Project info, Project settings, Add / Edit / Remove project
+- **Project** — Project (Info + editierbare Output-Settings), Add / Edit / Remove project
 - **Help** — Keyboard shortcuts, About
 
 Die Undo / Redo-Pfeile neben der Zoom-Steuerung spiegeln die Edit-Menü-Einträge; sie werden ausgegraut, wenn der aktive Projekt-Stack leer ist.
@@ -249,7 +249,7 @@ Connection in `dbeditor.json` eintragen:
 
 Die `${VAR}` und `${VAR:-default}` Platzhalter werden beim Server-Boot aus `.env` substituiert — Credentials müssen also nicht im JSON stehen.
 
-Auch über die UI editierbar: **Project → Project info** listet Connections mit Test / Edit / Rebind / Remove. **+ Add connection…** legt eine neue an. **Rebind** tauscht die `databaseUnid` einer Connection, wenn ein Schema-Reload die UUIDs neu generiert hat — Credentials bleiben erhalten.
+Auch über die UI editierbar: **Project → Project…** listet Connections mit Test / Edit / Rebind / Remove. **+ Add connection…** legt eine neue an. Derselbe Dialog enthält auch die editierbaren Output-Settings (Dialekt, Pfade, Indent, Terminator, …) — kein separater Settings-Menüeintrag mehr. **Rebind** tauscht die `databaseUnid` einer Connection, wenn ein Schema-Reload die UUIDs neu generiert hat — Credentials bleiben erhalten.
 
 ### Diff-Vorschau
 

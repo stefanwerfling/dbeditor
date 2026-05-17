@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {ProjectInfo} from '../Api/DbApiClient.js';
+import {OutputSettings, ProjectInfo} from '../Api/DbApiClient.js';
 import {iconCheck, iconCross} from '../Util/Icons.js';
 
 export type ProjectInfoActions = {
@@ -41,6 +41,13 @@ export type ProjectInfoActions = {
      * same `ConfirmDialog`. When omitted we fall back to `window.confirm`.
      */
     confirmRemoveConnection?: (databaseName: string | null, databaseUnid: string) => Promise<boolean>;
+    /**
+     * Optional — when provided, the Output section becomes editable
+     * inline (with a Save button) instead of read-only. Callback
+     * receives only the changed fields. This is what makes this
+     * dialog the merged Project info + settings entry point.
+     */
+    saveOutputSettings?: (patch: Partial<OutputSettings>) => Promise<void>;
 };
 
 /**
@@ -71,15 +78,17 @@ export class ProjectInfoDialog extends BaseDialog<void> {
                 ['Schema path', info.schemaPath],
                 ['Auto-generate', info.autoGenerate ? 'yes' : 'no']
             ]),
-            ProjectInfoDialog._section('Output (effective)', [
-                ['Mode', info.output.mode],
-                ['Destination path', info.output.destinationPath],
-                ['Clear destination before generate', info.output.destinationClear ? 'yes' : 'no'],
-                ['SQL comments', info.output.sqlComment ? 'yes' : 'no'],
-                ['SQL indent', JSON.stringify(info.output.sqlIndent)],
-                ['Statement terminator', JSON.stringify(info.output.statementTerminator)],
-                ['Migration filename', info.output.migrationFilenamePattern]
-            ]),
+            this._actions.saveOutputSettings
+                ? this._renderOutputSettingsSection(info.output)
+                : ProjectInfoDialog._section('Output (effective)', [
+                    ['Mode', info.output.mode],
+                    ['Destination path', info.output.destinationPath],
+                    ['Clear destination before generate', info.output.destinationClear ? 'yes' : 'no'],
+                    ['SQL comments', info.output.sqlComment ? 'yes' : 'no'],
+                    ['SQL indent', JSON.stringify(info.output.sqlIndent)],
+                    ['Statement terminator', JSON.stringify(info.output.statementTerminator)],
+                    ['Migration filename', info.output.migrationFilenamePattern]
+                ]),
             ProjectInfoDialog._section('Sync (effective)', [
                 ['Ignored tables', info.sync.ignoreTables.length ? info.sync.ignoreTables.join(', ') : '—'],
                 ['Ignored column attributes', info.sync.ignoreColumnAttributes.length ? info.sync.ignoreColumnAttributes.join(', ') : '—']
@@ -122,6 +131,152 @@ export class ProjectInfoDialog extends BaseDialog<void> {
                 alert(`Reload failed: ${(err as Error).message}\n\ndbeditor.json may have a syntax or validation error — fix it and try again.`);
             }
         }).catch((err: unknown): void => console.error('[ProjectInfoDialog] reload failed:', err));
+    }
+
+    /*
+     * Editable Output section — same fields the old standalone
+     * ProjectSettingsDialog carried, embedded inside the unified
+     * Project dialog. Save button diffs the current input values
+     * against the initial snapshot and pushes only changed fields
+     * via the action callback. A small status line appears next to
+     * Save while a write is in flight or after success/failure.
+     */
+    private _renderOutputSettingsSection(initial: OutputSettings): HTMLDivElement {
+        const wrap = document.createElement('div');
+        wrap.className = 'project-info-section';
+        const h = document.createElement('h4');
+        h.className = 'project-info-section-title';
+        h.textContent = 'Output settings';
+        wrap.append(h);
+
+        const form = document.createElement('div');
+        form.className = 'project-info-output-form';
+
+        const modeSel = ProjectInfoDialog._formRow(form, 'Output mode', () => {
+            const s = document.createElement('select');
+            for (const o of [
+                {value: 'ddl-files', label: 'ddl-files — one .sql per table'},
+                {value: 'migrations', label: 'migrations — timestamped up/down pairs'}
+            ]) {
+                const opt = document.createElement('option');
+                opt.value = o.value; opt.textContent = o.label;
+                s.append(opt);
+            }
+            s.value = initial.mode;
+            return s;
+        });
+        const destPath = ProjectInfoDialog._formInputRow(form, 'Destination path', initial.destinationPath);
+        const destClear = ProjectInfoDialog._formCheckboxRow(form, 'Clear destination directory before generating', initial.destinationClear);
+        const sqlComment = ProjectInfoDialog._formCheckboxRow(form, 'Emit -- comments in generated SQL', initial.sqlComment);
+        const sqlIndent = ProjectInfoDialog._formInputRow(form, 'SQL indent', initial.sqlIndent);
+        ProjectInfoDialog._attachWhitespaceHint(sqlIndent);
+        const stTerminator = ProjectInfoDialog._formInputRow(form, 'Statement terminator', initial.statementTerminator);
+        const migFilename = ProjectInfoDialog._formInputRow(form, 'Migration filename pattern', initial.migrationFilenamePattern);
+        ProjectInfoDialog._attachStaticHint(
+            migFilename,
+            'Placeholders: {timestamp} = sortable ISO-like stamp, {name} = user-supplied migration name. Both are required for unique filenames.'
+        );
+
+        const footer = document.createElement('div');
+        footer.className = 'project-info-output-footer';
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'btn-grey btn-primary';
+        saveBtn.textContent = 'Save output settings';
+        const status = document.createElement('span');
+        status.className = 'project-info-output-status';
+        saveBtn.addEventListener('click', async(): Promise<void> => {
+            const patch: Partial<OutputSettings> = {};
+            if (modeSel.value !== initial.mode) {patch.mode = modeSel.value;}
+            if (destPath.value !== initial.destinationPath) {patch.destinationPath = destPath.value;}
+            if (destClear.checked !== initial.destinationClear) {patch.destinationClear = destClear.checked;}
+            if (sqlComment.checked !== initial.sqlComment) {patch.sqlComment = sqlComment.checked;}
+            if (sqlIndent.value !== initial.sqlIndent) {patch.sqlIndent = sqlIndent.value;}
+            if (stTerminator.value !== initial.statementTerminator) {patch.statementTerminator = stTerminator.value;}
+            if (migFilename.value !== initial.migrationFilenamePattern) {patch.migrationFilenamePattern = migFilename.value;}
+            if (Object.keys(patch).length === 0) {status.textContent = 'No changes.'; return;}
+            saveBtn.disabled = true;
+            status.textContent = 'Saving…';
+            try {
+                await this._actions.saveOutputSettings!(patch);
+                status.textContent = 'Saved.';
+            } catch (err) {
+                status.textContent = `Failed: ${(err as Error).message ?? err}`;
+            } finally {
+                saveBtn.disabled = false;
+            }
+        });
+        footer.append(saveBtn, status);
+
+        wrap.append(form, footer);
+        return wrap;
+    }
+
+    private static _formRow<T extends HTMLElement>(parent: HTMLElement, label: string, build: () => T): T {
+        const row = document.createElement('div');
+        row.className = 'dialog-row';
+        const lbl = document.createElement('label');
+        lbl.textContent = label;
+        row.append(lbl);
+        const el = build();
+        row.append(el);
+        parent.append(row);
+        return el;
+    }
+
+    private static _formInputRow(parent: HTMLElement, label: string, value: string): HTMLInputElement {
+        return ProjectInfoDialog._formRow(parent, label, () => {
+            const input = document.createElement('input');
+            input.value = value;
+            return input;
+        });
+    }
+
+    private static _formCheckboxRow(parent: HTMLElement, label: string, value: boolean): HTMLInputElement {
+        const row = document.createElement('div');
+        row.className = 'dialog-row dialog-row-checkbox';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = value;
+        const lbl = document.createElement('label');
+        lbl.textContent = label;
+        lbl.style.cursor = 'pointer';
+        lbl.addEventListener('click', () => { cb.checked = !cb.checked; });
+        row.append(cb, lbl);
+        parent.append(row);
+        return cb;
+    }
+
+    /*
+     * SQL-indent is empty-vs-whitespace ambiguous in a plain input —
+     * surface a per-keystroke summary so the user sees what's stored.
+     */
+    private static _attachWhitespaceHint(input: HTMLInputElement): void {
+        const hint = document.createElement('div');
+        hint.className = 'dialog-input-hint';
+        const describe = (v: string): string => {
+            if (v === '') {return '(empty — flat single-line SQL)';}
+            const spaces = v.split('').filter(c => c === ' ').length;
+            const tabs = v.split('').filter(c => c === '\t').length;
+            const other = v.length - spaces - tabs;
+            const parts: string[] = [];
+            if (spaces > 0) {parts.push(`${spaces} space${spaces === 1 ? '' : 's'}`);}
+            if (tabs > 0)   {parts.push(`${tabs} tab${tabs === 1 ? '' : 's'}`);}
+            if (other > 0)  {parts.push(`${other} other char${other === 1 ? '' : 's'} (unusual!)`);}
+            return `(${parts.join(' + ')})`;
+        };
+        hint.textContent = describe(input.value);
+        input.parentElement?.append(hint);
+        input.addEventListener('input', () => {
+            hint.textContent = describe(input.value);
+        });
+    }
+
+    private static _attachStaticHint(input: HTMLInputElement, text: string): void {
+        const hint = document.createElement('div');
+        hint.className = 'dialog-input-hint';
+        hint.textContent = text;
+        input.parentElement?.append(hint);
     }
 
     private static _section(title: string, rows: [string, string][]): HTMLDivElement {
