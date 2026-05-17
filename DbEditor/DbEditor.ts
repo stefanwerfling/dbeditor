@@ -2079,10 +2079,13 @@ export class DbEditor {
             const current = this._findViewInProject(viewUnid);
             if (!current) {return;}
             /*
-             * Scope-aware drag commit mirrors the table flow. When
-             * scoped to a non-primary diagram the view sits in via
-             * `layerPlacements`, write to that placement; otherwise
-             * the primary `pos` is the canonical home.
+             * Drag commit mirrors the table flow:
+             *   1) Layer-scoped + non-primary diagram → write to the
+             *      matching placement.
+             *   2) Unscoped + dropped on a diagram the view isn't in
+             *      → add a placement (multi-membership), primary
+             *      `pos` also moves.
+             *   3) Unscoped, no diagram under cursor → move `pos`.
              */
             const activeLayer = this._activeLayerUnid;
             if (activeLayer && current.layerUnid !== activeLayer) {
@@ -2090,7 +2093,12 @@ export class DbEditor {
                 this._mutate(p => this._api.updateView(p.unid, viewUnid, {layerPlacements: nextPlacements}));
                 return;
             }
-            this._mutate(p => this._api.updateView(p.unid, viewUnid, { pos: { x: x, y: y } }));
+            const droppedOn = activeLayer ? null : this._layerAtPoint(x, y);
+            const patch: {pos: {x: number; y: number;}; layerPlacements?: {layerUnid: string; pos: {x: number; y: number;};}[];} = { pos: { x: x, y: y } };
+            if (droppedOn && current.layerUnid !== droppedOn) {
+                patch.layerPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], droppedOn, {x: x, y: y});
+            }
+            this._mutate(p => this._api.updateView(p.unid, viewUnid, patch));
         });
         window.addEventListener(EditorEvents.generateScoped, (e) => {
             const detail = (e as CustomEvent).detail as {
