@@ -1,4 +1,3 @@
-import {randomUUID} from 'crypto';
 import {JsonDataDB, JsonTable, JsonView, JsonColumn} from '../DbEditor/JsonData.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
 import {DbProjectSync} from '../DbProject/DbProject.js';
@@ -33,8 +32,34 @@ const severityFor = (kind: SchemaChangeKind): SchemaChangeSeverity => {
     }
 };
 
+/*
+ * Deterministic change id. Two diff calls on the same input MUST
+ * produce the same ids — the sync test-run / apply / reverse-apply
+ * routes re-run the diff server-side and filter by `changeIds` the
+ * client sent from a prior preview; if ids drifted between calls,
+ * every selected change would silently fall out of the filter.
+ *
+ * The natural key is `(kind, tableName, columnName, indexName,
+ * fkName, viewName)`. These fields are mutually exclusive per
+ * kind, and at most one change per tuple is emitted in a single
+ * diff pass (each loop in `_diffTableContents` walks a name set).
+ * Rename changes get their own id pattern that incorporates the
+ * before-name so a `a→b` rename and a `c→b` rename can coexist.
+ */
+const changeId = (kind: SchemaChangeKind, patch: Partial<SchemaChange>): string => {
+    const parts = [
+        kind,
+        patch.tableName ?? '',
+        patch.columnName ?? '',
+        patch.indexName ?? '',
+        patch.fkName ?? '',
+        patch.viewName ?? ''
+    ];
+    return parts.join(':');
+};
+
 const newChange = (kind: SchemaChangeKind, patch: Partial<SchemaChange>): SchemaChange => ({
-    id: randomUUID(),
+    id: changeId(kind, patch),
     kind: kind,
     severity: severityFor(kind),
     sql: [],

@@ -406,3 +406,63 @@ describe('SchemaDiff.diff', () => {
     });
 
 });
+
+describe('SchemaDiff.diff — deterministic change ids', () => {
+
+    /*
+     * Regression: change ids must be stable across diff calls on the
+     * same input. The sync routes (test-run / apply / reverse-apply)
+     * re-run the diff server-side and filter by the `changeIds` the
+     * client sent from a prior preview; if ids drifted, the filter
+     * would always be empty and every selected change would silently
+     * fall out → 409 "no matching changes — re-run preview".
+     */
+
+    it('two diff calls on identical input produce identical change ids', () => {
+        const model = db('app', [
+            table('users', [col('id'), col('email')]),
+            table('orders', [col('id'), col('total')])
+        ]);
+        const live = db('app', [
+            table('users', [col('id')]),
+            table('legacy', [col('id')])
+        ]);
+        const a = SchemaDiff.diff(model, live, sync());
+        const b = SchemaDiff.diff(model, live, sync());
+        const idsA = a.changes.map(c => c.id).sort();
+        const idsB = b.changes.map(c => c.id).sort();
+        expect(idsA).toEqual(idsB);
+        expect(idsA.length).toBeGreaterThan(0);
+    });
+
+    it('id encodes the change identity — kind + table/column/index/fk/view name', () => {
+        const model = db('app', [table('users', [col('id'), col('email')])]);
+        const live = db('app', [table('users', [col('id')])]);
+        const changes = SchemaDiff.diff(model, live, sync()).changes;
+        const added = changes.find(c => c.kind === SchemaChangeKind.columnAdded);
+        expect(added).toBeDefined();
+        expect(added!.id).toBe('columnAdded:users:email:::');
+    });
+
+    it('different changes get different ids within one diff', () => {
+        const model = db('app', [
+            table('users', [col('id'), col('a'), col('b')])
+        ]);
+        const live = db('app', [table('users', [col('id')])]);
+        const ids = SchemaDiff.diff(model, live, sync()).changes.map(c => c.id);
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('rename hint produces a stable id incorporating from + to', () => {
+        const model = db('app', [table('users', [col('id'), col('email_new')])]);
+        const live = db('app', [table('users', [col('id'), col('email_old')])]);
+        const renames = {columns: [{tableName: 'users', from: 'email_old', to: 'email_new'}]};
+        const a = SchemaDiff.diff(model, live, sync(), undefined, undefined, renames);
+        const b = SchemaDiff.diff(model, live, sync(), undefined, undefined, renames);
+        const aRen = a.changes.find(c => c.kind === SchemaChangeKind.columnRenamed);
+        const bRen = b.changes.find(c => c.kind === SchemaChangeKind.columnRenamed);
+        expect(aRen?.id).toBe('columnRenamed:users:email_old:email_new');
+        expect(aRen?.id).toBe(bRen?.id);
+    });
+
+});
