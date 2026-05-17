@@ -1397,14 +1397,9 @@ export class DbEditor {
         conn.bind('mouseout', () => toggle(false));
     }
 
-    /**
-     * Reciprocal of the FK-line hover: hovering an individual column
-     * row highlights every FK partner column it's wired to (and the
-     * hovered row itself). Composite FKs and tables with multiple
-     * outgoing/incoming references trigger multiple partner
-     * highlights at once. Delegated on the canvas grid so cards
-     * created on every `_renderCanvas` automatically participate
-     * without per-card wiring.
+    /*
+     * Delegated on the grid (not per-card) so cards created on every
+     * `_renderCanvas` automatically participate without rewiring.
      */
     private _wireColumnHoverHighlight(): void {
         if (!this._grid) {return;}
@@ -1439,13 +1434,26 @@ export class DbEditor {
                 find(p.tableUnid, p.columnUnid)?.classList.toggle('db-table-column--fk-hover', on);
             }
         };
+        /*
+         * Mouseover bubbles for every pixel within a row. Track the
+         * last hovered row so the partner walk + DOM class shuffle
+         * only runs on actual row transitions, not within-row moves.
+         */
+        let currentRow: HTMLElement | null = null;
         this._grid.addEventListener('mouseover', (e) => {
             const row = rowFromTarget(e.target);
-            if (row) {setHover(row, true);}
+            if (!row || row === currentRow) {return;}
+            if (currentRow) {setHover(currentRow, false);}
+            currentRow = row;
+            setHover(row, true);
         });
         this._grid.addEventListener('mouseout', (e) => {
             const row = rowFromTarget(e.target);
-            if (row) {setHover(row, false);}
+            if (!row || row !== currentRow) {return;}
+            const related = (e as MouseEvent).relatedTarget as HTMLElement | null;
+            if (related && row.contains(related)) {return;}
+            setHover(currentRow, false);
+            currentRow = null;
         });
     }
 
@@ -1783,13 +1791,6 @@ export class DbEditor {
         });
     }
 
-    /**
-     * Refresh the topbar Undo/Redo buttons' enabled state from the
-     * active project's undo/redo stack flags. Mirrors what the Edit
-     * menu does at open time, but for the always-visible buttons it
-     * has to be pushed on every reload (and every mutation that
-     * shifts the stack depth).
-     */
     private _renderUndoRedoButtons(): void {
         const undoBtn = document.getElementById('undoBtn') as HTMLButtonElement | null;
         const redoBtn = document.getElementById('redoBtn') as HTMLButtonElement | null;

@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonDataDBType} from '../JsonData.js';
+import {JsonDataDB, JsonDataDBType, JsonRoutineKind} from '../JsonData.js';
 import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
 import {openContextMenu, ContextMenuItem} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
@@ -97,13 +97,6 @@ export class Treeview {
         };
         const modelBtn = mkBtn('Modell', 'model');
         const liveBtn = mkBtn('Live', 'live');
-        /*
-         * Connection-count badge on the Live tab so the user can see at
-         * a glance whether the live view is hooked up to anything. Count
-         * comes from `_connectableDatabaseUnids` which DbEditor sets on
-         * every reload before render(), so the badge always reflects
-         * current config.
-         */
         const connCount = this._connectableDatabaseUnids.size;
         if (connCount > 0) {
             const badge = document.createElement('span');
@@ -326,7 +319,7 @@ export class Treeview {
                         event: EditorEvents.createRoutineIn,
                         promptLabel: 'New routine name?',
                         suggested: 'new_routine',
-                        extraPayload: {kind: 'procedure'}
+                        extraPayload: {kind: JsonRoutineKind.procedure}
                     }
                 ));
             } else {
