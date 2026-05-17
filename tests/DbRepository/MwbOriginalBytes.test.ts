@@ -303,3 +303,95 @@ describe('DbFsRepository — Phase E.2 per-view XML cache', () => {
     });
 
 });
+
+describe('DbFsRepository — Phase E.2 per-table XML cache (all-or-nothing across tables)', () => {
+
+    const seedWithTable = (): {repo: DbFsRepository; tableUnid: string; columnUnid: string;} => {
+        const data = {
+            fs: {
+                unid: 'root',
+                name: 'root',
+                type: JsonDataDBType.root,
+                entrys: [{
+                    unid: 'db-1',
+                    name: 'main',
+                    type: JsonDataDBType.database,
+                    istoggle: true,
+                    entrys: [],
+                    tables: [{
+                        unid: 't-1', name: 'users', pos: {x: 0, y: 0},
+                        columns: [{unid: 'c-1', name: 'id', type: 'int', primaryKey: true}],
+                        indexes: [], foreignKeys: []
+                    }],
+                    views: [],
+                    enums: []
+                }],
+                tables: [], views: [], enums: []
+            },
+            editor: {}
+        };
+        fs.writeFileSync(tmpFile, JSON.stringify(data));
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        return {repo: repo, tableUnid: 't-1', columnUnid: 'c-1'};
+    };
+
+    const mkEntry = (xml: string): {xml: string; grtId: string; columnGrtIds: string[];} =>
+        ({xml: xml, grtId: 'grt-1', columnGrtIds: ['grt-c1']});
+
+    it('table mutations clear the whole map (all-or-nothing)', () => {
+        const {repo, tableUnid} = seedWithTable();
+        repo.setMwbTableOriginalXml(new Map([
+            [tableUnid, mkEntry('<a/>')],
+            ['t-2', mkEntry('<b/>')]
+        ]));
+        expect(repo.getMwbTableOriginalXml().size).toBe(2);
+        repo.updateTable(tableUnid, {name: 'renamed'}, null);
+        expect(repo.getMwbTableOriginalXml().size).toBe(0);
+    });
+
+    it('column mutation invalidates the whole table map', () => {
+        const {repo, tableUnid, columnUnid} = seedWithTable();
+        repo.setMwbTableOriginalXml(new Map([[tableUnid, mkEntry('<x/>')]]));
+        repo.updateColumn(tableUnid, columnUnid, {name: 'renamed'}, null);
+        expect(repo.getMwbTableOriginalXml().size).toBe(0);
+    });
+
+    it('routine mutation also invalidates (triggers live inside cached table XML)', () => {
+        const {repo, tableUnid} = seedWithTable();
+        repo.setMwbTableOriginalXml(new Map([[tableUnid, mkEntry('<x/>')]]));
+        /* We don't have a routine to update — fake the op via createRoutine which fires routine.create. */
+        repo.createRoutine('db-1', 'trg_x', 'trigger', null, null);
+        expect(repo.getMwbTableOriginalXml().size).toBe(0);
+    });
+
+    it('routine cache survives a table mutation (per-set granularity)', () => {
+        const {repo, tableUnid} = seedWithTable();
+        repo.setMwbTableOriginalXml(new Map([[tableUnid, mkEntry('<x/>')]]));
+        repo.setMwbRoutineOriginalXml(new Map([['r-1', '<r/>']]));
+        repo.updateTable(tableUnid, {name: 'renamed'}, null);
+        expect(repo.getMwbTableOriginalXml().size).toBe(0);
+        expect(repo.getMwbRoutineOriginalXml().has('r-1')).toBe(true);
+    });
+
+    it('view mutation does NOT invalidate the table cache', () => {
+        const {repo, tableUnid} = seedWithTable();
+        repo.setMwbTableOriginalXml(new Map([[tableUnid, mkEntry('<x/>')]]));
+        /* No view exists — fake by setting and deleting wouldn't work without a real view. Use enum.create instead which is also a different family. */
+        repo.createEnum('db-1', 'kind', null, null);
+        expect(repo.getMwbTableOriginalXml().size).toBe(1);
+    });
+
+    it('replaceFs clears the table map too', () => {
+        const {repo, tableUnid} = seedWithTable();
+        repo.setMwbTableOriginalXml(new Map([[tableUnid, mkEntry('<x/>')]]));
+        repo.replaceFs({
+            unid: 'root',
+            name: 'root',
+            type: JsonDataDBType.root,
+            entrys: [],
+            tables: [], views: [], enums: []
+        }, null);
+        expect(repo.getMwbTableOriginalXml().size).toBe(0);
+    });
+
+});

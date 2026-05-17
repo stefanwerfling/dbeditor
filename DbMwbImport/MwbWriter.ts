@@ -304,7 +304,38 @@ const writeTrigger = (tg: JsonRoutine, ownerTableId: string, depth: number): str
     return s;
 };
 
-const writeTable = (table: JsonTable, schemaId: string, ids: IdMaps, depth: number): string => {
+/*
+ * Phase E.2 owner-link rewrite. Cached entity XML carries the
+ * original Workbench schema id in its owner link; we point it at
+ * the current schemaId so the cross-reference resolves in the
+ * regenerated document scaffold.
+ */
+const rewriteOwnerLink = (xml: string, newOwner: string): string =>
+    xml.replace(/(<link\b[^>]*\bkey="owner"[^>]*>)[^<]+(<\/link>)/gu, `$1${newOwner}$2`);
+
+/*
+ * Phase E.2 root-id extraction. The cached XML opens with
+ * `<value type="object" ... id="UUID">` — pull UUID so other
+ * entities that cross-ref this one (ViewFigures pointing at a
+ * view, FK referencedTable links pointing at a table) emit links
+ * that resolve in the regenerated doc.
+ */
+const extractRootId = (xml: string): string | null => {
+    const m = xml.match(/<value\b[^>]*\bid="([^"]+)"/u);
+    return m ? m[1] : null;
+};
+
+const writeTable = (
+    table: JsonTable,
+    schemaId: string,
+    ids: IdMaps,
+    depth: number,
+    cachedXml: string | undefined
+): string => {
+    if (cachedXml) {
+        const patched = rewriteOwnerLink(cachedXml, schemaId);
+        return patched.endsWith('\n') ? patched : `${patched}\n`;
+    }
     const id = ids.tableId.get(table.unid) ?? randomUUID();
     ids.tableId.set(table.unid, id);
 
@@ -347,26 +378,6 @@ const writeTable = (table: JsonTable, schemaId: string, ids: IdMaps, depth: numb
     s += writePassthroughBody(table.wbPassthrough);
     s += `${I(depth)}</value>\n`;
     return s;
-};
-
-/*
- * Phase E.2 owner-link rewrite. Cached entity XML carries the
- * original Workbench schema id in its owner link; we point it at
- * the current schemaId so the cross-reference resolves in the
- * regenerated document scaffold.
- */
-const rewriteOwnerLink = (xml: string, newOwner: string): string =>
-    xml.replace(/(<link\b[^>]*\bkey="owner"[^>]*>)[^<]+(<\/link>)/gu, `$1${newOwner}$2`);
-
-/*
- * Phase E.2 root-id extraction. The cached XML opens with
- * `<value type="object" ... id="UUID">` — pull UUID so other
- * entities that cross-ref this one (ViewFigures pointing at a
- * view, etc.) emit links that resolve in the regenerated doc.
- */
-const extractRootId = (xml: string): string | null => {
-    const m = xml.match(/<value\b[^>]*\bid="([^"]+)"/u);
-    return m ? m[1] : null;
 };
 
 const writeView = (
@@ -440,9 +451,14 @@ type WriteMwbOptions = {
      * For views, the writer also pre-populates ids.viewId from the
      * cached XML's `id="…"` attribute so ViewFigures keep pointing
      * at the actual cached struct rather than a fresh randomUUID().
+     * Tables additionally carry their column GRT ids in order so
+     * the writer can pre-populate ids.tableId AND ids.columnId for
+     * cached tables — FKs in OTHER tables (cached or regenerated)
+     * resolve consistently against the same id namespace.
      */
     routineXmlByUnid?: Map<string, string>;
     viewXmlByUnid?: Map<string, string>;
+    tableCacheByUnid?: Map<string, {xml: string; grtId: string; columnGrtIds: string[];}>;
 };
 
 const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number, opts: WriteMwbOptions): string => {
@@ -486,8 +502,17 @@ const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number, opts: WriteMwbO
      */
     const flatTables = db.tables ?? [];
     for (const tbl of flatTables) {
-        const block = writeTable(tbl, schemaId, ids, depth + 2);
-        const triggers = triggersByTableName.get(tbl.name) ?? [];
+        const cached = opts.tableCacheByUnid?.get(tbl.unid);
+        const block = writeTable(tbl, schemaId, ids, depth + 2, cached?.xml);
+        /*
+         * Cached tables carry their original nested triggers in the
+         * raw bytes — skip the trigger injection or we'd duplicate.
+         * Any new trigger added after import invalidates the table
+         * cache (routine.* family in _commit), so falling into the
+         * regenerate path naturally picks it up via the placeholder
+         * swap.
+         */
+        const triggers = cached ? [] : triggersByTableName.get(tbl.name) ?? [];
         if (triggers.length === 0) {
             s += block;
         } else {
@@ -682,9 +707,24 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions
     const ids = newIdMaps();
     for (const db of databases) {
         for (const tbl of db.tables ?? []) {
-            ids.tableId.set(tbl.unid, randomUUID());
-            for (const col of tbl.columns) {
-                ids.columnId.set(col.unid, randomUUID());
+            /*
+             * Cached table? Seed ids from the cache so FKs in other
+             * tables (cached or regenerated) resolve to the same
+             * GRT ids the cached XML's own FK refs use. Column
+             * order in the cache matches `tbl.columns` (Reader
+             * captured them together).
+             */
+            const cached = opts.tableCacheByUnid?.get(tbl.unid);
+            if (cached) {
+                ids.tableId.set(tbl.unid, cached.grtId);
+                for (let i = 0; i < tbl.columns.length && i < cached.columnGrtIds.length; i++) {
+                    ids.columnId.set(tbl.columns[i].unid, cached.columnGrtIds[i]);
+                }
+            } else {
+                ids.tableId.set(tbl.unid, randomUUID());
+                for (const col of tbl.columns) {
+                    ids.columnId.set(col.unid, randomUUID());
+                }
             }
         }
         for (const v of db.views ?? []) {

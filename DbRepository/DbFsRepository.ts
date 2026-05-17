@@ -22,6 +22,7 @@ import {
     JsonSyncSettings,
     SchemaJsonData
 } from '../DbEditor/JsonData.js';
+import {MwbTableCacheEntry} from '../DbMwbImport/MwbReader.js';
 import {DbRepositoryEventBus} from './DbRepositoryEventBus.js';
 import {DbFsTreeWalker} from './DbFsTreeWalker.js';
 import {RepoNotFoundError, RepoInvalidError} from './DbRepositoryErrors.js';
@@ -105,6 +106,14 @@ export class DbFsRepository {
      */
     private _mwbOriginalRoutineXml: Map<string, string> = new Map();
     private _mwbOriginalViewXml: Map<string, string> = new Map();
+    /*
+     * Tables are all-or-nothing within the set: any structural
+     * change to ANY table (column add/remove/reorder, index, FK)
+     * potentially invalidates ID cross-references in the other
+     * cached tables' FK refs. _commit clears this map whenever the
+     * mutation op is in the table/column/index/fk family.
+     */
+    private _mwbOriginalTableXml: Map<string, MwbTableCacheEntry> = new Map();
 
     public constructor(project: DbProject) {
         this._project = project;
@@ -255,6 +264,21 @@ export class DbFsRepository {
          * incoming bytes don't get cleared by their own commit.
          */
         this._mwbOriginalBytes = null;
+        /*
+         * Tables share a cross-reference graph via FKs and index/
+         * column ids — any structural change in one table can break
+         * cached XML in another. Invalidate the whole table cache
+         * on any table/column/index/fk mutation. Triggers live
+         * nested inside tables in Workbench's format (routine.* with
+         * kind=trigger), so a routine mutation also invalidates the
+         * table cache. Routine and view caches stay intact (per-
+         * object granularity within their own set).
+         */
+        if (op.startsWith('table.') || op.startsWith('column.')
+            || op.startsWith('index.') || op.startsWith('fk.')
+            || op.startsWith('routine.')) {
+            this._mwbOriginalTableXml.clear();
+        }
         this._bus.publish({ rev: this._rev, op: op, clientId: clientId, body: body });
         this._scheduleFlush();
         return this._rev;
@@ -282,6 +306,14 @@ export class DbFsRepository {
 
     public getMwbViewOriginalXml(): Map<string, string> {
         return this._mwbOriginalViewXml;
+    }
+
+    public setMwbTableOriginalXml(map: Map<string, MwbTableCacheEntry>): void {
+        this._mwbOriginalTableXml = new Map(map);
+    }
+
+    public getMwbTableOriginalXml(): Map<string, MwbTableCacheEntry> {
+        return this._mwbOriginalTableXml;
     }
 
     /*
@@ -905,6 +937,7 @@ export class DbFsRepository {
         /* Whole tree changed — every per-object cache is now stale. */
         this._mwbOriginalRoutineXml.clear();
         this._mwbOriginalViewXml.clear();
+        this._mwbOriginalTableXml.clear();
         this._data = { ...this._data, fs: structuredClone(newFs) };
         return this._commit('fs.replaced', { kind: 'import' }, clientId);
     }

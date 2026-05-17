@@ -343,6 +343,8 @@ type ColumnRecord = {
 type TableRecord = {
     table: JsonTable;
     wbId: string;
+    /** GRT ids of every column in the same order as table.columns. Used by the Phase E.2 table cache. */
+    columnWbIds: string[];
 };
 
 const parseColumn = (col: GrtNode, tableWbId: string): ColumnRecord => {
@@ -628,9 +630,11 @@ const parseTable = (
     const columnsNode = child(tbl, 'columns');
     const wbColumns = columnsNode ? asArray(columnsNode.value) : [];
     const columns: JsonColumn[] = [];
+    const columnWbIds: string[] = [];
     for (const c of wbColumns) {
         const rec = parseColumn(c, wbId);
         columns.push(rec.column);
+        columnWbIds.push(rec.wbId);
         columnByWbId.set(rec.wbId, rec);
     }
 
@@ -678,7 +682,7 @@ const parseTable = (
     ]);
     const pt = capturePassthrough(tbl, consumed, 3);
     if (pt) {table.wbPassthrough = pt;}
-    return {table: table, wbId: wbId};
+    return {table: table, wbId: wbId, columnWbIds: columnWbIds};
 };
 
 /**
@@ -712,6 +716,17 @@ type FigureData = {
 };
 
 type FigureEntry = {fig: GrtNode; kind: 'table' | 'view';};
+
+/**
+ * Phase E.2 per-table cache payload. The writer needs both the raw
+ * outer XML AND the GRT ids of the table + its columns (in order)
+ * so cross-references from FKs in other tables resolve.
+ */
+export type MwbTableCacheEntry = {
+    xml: string;
+    grtId: string;
+    columnGrtIds: string[];
+};
 
 /**
  * Walk every `workbench.physical.TableFigure` and produce both the
@@ -980,6 +995,15 @@ export type MwbImportResult = {
     routineOriginalXml: Map<string, string>;
     /** Same as `routineOriginalXml` but for `db.mysql.View` blocks. */
     viewOriginalXml: Map<string, string>;
+    /**
+     * Phase E.2 per-table cache. Map of JsonTable.unid → cache
+     * entry holding the raw outer XML + GRT id + per-column GRT
+     * ids (column-order matching `table.columns`). Writer pre-
+     * populates `ids.tableId` and `ids.columnId` from these so
+     * FK cross-refs in both cached and regenerated tables resolve
+     * consistently.
+     */
+    tableOriginalXml: Map<string, MwbTableCacheEntry>;
 };
 
 /**
@@ -1027,6 +1051,14 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
     const routineOriginalXml = new Map<string, string>();
     const viewXmlByWbId = extractObjectXmlByGrtId(xml, 'db.mysql.View');
     const viewOriginalXml = new Map<string, string>();
+    /*
+     * Tables also need their column GRT ids preserved so FKs in
+     * OTHER tables (whether cached or regenerated) resolve. Value
+     * carries grtId + column order so the writer can pre-populate
+     * ids.tableId and ids.columnId before any output.
+     */
+    const tableXmlByWbId = extractObjectXmlByGrtId(xml, 'db.mysql.Table');
+    const tableOriginalXml = new Map<string, MwbTableCacheEntry>();
 
     const databases: JsonDataDB[] = [];
     let tableCount = 0;
@@ -1060,6 +1092,14 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
             columnCount += rec.table.columns.length;
             if (figurePos.has(rec.wbId)) {positionedTableCount++;}
             if (rec.table.layerPlacements && rec.table.layerPlacements.length > 0) {multiDiagramTableCount++;}
+            const rawT = tableXmlByWbId.get(rec.wbId);
+            if (rawT) {
+                tableOriginalXml.set(rec.table.unid, {
+                    xml: rawT,
+                    grtId: rec.wbId,
+                    columnGrtIds: rec.columnWbIds
+                });
+            }
         }
         tableCount += records.length;
 
@@ -1199,7 +1239,8 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         layerCount: figureData.layers.length,
         databases: databases,
         routineOriginalXml: routineOriginalXml,
-        viewOriginalXml: viewOriginalXml
+        viewOriginalXml: viewOriginalXml,
+        tableOriginalXml: tableOriginalXml
     };
 };
 

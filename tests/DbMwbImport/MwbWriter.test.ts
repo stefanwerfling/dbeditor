@@ -473,6 +473,57 @@ describe('writeMwb — Phase E.2 per-routine passthrough', () => {
         expect(re.databases[0].routines?.[0]?.name).toBe('fresh_sp');
     });
 
+    it('table cache wins over model + pre-mints table/column GRT ids', () => {
+        /*
+         * The cached XML has table id "grt-tbl-A" and column id
+         * "grt-col-A1". The writer should NOT mint a fresh
+         * randomUUID() for these — and the resulting document must
+         * carry the cached ids so an FK in another table to this
+         * column would resolve.
+         */
+        const db: JsonDataDB = {
+            unid: 'db-1', name: 'app', type: JsonDataDBType.database, entrys: [],
+            views: [], enums: [], routines: [],
+            tables: [{
+                unid: 't-cached', name: 'WRITER_TABLE_NAME', pos: {x: 0, y: 0},
+                columns: [{unid: 'c-cached', name: 'writer_col', type: 'int'}],
+                indexes: [], foreignKeys: []
+            }]
+        };
+        const cachedXml = `      <value type="object" struct-name="db.mysql.Table" id="grt-tbl-A">
+        <value type="list" content-type="object" content-struct-name="db.mysql.Column" key="columns">
+          <value type="object" struct-name="db.mysql.Column" id="grt-col-A1">
+            <value type="string" key="name">cached_id</value>
+            <value type="string" key="oldName">cached_id</value>
+            <link type="object" struct-name="db.SimpleDatatype" key="simpleType">com.mysql.rdbms.mysql.datatype.int</link>
+            <value type="int" key="isNotNull">1</value>
+          </value>
+        </value>
+        <value type="list" content-type="object" content-struct-name="db.mysql.Index" key="indices"/>
+        <value type="list" content-type="object" content-struct-name="db.mysql.ForeignKey" key="foreignKeys"/>
+        <value type="list" content-type="object" content-struct-name="db.mysql.Trigger" key="triggers"/>
+        <value type="string" key="name">cached_table</value>
+        <value type="string" key="oldName">cached_table</value>
+        <link type="object" struct-name="GrtObject" key="owner">OLD_SCHEMA_X</link>
+      </value>`;
+        const cache = new Map([['t-cached', {
+            xml: cachedXml,
+            grtId: 'grt-tbl-A',
+            columnGrtIds: ['grt-col-A1']
+        }]]);
+        const out = writeMwb([db], {tableCacheByUnid: cache});
+        const re = parseMwb(out);
+        const t = re.databases[0].tables[0];
+        expect(t.name).toBe('cached_table');
+        expect(t.columns[0]?.name).toBe('cached_id');
+        /* Owner placeholder rewritten. */
+        const xmlBack = new AdmZip(out).getEntry('document.mwb.xml')!.getData().toString('utf-8');
+        expect(xmlBack).not.toContain('OLD_SCHEMA_X');
+        /* Cached GRT ids preserved in the document. */
+        expect(xmlBack).toContain('id="grt-tbl-A"');
+        expect(xmlBack).toContain('id="grt-col-A1"');
+    });
+
     it('view cache wins over model + pre-mints ids.viewId from cached GRT id', () => {
         const db: JsonDataDB = {
             unid: 'db-1', name: 'app', type: JsonDataDBType.database, entrys: [],
