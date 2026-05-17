@@ -364,7 +364,35 @@ const writeView = (v: JsonView, schemaId: string, ids: IdMaps, depth: number): s
     return s;
 };
 
-const writeRoutine = (r: JsonRoutine, schemaId: string, depth: number): string => {
+/*
+ * Phase E.2 owner-link rewrite. Cached routine XML carries the
+ * original Workbench schema id in its owner link; we point it at
+ * the current schemaId so the cross-reference resolves in the
+ * regenerated document scaffold.
+ */
+const rewriteOwnerLink = (xml: string, newOwner: string): string =>
+    xml.replace(/(<link\b[^>]*\bkey="owner"[^>]*>)[^<]+(<\/link>)/gu, `$1${newOwner}$2`);
+
+const writeRoutine = (
+    r: JsonRoutine,
+    schemaId: string,
+    depth: number,
+    cachedXml: string | undefined
+): string => {
+    if (cachedXml) {
+        /*
+         * Phase E.2 fast path. The routine hasn't been touched since
+         * import — re-emit the raw source bytes, only patching the
+         * owner link so it points at this document's schemaId. The
+         * outer indent stays as-captured (Workbench's loader doesn't
+         * care; our own re-parser is whitespace-insensitive). Add a
+         * trailing newline if the captured slice didn't end with one
+         * so list separation stays consistent with regenerated
+         * siblings.
+         */
+        const patched = rewriteOwnerLink(cachedXml, schemaId);
+        return patched.endsWith('\n') ? patched : `${patched}\n`;
+    }
     const id = randomUUID();
     const kind = String(r.kind).toLowerCase();
     const wbType = kind === JsonRoutineKind.function ? 'function' : 'procedure';
@@ -381,7 +409,18 @@ const writeRoutine = (r: JsonRoutine, schemaId: string, depth: number): string =
     return s;
 };
 
-const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number): string => {
+type WriteMwbOptions = {
+    /**
+     * Phase E.2 per-object roundtrip cache. Map of routine.unid →
+     * raw outer-XML bytes of the source `db.mysql.Routine` struct.
+     * When provided, `writeRoutine` re-emits these bytes (with the
+     * owner link patched to the current schemaId) instead of
+     * regenerating. Missing entries fall back to regeneration.
+     */
+    routineXmlByUnid?: Map<string, string>;
+};
+
+const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number, opts: WriteMwbOptions): string => {
     const schemaId = randomUUID();
 
     /*
@@ -447,7 +486,7 @@ const writeSchema = (db: JsonDataDB, ids: IdMaps, depth: number): string => {
 
     s += `${I(depth + 1)}<value type="list" content-type="object" content-struct-name="db.mysql.Routine" key="routines">\n`;
     for (const r of procFuncRoutines) {
-        s += writeRoutine(r, schemaId, depth + 2);
+        s += writeRoutine(r, schemaId, depth + 2, opts.routineXmlByUnid?.get(r.unid));
     }
     s += `${I(depth + 1)}</value>\n`;
 
@@ -601,7 +640,7 @@ const collectLayers = (databases: JsonDataDB[]): JsonLayer[] => {
     return out;
 };
 
-export const writeMwb = (input: JsonDataDB[] | JsonDataDB): Buffer => {
+export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions = {}): Buffer => {
     const databases = Array.isArray(input) ? input : collectDatabases(input);
     const documentId = randomUUID();
     const physicalModelId = randomUUID();
@@ -653,7 +692,7 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB): Buffer => {
     xml += `${I(4)}<value type="object" struct-name="db.mysql.Catalog" id="${catalogId}" key="catalog">\n`;
     xml += `${I(5)}<value type="list" content-type="object" content-struct-name="db.mysql.Schema" key="schemata">\n`;
     for (const db of databases) {
-        xml += writeSchema(db, ids, 6);
+        xml += writeSchema(db, ids, 6, opts);
     }
     xml += `${I(5)}</value>\n`;
     xml += vStr('name', 'catalog', 5);

@@ -95,6 +95,16 @@ export class DbFsRepository {
      */
     private _mwbOriginalBytes: Buffer | null = null;
 
+    /*
+     * Phase E.2 per-object roundtrip cache. Map of routine.unid →
+     * raw outer-XML bytes of the source `db.mysql.Routine` struct.
+     * Survives non-routine mutations (per-object granularity) but
+     * an `updateRoutine` / `deleteRoutine` drops the matching entry
+     * — the cached bytes no longer reflect the live model state.
+     * `replaceFs` clears all entries.
+     */
+    private _mwbOriginalRoutineXml: Map<string, string> = new Map();
+
     public constructor(project: DbProject) {
         this._project = project;
         this._data = this._loadFromDisk();
@@ -255,6 +265,14 @@ export class DbFsRepository {
 
     public getMwbOriginalBytes(): Buffer | null {
         return this._mwbOriginalBytes;
+    }
+
+    public setMwbRoutineOriginalXml(map: Map<string, string>): void {
+        this._mwbOriginalRoutineXml = new Map(map);
+    }
+
+    public getMwbRoutineOriginalXml(): Map<string, string> {
+        return this._mwbOriginalRoutineXml;
     }
 
     /*
@@ -835,6 +853,7 @@ export class DbFsRepository {
     }
 
     public updateRoutine(unid: string, patch: Partial<Pick<JsonRoutine, 'name' | 'pos' | 'kind' | 'body' | 'description'>>, clientId: string | null): number {
+        this._mwbOriginalRoutineXml.delete(unid);
         const hit = DbFsTreeWalker.findRoutine(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`routine ${unid} not found`);}
         if (patch.name !== undefined) {hit.routine.name = patch.name;}
@@ -846,6 +865,7 @@ export class DbFsRepository {
     }
 
     public deleteRoutine(unid: string, clientId: string | null): number {
+        this._mwbOriginalRoutineXml.delete(unid);
         const hit = DbFsTreeWalker.findRoutine(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`routine ${unid} not found`);}
         hit.container.routines = (hit.container.routines ?? []).filter(r => r.unid !== unid);
@@ -871,6 +891,8 @@ export class DbFsRepository {
      * just like any other mutation.
      */
     public replaceFs(newFs: JsonDataDB, clientId: string | null): number {
+        /* Whole tree changed — every per-object cache is now stale. */
+        this._mwbOriginalRoutineXml.clear();
         this._data = { ...this._data, fs: structuredClone(newFs) };
         return this._commit('fs.replaced', { kind: 'import' }, clientId);
     }

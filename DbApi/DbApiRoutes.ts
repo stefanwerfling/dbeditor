@@ -468,6 +468,15 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                      * now has more than just the imported content.
                      */
                     repo.setMwbOriginalBytes(buf);
+                    /*
+                     * Phase E.2 per-routine cache: arm AFTER
+                     * replaceFs so the routines' raw XML survives
+                     * its own clear-all commit. Any routine.update /
+                     * routine.delete from now on drops the matching
+                     * entry — the writer falls back to regeneration
+                     * for that single routine.
+                     */
+                    repo.setMwbRoutineOriginalXml(result.routineOriginalXml);
                 } else {
                     res.status(400).json({error: `unknown mode "${mode}" — must be "replace" or "append"`});
                     return;
@@ -521,7 +530,9 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
              * regeneration.
              */
             const original = repo.getMwbOriginalBytes();
-            const buf = original ?? writeMwb(repo.data.fs);
+            const buf = original ?? writeMwb(repo.data.fs, {
+                routineXmlByUnid: repo.getMwbRoutineOriginalXml()
+            });
             res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Length', String(buf.length));
             res.end(buf);

@@ -13,6 +13,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {describe, expect, it} from 'vitest';
+// eslint-disable-next-line import/extensions
+import AdmZip from 'adm-zip';
 import {parseMwb} from '../../DbMwbImport/MwbReader.js';
 import {writeMwb} from '../../DbMwbImport/MwbWriter.js';
 import {JsonColumn, JsonDataDB, JsonDataDBType, JsonRoutineKind} from '../../DbEditor/JsonData.js';
@@ -412,6 +414,63 @@ describe('writeMwb — Phase E wbPassthrough round-trip', () => {
         const captured = (reTable?.wbPassthrough?.values ?? []).map(v => v.key);
         expect(captured.includes('vendorTag')).toBe(true);
         expect(captured.includes('vendorFlag')).toBe(true);
+    });
+
+});
+
+describe('writeMwb — Phase E.2 per-routine passthrough', () => {
+
+    /*
+     * When the writer is handed a cached XML for a routine.unid it
+     * emits those bytes verbatim, only rewriting the owner link to
+     * match the current schemaId. Re-parsing keeps the routine
+     * recognisable (name, kind, body) — i.e. the cache path doesn't
+     * silently drop content.
+     */
+    it('uses the cached XML and rewrites the owner link to the new schemaId', () => {
+        const db: JsonDataDB = {
+            unid: 'db-1', name: 'app', type: JsonDataDBType.database, entrys: [],
+            tables: [], views: [], enums: [],
+            routines: [{
+                unid: 'r-cached', name: 'whatever_the_writer_says',
+                pos: {x: 0, y: 0}, kind: JsonRoutineKind.procedure,
+                body: 'IGNORED — cache takes precedence'
+            }]
+        };
+        const cachedXml = `      <value type="object" struct-name="db.mysql.Routine" id="wb-old-id">
+        <value type="string" key="routineType">procedure</value>
+        <value type="string" key="sqlDefinition">CREATE PROCEDURE preserved_sql() BEGIN /* untouched */ END</value>
+        <value type="string" key="name">preserved_sp</value>
+        <value type="string" key="oldName">preserved_sp</value>
+        <link type="object" struct-name="GrtObject" key="owner">OLD_SCHEMA_ID</link>
+      </value>`;
+        const cache = new Map([['r-cached', cachedXml]]);
+        const out = writeMwb([db], {routineXmlByUnid: cache});
+        const re = parseMwb(out);
+        const routines = re.databases[0].routines ?? [];
+        const cachedRoutine = routines.find(r => r.name === 'preserved_sp');
+        expect(cachedRoutine).toBeDefined();
+        expect(cachedRoutine?.body).toBe('CREATE PROCEDURE preserved_sql() BEGIN /* untouched */ END');
+        /* The original `whatever_the_writer_says` is *not* in the output — the cache won. */
+        expect(routines.find(r => r.name === 'whatever_the_writer_says')).toBeUndefined();
+
+        /* Owner-link rewrite proof: the literal placeholder is gone from the raw XML. */
+        const xmlBack = new AdmZip(out).getEntry('document.mwb.xml')!.getData().toString('utf-8');
+        expect(xmlBack).not.toContain('OLD_SCHEMA_ID');
+    });
+
+    it('falls back to regeneration for routines whose unid is missing from the cache', () => {
+        const db: JsonDataDB = {
+            unid: 'db-1', name: 'app', type: JsonDataDBType.database, entrys: [],
+            tables: [], views: [], enums: [],
+            routines: [{
+                unid: 'r-fresh', name: 'fresh_sp', pos: {x: 0, y: 0},
+                kind: JsonRoutineKind.procedure,
+                body: 'CREATE PROCEDURE fresh_sp() BEGIN END'
+            }]
+        };
+        const re = parseMwb(writeMwb([db], {routineXmlByUnid: new Map()}));
+        expect(re.databases[0].routines?.[0]?.name).toBe('fresh_sp');
     });
 
 });

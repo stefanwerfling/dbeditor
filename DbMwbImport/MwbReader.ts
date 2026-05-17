@@ -263,6 +263,53 @@ const findStructs = (node: GrtNode | undefined, structName: string, out: GrtNode
 };
 
 /**
+ * Scan raw `document.mwb.xml` text for every
+ * `<value type="object" struct-name="${structName}" ... id="UUID">...</value>`
+ * block and return a map keyed by GRT UUID with the raw byte slice
+ * (inclusive of both tags). Used by the Phase E.2 per-object
+ * roundtrip passthrough: writer can re-emit these bytes verbatim
+ * when the model object hasn't been touched since import.
+ *
+ * Tag-balanced scan rather than naive regex — `<value type="list">`
+ * children nest inside the routine block (e.g. params, owner link)
+ * and we need to find the *matching* `</value>` at the same depth.
+ * Self-closing `<value ... />` opens are tracked but never push
+ * onto the depth stack.
+ */
+const extractObjectXmlByGrtId = (xml: string, structName: string): Map<string, string> => {
+    const out = new Map<string, string>();
+    const openRe = new RegExp(`<value\\b[^>]*struct-name="${structName}"[^>]*id="([^"]+)"[^>]*>`, 'gu');
+    let m: RegExpExecArray | null;
+    while ((m = openRe.exec(xml)) !== null) {
+        /* Self-closing root tag — nothing to capture beyond it. */
+        if (m[0].endsWith('/>')) {
+            out.set(m[1], m[0]);
+            continue;
+        }
+        let depth = 1;
+        let i = m.index + m[0].length;
+        let end = -1;
+        while (i < xml.length && depth > 0) {
+            const close = xml.indexOf('</value>', i);
+            const open = xml.indexOf('<value', i);
+            if (close < 0) {break;}
+            if (open >= 0 && open < close) {
+                /* Peek past attributes to see if this opener is self-closing. */
+                const tagEnd = xml.indexOf('>', open);
+                if (tagEnd > 0 && xml[tagEnd - 1] !== '/') {depth++;}
+                i = tagEnd + 1;
+            } else {
+                depth--;
+                i = close + '</value>'.length;
+                if (depth === 0) {end = i;}
+            }
+        }
+        if (end > 0) {out.set(m[1], xml.substring(m.index, end));}
+    }
+    return out;
+};
+
+/**
  * Map `com.mysql.rdbms.mysql.datatype.<name>` → our logical column type
  * string. Lengths/precisions are handled by the column-level conversion,
  * not by this lookup — here we just normalise the type name.
@@ -923,6 +970,14 @@ export type MwbImportResult = {
     /** Synthesised layers — one per Workbench diagram, used as visual grouping rectangles. */
     layerCount: number;
     databases: JsonDataDB[];
+    /**
+     * Phase E.2 per-object roundtrip cache. Map of JsonRoutine.unid →
+     * raw outer-XML bytes of the source `db.mysql.Routine` struct.
+     * Caller feeds this into the repo; the writer re-emits these
+     * bytes (with owner-link rewriting) when the routine hasn't
+     * been touched since import.
+     */
+    routineOriginalXml: Map<string, string>;
 };
 
 /**
@@ -958,6 +1013,15 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
     const viewFigurePos = figureData.viewPositions;
     const tableToLayer = figureData.tableToLayer;
     const tablePlacementsMap = figureData.tablePlacements;
+    /*
+     * Phase E.2 per-object cache: capture the raw bytes of every
+     * `db.mysql.Routine` block once from the source XML. Keyed by
+     * the GRT id; later mapped to our JsonRoutine.unid as routines
+     * are parsed. Triggers (`db.mysql.Trigger`, nested in tables)
+     * are deliberately out of scope for this pilot.
+     */
+    const routineXmlByWbId = extractObjectXmlByGrtId(xml, 'db.mysql.Routine');
+    const routineOriginalXml = new Map<string, string>();
 
     const databases: JsonDataDB[] = [];
     let tableCount = 0;
@@ -1039,8 +1103,12 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         const wbRoutines = routinesNode ? asArray(routinesNode.value) : [];
         const routines: JsonRoutine[] = [];
         for (const r of wbRoutines) {
-            routines.push(parseRoutine(r));
+            const routine = parseRoutine(r);
+            routines.push(routine);
             routineCount++;
+            const wbId = r['@_id'] ?? '';
+            const raw = routineXmlByWbId.get(wbId);
+            if (raw) {routineOriginalXml.set(routine.unid, raw);}
         }
 
         /*
@@ -1121,7 +1189,8 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         routineCount: routineCount,
         triggerCount: triggerCount,
         layerCount: figureData.layers.length,
-        databases: databases
+        databases: databases,
+        routineOriginalXml: routineOriginalXml
     };
 };
 
