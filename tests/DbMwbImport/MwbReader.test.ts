@@ -147,14 +147,13 @@ describe('parseMwb — example.mwb integration', () => {
         expect(collisions).toEqual([]);
     });
 
-    it('imports the authored EER diagram ("Authoring") with its bounds', () => {
+    it('imports the authored EER diagram ("Authoring") as a JsonDiagram', () => {
         const r = parseMwb(fs.readFileSync(SAMPLE));
         const layers = r.databases[0].diagrams ?? [];
         expect(layers.length).toBeGreaterThanOrEqual(1);
         const authoring = layers.find(l => l.name === 'Authoring');
         expect(authoring).toBeDefined();
-        expect(authoring!.width).toBeGreaterThan(0);
-        expect(authoring!.height).toBeGreaterThan(0);
+        expect(authoring!.unid).toBeTruthy();
     });
 
     it('tables tagged with a diagram get a diagramUnid pointing at that diagram', () => {

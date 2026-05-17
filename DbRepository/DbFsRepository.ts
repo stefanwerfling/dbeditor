@@ -217,10 +217,15 @@ export class DbFsRepository {
     }
 
     /*
-     * Phase 1 layer→diagram refactor: legacy schemas have layerUnid /
-     * layerPlacements on tables/views, `layers` on db nodes, and
-     * `type: 'layer'` on the diagram-row nodes. Migrate in-place
-     * before Vts validation.
+     * Phase 1 + 2 layer→diagram migration. Legacy schemas have:
+     *  - `layerUnid` / `layerPlacements` on tables / views,
+     *  - `layers` on db / folder / project nodes,
+     *  - `type: 'layer'` on the diagram-row node itself,
+     *  - `pos` / `width` / `height` / `color` on the (then visual)
+     *    layer entries.
+     * Phase 2 drops the visual fields — a JsonDiagram is now a pure
+     * logical container. Strip them at load time so Vts validation
+     * passes against the new schema.
      */
     private static _migrateLegacyLayerSchema(raw: any): void {
         if (!raw || typeof raw !== 'object' || !raw.fs) {return;}
@@ -237,12 +242,22 @@ export class DbFsRepository {
                 delete entity.layerPlacements;
             }
         };
+        const stripVisualProps = (d: any): void => {
+            if (!d || typeof d !== 'object') {return;}
+            delete d.pos;
+            delete d.width;
+            delete d.height;
+            delete d.color;
+        };
         const walk = (node: any): void => {
             if (!node || typeof node !== 'object') {return;}
             if (node.type === 'layer') {node.type = 'diagram';}
             if (Array.isArray(node.layers) && !Array.isArray(node.diagrams)) {
                 node.diagrams = node.layers;
                 delete node.layers;
+            }
+            if (Array.isArray(node.diagrams)) {
+                for (const d of node.diagrams) {stripVisualProps(d);}
             }
             if (Array.isArray(node.tables)) {
                 for (const t of node.tables) {renamePlacements(t);}
@@ -846,22 +861,19 @@ export class DbFsRepository {
 
     /*
      * ---------------------------------------------------------------------
-     * Layer ops (visual grouping rectangles, EER diagram analog)
+     * Diagram ops — Workbench-style "EER tab", a pure logical
+     * container that groups a subset of the database's tables/views
+     * under a named scope. No visual rectangle: scoping the canvas
+     * to a diagram just filters which cards render.
      *
-     * Layers are imported from `.mwb` files via `MwbReader` and rendered
-     * as backdrops behind the table cards. The user can rename or
-     * delete them from the canvas. Adding a new diagram from scratch is
-     * not yet a feature — the import flow is the only producer.
+     * Producers: `.mwb` import (one JsonDiagram per Workbench diagram
+     * or authored Layer) and the in-app "Add EER diagram" action.
      * ---------------------------------------------------------------------
      */
 
     public createDiagram(
         containerUnid: string,
         name: string,
-        pos: JsonPosition | null,
-        width: number | null,
-        height: number | null,
-        color: string | null,
         clientId: string | null
     ): { rev: number; diagram: JsonDiagram; } {
         const container = DbFsTreeWalker.findContainer(this._data.fs, containerUnid);
@@ -870,12 +882,8 @@ export class DbFsRepository {
         if (!trimmed) {throw new RepoInvalidError('diagram name must not be empty');}
         const diagram: JsonDiagram = {
             unid: randomUUID(),
-            name: trimmed,
-            pos: pos || {x: 80, y: 80},
-            width: width && width > 0 ? width : 400,
-            height: height && height > 0 ? height : 300
+            name: trimmed
         };
-        if (color) {diagram.color = color;}
         container.diagrams = [...container.diagrams ?? [], diagram];
         const rev = this._commit('diagram.create', { containerUnid: containerUnid, diagram: diagram }, clientId);
         return { rev: rev, diagram: diagram };
@@ -883,16 +891,12 @@ export class DbFsRepository {
 
     public updateDiagram(
         unid: string,
-        patch: Partial<Pick<JsonDiagram, 'name' | 'pos' | 'width' | 'height' | 'color' | 'description'>>,
+        patch: Partial<Pick<JsonDiagram, 'name' | 'description'>>,
         clientId: string | null
     ): number {
         const hit = DbFsTreeWalker.findDiagram(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`diagram ${unid} not found`);}
         if (patch.name !== undefined) {hit.diagram.name = patch.name;}
-        if (patch.pos !== undefined) {hit.diagram.pos = patch.pos;}
-        if (patch.width !== undefined) {hit.diagram.width = patch.width;}
-        if (patch.height !== undefined) {hit.diagram.height = patch.height;}
-        if (patch.color !== undefined) {hit.diagram.color = patch.color;}
         if (patch.description !== undefined) {hit.diagram.description = patch.description;}
         return this._commit('diagram.update', { unid: unid, patch: patch }, clientId);
     }

@@ -52,13 +52,10 @@ export class DiagramMembershipDialog extends BaseDialog<LayerMembershipResult> {
             cb.value = l.unid;
             cb.checked = current.has(l.unid);
             this._checkboxes.set(l.unid, cb);
-            const swatch = document.createElement('span');
-            swatch.className = 'diagram-picker-swatch';
-            if (l.color) {swatch.style.background = l.color;}
             const name = document.createElement('span');
             name.className = 'diagram-picker-name';
             name.textContent = l.name;
-            row.append(cb, swatch, name);
+            row.append(cb, name);
             list.append(row);
         }
         this._body.append(list);

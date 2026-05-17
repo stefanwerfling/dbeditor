@@ -295,11 +295,7 @@ describe('writeMwb — synthetic build', () => {
             views: [], enums: [], routines: [],
             diagrams: [{
                 unid: diagramUnid,
-                name: 'People',
-                pos: {x: 50, y: 50},
-                width: 400,
-                height: 300,
-                color: 'rgba(64, 145, 220, 0.10)'
+                name: 'People'
             }]
         };
         const r = parseMwb(writeMwb([db]));
@@ -307,8 +303,6 @@ describe('writeMwb — synthetic build', () => {
         const reLayers = r.databases[0].diagrams ?? [];
         expect(reLayers).toHaveLength(1);
         expect(reLayers[0].name).toBe('People');
-        expect(reLayers[0].width).toBe(400);
-        expect(reLayers[0].height).toBe(300);
         const reTable = r.databases[0].tables[0];
         expect(reTable.diagramUnid).toBe(reLayers[0].unid);
     });

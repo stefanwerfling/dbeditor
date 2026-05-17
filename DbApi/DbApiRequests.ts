@@ -176,22 +176,14 @@ export const SchemaUpdateRoutineBody = Vts.object({
     description: Vts.optional(Vts.string())
 });
 
-export const SchemaUpdateLayerBody = Vts.object({
+export const SchemaUpdateDiagramBody = Vts.object({
     name: Vts.optional(Vts.string()),
-    pos: Vts.optional(SchemaJsonPosition),
-    width: Vts.optional(Vts.number()),
-    height: Vts.optional(Vts.number()),
-    color: Vts.optional(Vts.string()),
     description: Vts.optional(Vts.string())
 });
 
-export const SchemaCreateLayerBody = Vts.object({
+export const SchemaCreateDiagramBody = Vts.object({
     containerUnid: Vts.string(),
-    name: Vts.string(),
-    pos: Vts.optional(SchemaJsonPosition),
-    width: Vts.optional(Vts.number()),
-    height: Vts.optional(Vts.number()),
-    color: Vts.optional(Vts.string())
+    name: Vts.string()
 });
 
 export const SchemaUpdateEditorSettingsBody = Vts.object({

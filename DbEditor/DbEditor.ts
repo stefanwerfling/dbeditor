@@ -9,9 +9,8 @@ import {DbForeignKeyDialog} from './Table/DbForeignKeyDialog.js';
 import {DbTableOptionsDialog} from './Table/DbTableOptionsDialog.js';
 import {DbBatchTableOptionsDialog} from './Table/DbBatchTableOptionsDialog.js';
 import {DbBulkRenameDialog} from './Table/DbBulkRenameDialog.js';
-import {DiagramPickerDialog} from './Layer/DiagramPickerDialog.js';
-import {DiagramMembershipDialog} from './Layer/DiagramMembershipDialog.js';
-import {LayerColorDialog, extractHex} from './Layer/LayerColorDialog.js';
+import {DiagramPickerDialog} from './Layer/LayerPickerDialog.js';
+import {DiagramMembershipDialog} from './Layer/LayerMembershipDialog.js';
 import {DbEnumDialog} from './Enum/DbEnumDialog.js';
 import {DbViewDialog} from './View/DbViewDialog.js';
 import {WarningsPanel} from './Validation/WarningsPanel.js';
@@ -29,7 +28,6 @@ import {AddConnectionDialog, AddConnectionDatabaseChoice} from './Settings/AddCo
 import {EditConnectionDialog} from './Settings/EditConnectionDialog.js';
 import {RebindConnectionDialog} from './Settings/RebindConnectionDialog.js';
 import {DatabasePropertiesDialog} from './Database/DatabasePropertiesDialog.js';
-import {iconEllipsis} from './Util/Icons.js';
 import {DbRoutineDialog} from './Routine/DbRoutineDialog.js';
 import {SearchPalette} from './Search/SearchPalette.js';
 import {buildSearchIndex} from './Util/SearchIndex.js';
@@ -646,11 +644,11 @@ export class DbEditor {
         let views = this._collectViews(container);
         let layers = this._collectDiagrams(container);
         /*
-         * Layer scope: when a diagram is the active filter (set via
+         * Diagram scope: when a diagram is the active filter (set via
          * clicking a diagram in the treeview), restrict the canvas to
-         * its member tables only. Views/enums are out-of-scope for
-         * layers — hide them. The active diagram itself stays visible
-         * so the user sees the grouping they're focused on.
+         * its member tables and views only. Enums are out-of-scope
+         * for diagrams. The scope banner above the canvas surfaces
+         * which diagram is active.
          */
         if (this._activeDiagramUnid) {
             const diagramUnid = this._activeDiagramUnid;
@@ -683,40 +681,11 @@ export class DbEditor {
         }
         const cardHost = this._zoomLayer ?? this._grid;
         /*
-         * Render layers FIRST so they sit behind table cards in the
-         * stacking order. They're pure visual backdrops — no jsPlumb
-         * handles, no drag, no events; clicks pass through to the
-         * canvas for rubber-band selection.
-         */
-        cardHost.querySelectorAll('.db-diagram').forEach(e => e.remove());
-        for (const diagram of layers) {
-            const el = document.createElement('div');
-            el.className = 'db-diagram';
-            el.dataset.diagramUnid = diagram.unid;
-            el.style.left = `${diagram.pos.x}px`;
-            el.style.top = `${diagram.pos.y}px`;
-            el.style.width = `${diagram.width}px`;
-            el.style.height = `${diagram.height}px`;
-            if (diagram.color) {el.style.background = diagram.color;}
-            /*
-             * Suppress the in-canvas diagram label when this diagram is
-             * the currently scoped one — the scope banner above the
-             * canvas already names it, and the treeview shows it as
-             * the active row. Rename/delete actions remain reachable
-             * via the treeview's ⋯ menu. Resize handle still renders
-             * so the user can size the diagram area.
-             */
-            if (this._activeDiagramUnid !== diagram.unid) {
-                this._buildLayerLabel(diagram, el);
-            }
-            this._buildLayerResizeHandle(diagram, el);
-            cardHost.append(el);
-        }
-        /*
-         * Pass active-diagram context to each card so its ⋯ menu can
+         * Diagrams are now pure logical containers — no canvas
+         * rectangle. Scoping is communicated via the scope banner and
+         * by filtering which cards render below. The active-diagram
+         * context is still passed to each card so its ⋯ menu can
          * surface the "Remove from this diagram" entry when scoped.
-         * `layers` was filtered to a single entry above when
-         * `_activeDiagramUnid` is set, so `layers[0]` is that diagram.
          */
         const activeLayerCtx = this._activeDiagramUnid && layers.length === 1
             ? {unid: layers[0].unid, name: layers[0].name}
@@ -792,292 +761,6 @@ export class DbEditor {
         });
         banner.append(lbl, close);
         this._grid.append(banner);
-    }
-
-    /**
-     * Build the corner label for a diagram with rename + delete affordances.
-     * `pointer-events: auto` on the label so it catches clicks; the
-     * parent diagram keeps `pointer-events: none` so the rest of the
-     * backdrop is click-through (rubber-band selection still works).
-     *
-     * Double-click on the name → inline rename input. Hover → ⋯ menu
-     * with Rename + Delete (both routed through the standard event +
-     * mutate flow, so undo restores the prior state).
-     */
-    private _buildLayerLabel(diagram: JsonDiagram, layerEl: HTMLElement): void {
-        const lbl = document.createElement('div');
-        lbl.className = 'db-diagram-label';
-
-        /*
-         * Mousedown anywhere on the label that ISN'T the rename
-         * input or the menu button starts a drag of the whole
-         * diagram. The name span and ⋯ button stop propagation
-         * themselves so they don't fire this handler accidentally.
-         */
-        lbl.addEventListener('mousedown', (e: MouseEvent) => {
-            if (e.button !== 0) {return;}
-            this._startLayerDrag(diagram, layerEl, e);
-        });
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'db-diagram-label-name';
-        nameSpan.textContent = diagram.name;
-        nameSpan.addEventListener('mousedown', (e) => e.stopPropagation());
-        nameSpan.addEventListener('dblclick', (e) => {
-            e.stopPropagation();
-            this._startLayerRename(nameSpan, diagram);
-        });
-
-        const menuBtn = document.createElement('button');
-        menuBtn.type = 'button';
-        menuBtn.className = 'db-diagram-label-menu';
-        menuBtn.replaceChildren(iconEllipsis());
-        menuBtn.title = 'EER diagram actions';
-        menuBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-        menuBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openContextMenu(menuBtn, [
-                {
-                    label: 'Rename…',
-                    onSelect: (): void => this._startLayerRename(nameSpan, diagram)
-                },
-                {
-                    label: 'Change color…',
-                    onSelect: (): void => this._pickLayerColor(diagram)
-                },
-                {
-                    label: 'Delete EER diagram',
-                    danger: true,
-                    onSelect: async(): Promise<void> => {
-                        const ok = await ConfirmDialog.showConfirm(
-                            'Delete EER diagram',
-                            `Delete diagram "${diagram.name}"? Tables inside are not deleted; their diagram reference becomes empty.\n\nUse Ctrl+Z to undo.`,
-                            'danger'
-                        );
-                        if (!ok) {return;}
-                        window.dispatchEvent(new CustomEvent(EditorEvents.deleteDiagram, {detail: {unid: diagram.unid}}));
-                    }
-                }
-            ]);
-        });
-
-        lbl.append(nameSpan, menuBtn);
-        layerEl.append(lbl);
-    }
-
-    /**
-     * Bottom-right corner resize handle. Mousedown starts the
-     * resize, mousemove updates `width/height` directly (zoom-
-     * aware, just like drag), mouseup persists. Top-left position
-     * stays fixed; only the SE corner moves. Min width/height
-     * 60px so the user can't accidentally collapse a diagram to zero.
-     */
-    private _buildLayerResizeHandle(diagram: JsonDiagram, layerEl: HTMLElement): void {
-        const handle = document.createElement('div');
-        handle.className = 'db-diagram-resize';
-        handle.title = 'Drag to resize';
-        handle.addEventListener('mousedown', (e: MouseEvent) => {
-            if (e.button !== 0) {return;}
-            e.preventDefault();
-            e.stopPropagation();
-            const startScreenX = e.clientX;
-            const startScreenY = e.clientY;
-            const startW = diagram.width;
-            const startH = diagram.height;
-            const zoom = this._zoomLevel || 1;
-            const MIN = 60;
-            let moved = false;
-
-            const onMove = (ev: MouseEvent): void => {
-                const dx = (ev.clientX - startScreenX) / zoom;
-                const dy = (ev.clientY - startScreenY) / zoom;
-                if (!moved && Math.hypot(dx, dy) < 4) {return;}
-                moved = true;
-                const nw = Math.max(MIN, Math.round(startW + dx));
-                const nh = Math.max(MIN, Math.round(startH + dy));
-                layerEl.style.width = `${nw}px`;
-                layerEl.style.height = `${nh}px`;
-                diagram.width = nw;
-                diagram.height = nh;
-            };
-            const onUp = (): void => {
-                window.removeEventListener('mousemove', onMove);
-                window.removeEventListener('mouseup', onUp);
-                if (!moved) {return;}
-                this._mutate(p => this._api.updateDiagram(p.unid, diagram.unid, {width: diagram.width, height: diagram.height}))
-                .then(() => this._reload());
-            };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
-        });
-        layerEl.append(handle);
-    }
-
-    /**
-     * Drag a whole diagram rectangle. Mousedown on the label
-     * background (not on the name span or menu button) starts the
-     * drag; mousemove updates `layerEl.style.left/top` directly so
-     * the move feels immediate; mouseup commits via `updateDiagram` if
-     * the cursor moved past a small threshold (so a plain click
-     * doesn't fire a no-op API call).
-     *
-     * Mouse delta is in screen pixels — we divide by `_zoomLevel`
-     * because the diagram sits inside the zoom-scaled wrapper, so a
-     * 100px screen drag at 0.5× zoom should advance the diagram by
-     * 200 canvas pixels.
-     */
-    private _startLayerDrag(diagram: JsonDiagram, layerEl: HTMLElement, downEv: MouseEvent): void {
-        downEv.preventDefault();
-        downEv.stopPropagation();
-        const startScreenX = downEv.clientX;
-        const startScreenY = downEv.clientY;
-        const startPosX = diagram.pos.x;
-        const startPosY = diagram.pos.y;
-        const zoom = this._zoomLevel || 1;
-        let moved = false;
-
-        /*
-         * Member tables move with the diagram: anything whose
-         * `diagramUnid` matches gets the same delta. Visual-only-
-         * overlap tables (no diagramUnid) stay put — the diagram is just
-         * a backdrop for them. Snapshot starting positions so each
-         * mousemove computes from the original, not the previous
-         * frame (avoids drift accumulation).
-         */
-        const memberCards: {tableUnid: string; card: {element: HTMLElement;}; startX: number; startY: number; isPrimary: boolean;}[] = [];
-        if (this._activeProject && this._activeContainerUnid) {
-            const container = this._findContainer(this._activeProject.data, this._activeContainerUnid);
-            if (container) {
-                for (const t of this._collectTables(container)) {
-                    if (!DbEditor._tableInDiagram(t, diagram.unid)) {continue;}
-                    const card = this._tables.get(t.unid);
-                    if (!card) {continue;}
-                    /*
-                     * Start position is the table's effective
-                     * position in THIS diagram — placement entry
-                     * wins, else top-level `pos` (primary). On
-                     * commit we write back to whichever slot the
-                     * value came from, so a placement-based member
-                     * doesn't accidentally overwrite the primary
-                     * `pos` that's used outside diagram scope.
-                     */
-                    const eff = DbEditor._effectivePos(t, diagram.unid);
-                    memberCards.push({
-                        tableUnid: t.unid,
-                        card: {element: card.element},
-                        startX: eff.x,
-                        startY: eff.y,
-                        isPrimary: t.diagramUnid === diagram.unid
-                    });
-                }
-            }
-        }
-
-        const onMove = (e: MouseEvent): void => {
-            const dx = (e.clientX - startScreenX) / zoom;
-            const dy = (e.clientY - startScreenY) / zoom;
-            if (!moved && Math.hypot(dx, dy) < 4) {return;}
-            moved = true;
-            const nx = Math.round(startPosX + dx);
-            const ny = Math.round(startPosY + dy);
-            layerEl.style.left = `${nx}px`;
-            layerEl.style.top = `${ny}px`;
-            diagram.pos.x = nx;
-            diagram.pos.y = ny;
-            for (const m of memberCards) {
-                const tx = Math.round(m.startX + dx);
-                const ty = Math.round(m.startY + dy);
-                m.card.element.style.left = `${tx}px`;
-                m.card.element.style.top = `${ty}px`;
-            }
-        };
-        const onUp = (): void => {
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-            if (!moved) {return;}
-            /*
-             * Persist the diagram move + every dragged-along table.
-             * Sequential because each `updateTable` re-validates
-             * server-side and we want the snapshot consistent.
-             */
-            const tableMoves = memberCards.map(m => {
-                const finalX = Math.round(m.startX + (diagram.pos.x - startPosX));
-                const finalY = Math.round(m.startY + (diagram.pos.y - startPosY));
-                return {
-                    tableUnid: m.tableUnid,
-                    pos: {x: finalX, y: finalY},
-                    isPrimary: m.isPrimary
-                };
-            });
-            (async(): Promise<void> => {
-                await this._mutate(p => this._api.updateDiagram(p.unid, diagram.unid, {pos: {x: diagram.pos.x, y: diagram.pos.y}}));
-                for (const move of tableMoves) {
-                    if (move.isPrimary) {
-                        // eslint-disable-next-line no-await-in-loop
-                        await this._mutate(p => this._api.updateTable(p.unid, move.tableUnid, {pos: move.pos}));
-                    } else {
-                        /*
-                         * Placement member: rewrite the matching
-                         * placement entry, keep the primary `pos`
-                         * (the table's home view) untouched. We
-                         * have to re-read the current placements
-                         * because earlier iterations in this loop
-                         * may already have mutated them.
-                         */
-                        const current = this._findTableInProject(move.tableUnid);
-                        const nextPlacements = current
-                            ? DbEditor._upsertPlacement(current.diagramPlacements ?? [], diagram.unid, move.pos)
-                            : [{diagramUnid: diagram.unid, pos: move.pos}];
-                        // eslint-disable-next-line no-await-in-loop
-                        await this._mutate(p => this._api.updateTable(p.unid, move.tableUnid, {diagramPlacements: nextPlacements}));
-                    }
-                }
-                await this._reload();
-            })().catch((err: unknown): void => console.error('[DbEditor] diagram drag persist failed:', err));
-        };
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-    }
-
-    /**
-     * Open the native color picker for a diagram. Stored color carries
-     * an alpha suffix (`26` ≈ 15%) so the diagram renders translucent
-     * and table cards on top stay readable. Picker only edits the
-     * RGB part — alpha is fixed by the backdrop convention.
-     */
-    private async _pickLayerColor(diagram: JsonDiagram): Promise<void> {
-        const result = await new LayerColorDialog(diagram.name, extractHex(diagram.color)).show();
-        if (result === null) {return;}
-        const stored = `${result}26`;
-        await this._mutate(p => this._api.updateDiagram(p.unid, diagram.unid, {color: stored}));
-        await this._reload();
-    }
-
-    private _startLayerRename(nameSpan: HTMLSpanElement, diagram: JsonDiagram): void {
-        const input = document.createElement('input');
-        input.className = 'db-diagram-label-input';
-        input.value = diagram.name;
-        nameSpan.replaceWith(input);
-        input.focus();
-        input.select();
-        let committed = false;
-        const commit = (): void => {
-            if (committed) {return;}
-            committed = true;
-            const next = input.value.trim();
-            input.replaceWith(nameSpan);
-            if (next && next !== diagram.name) {
-                window.dispatchEvent(new CustomEvent(EditorEvents.renameDiagram, {detail: {unid: diagram.unid, name: next}}));
-            }
-        };
-        input.addEventListener('blur', commit);
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {e.preventDefault(); input.blur();}
-            else if (e.key === 'Escape') {e.preventDefault(); committed = true; input.replaceWith(nameSpan);}
-            e.stopPropagation();
-        });
-        input.addEventListener('mousedown', (e) => e.stopPropagation());
-        input.addEventListener('click', (e) => e.stopPropagation());
     }
 
     /**
@@ -2051,21 +1734,7 @@ export class DbEditor {
                 return;
             }
 
-            const droppedOn = this._diagramAtPoint(x, y);
-            const patch: {pos: {x: number; y: number;}; diagramPlacements?: {diagramUnid: string; pos: {x: number; y: number;};}[];} = { pos: { x: x, y: y } };
-            if (droppedOn && current.diagramUnid !== droppedOn) {
-                /*
-                 * Multi-diagram add: instead of overwriting the
-                 * primary `diagramUnid`, append a placement for the
-                 * dropped-on diagram (existing primary stays). If a
-                 * placement for this diagram already exists, update
-                 * its pos. This gives the user MWB-style "same table
-                 * in two diagrams" behaviour without clobbering the
-                 * primary home view.
-                 */
-                patch.diagramPlacements = DbEditor._upsertPlacement(current.diagramPlacements ?? [], droppedOn, {x: x, y: y});
-            }
-            this._mutate(p => this._api.updateTable(p.unid, tableUnid, patch));
+            this._mutate(p => this._api.updateTable(p.unid, tableUnid, {pos: {x: x, y: y}}));
         });
         window.addEventListener(EditorEvents.viewMoved, (e) => {
             const { viewUnid, x, y } = (e as CustomEvent).detail;
@@ -2073,12 +1742,9 @@ export class DbEditor {
             if (!current) {return;}
             /*
              * Drag commit mirrors the table flow:
-             *   1) Layer-scoped + non-primary diagram → write to the
+             *   1) Diagram-scoped + non-primary diagram → write to the
              *      matching placement.
-             *   2) Unscoped + dropped on a diagram the view isn't in
-             *      → add a placement (multi-membership), primary
-             *      `pos` also moves.
-             *   3) Unscoped, no diagram under cursor → move `pos`.
+             *   2) Otherwise → move primary `pos`.
              */
             const activeLayer = this._activeDiagramUnid;
             if (activeLayer && current.diagramUnid !== activeLayer) {
@@ -2086,12 +1752,7 @@ export class DbEditor {
                 this._mutate(p => this._api.updateView(p.unid, viewUnid, {diagramPlacements: nextPlacements}));
                 return;
             }
-            const droppedOn = activeLayer ? null : this._diagramAtPoint(x, y);
-            const patch: {pos: {x: number; y: number;}; diagramPlacements?: {diagramUnid: string; pos: {x: number; y: number;};}[];} = { pos: { x: x, y: y } };
-            if (droppedOn && current.diagramUnid !== droppedOn) {
-                patch.diagramPlacements = DbEditor._upsertPlacement(current.diagramPlacements ?? [], droppedOn, {x: x, y: y});
-            }
-            this._mutate(p => this._api.updateView(p.unid, viewUnid, patch));
+            this._mutate(p => this._api.updateView(p.unid, viewUnid, {pos: {x: x, y: y}}));
         });
         window.addEventListener(EditorEvents.generateScoped, (e) => {
             const detail = (e as CustomEvent).detail as {
@@ -2231,17 +1892,7 @@ export class DbEditor {
         });
         window.addEventListener(EditorEvents.createDiagramIn, (e) => {
             const { containerUnid, name } = (e as CustomEvent).detail;
-            /*
-             * Default-size diagram positioned at (80,80) — same shape as
-             * Insert-menu's "Add EER diagram", so the user lands a
-             * standard 400×300 backdrop regardless of how they invoked
-             * the creation.
-             */
-            this._mutate(p => this._api.createDiagram(p.unid, containerUnid, name, {
-                pos: {x: 80, y: 80},
-                width: 400,
-                height: 300
-            })).then(() => this._reload());
+            this._mutate(p => this._api.createDiagram(p.unid, containerUnid, name)).then(() => this._reload());
         });
         window.addEventListener(EditorEvents.renameEnum, (e) => {
             const { unid, name } = (e as CustomEvent).detail;
@@ -2452,7 +2103,6 @@ export class DbEditor {
         };
         for (const card of this._tables.values()) {observe(card.element);}
         for (const card of this._views.values()) {observe(card.element);}
-        this._zoomLayer.querySelectorAll<HTMLElement>('.db-diagram').forEach(observe);
         if (!Number.isFinite(minX) || !Number.isFinite(maxX)) {return;}
 
         const bboxW = (maxX - minX) + (2 * PAD);
@@ -2532,7 +2182,7 @@ export class DbEditor {
         let startY = 0;
         let active = false;
         let bandEl: HTMLDivElement | null = null;
-        let downModifiers = {shift: false, toggle: false, alt: false};
+        let downModifiers = {shift: false, toggle: false};
 
         const removeBand = (): void => {
             if (bandEl) {
@@ -2543,7 +2193,7 @@ export class DbEditor {
         const ensureBand = (): HTMLDivElement => {
             if (bandEl) {return bandEl;}
             const el = document.createElement('div');
-            el.className = downModifiers.alt ? 'rubber-band rubber-band--diagram' : 'rubber-band';
+            el.className = 'rubber-band';
             document.body.append(el);
             bandEl = el;
             return el;
@@ -2562,7 +2212,7 @@ export class DbEditor {
             startX = e.clientX;
             startY = e.clientY;
             active = false;
-            downModifiers = {shift: e.shiftKey, toggle: e.ctrlKey || e.metaKey, alt: e.altKey};
+            downModifiers = {shift: e.shiftKey, toggle: e.ctrlKey || e.metaKey};
         });
 
         window.addEventListener('mousemove', (e: MouseEvent): void => {
@@ -2604,23 +2254,10 @@ export class DbEditor {
                 return;
             }
             const bandRect = rectFromCorners({x: startX, y: startY}, {x: e.clientX, y: e.clientY});
-            const wasAlt = downModifiers.alt;
             removeBand();
             startX = 0;
             startY = 0;
             active = false;
-
-            if (wasAlt) {
-                /*
-                 * Alt+drag = sketch a new diagram. Translate the
-                 * viewport-coords bbox into canvas coords (subtract
-                 * the zoom-diagram's screen rect, divide by zoom) so
-                 * the new diagram lands exactly under the gesture. No
-                 * selection change.
-                 */
-                this._createLayerFromBand(bandRect);
-                return;
-            }
 
             /* Replace mode clears first; add/toggle extend the existing selection. */
             let mode: 'replace' | 'add' | 'toggle' = 'replace';
@@ -2634,33 +2271,6 @@ export class DbEditor {
                 this._setSelection(card.unid, mode === 'replace' ? 'add' : mode);
             }
         });
-    }
-
-    /**
-     * Create a diagram from a viewport-coords rubber-band rectangle
-     * sketched with Alt+drag. We round to integer canvas coords +
-     * enforce a minimum size so a tiny drag doesn't silently produce
-     * a sub-60px diagram the user can't see. Pre-fills the prompt with
-     * "New Layer" — the user types a name and the diagram appears.
-     */
-    private _createLayerFromBand(bandRect: {left: number; top: number; right: number; bottom: number;}): void {
-        if (!this._activeProject || !this._activeContainerUnid) {return;}
-        const z = this._zoomLayer;
-        if (!z) {return;}
-        const zr = z.getBoundingClientRect();
-        const zoom = this._zoomLevel || 1;
-        const x = Math.round((bandRect.left - zr.left) / zoom);
-        const y = Math.round((bandRect.top - zr.top) / zoom);
-        const w = Math.max(60, Math.round((bandRect.right - bandRect.left) / zoom));
-        const h = Math.max(60, Math.round((bandRect.bottom - bandRect.top) / zoom));
-        InputDialog.showInput('New EER diagram', 'Diagram name', 'New diagram').then(name => {
-            if (!name) {return;}
-            this._mutate(p => this._api.createDiagram(p.unid, this._activeContainerUnid!, name, {
-                pos: {x: x, y: y},
-                width: w,
-                height: h
-            })).then(() => this._reload());
-        }).catch((err: unknown): void => console.error('[DbEditor] diagram create failed:', err));
     }
 
     private _wireMiddleMousePan(): void {
@@ -2752,9 +2362,6 @@ export class DbEditor {
         };
         for (const card of this._tables.values()) {observe(card.element);}
         for (const card of this._views.values()) {observe(card.element);}
-        if (this._zoomLayer) {
-            this._zoomLayer.querySelectorAll<HTMLElement>('.db-diagram').forEach(observe);
-        }
         const w = (maxRight + pad) * this._zoomLevel;
         const h = (maxBottom + pad) * this._zoomLevel;
         this._zoomLayer.style.width = `${w}px`;
@@ -2841,17 +2448,7 @@ export class DbEditor {
         if (!await this._requireActiveContainer()) {return;}
         const name = await InputDialog.showInput('Add EER diagram', 'Diagram name', 'New diagram');
         if (!name) {return;}
-        /*
-         * Default size is generous so the user can immediately drop
-         * a few tables onto it; the SE corner handle resizes if it's
-         * too big. Initial position is top-left — user drags from
-         * the label to wherever they want.
-         */
-        await this._mutate(p => this._api.createDiagram(p.unid, this._activeContainerUnid!, name, {
-            pos: {x: 80, y: 80},
-            width: 400,
-            height: 300
-        }));
+        await this._mutate(p => this._api.createDiagram(p.unid, this._activeContainerUnid!, name));
         await this._reload();
     }
 
@@ -3364,7 +2961,7 @@ export class DbEditor {
             if (res.stats.viewCount > 0)    {extras.push(`${res.stats.viewCount} view${res.stats.viewCount === 1 ? '' : 's'}`);}
             if (res.stats.routineCount > 0) {extras.push(`${res.stats.routineCount} routine${res.stats.routineCount === 1 ? '' : 's'}`);}
             if (res.stats.triggerCount > 0) {extras.push(`${res.stats.triggerCount} trigger${res.stats.triggerCount === 1 ? '' : 's'}`);}
-            if (res.stats.layerCount > 0)   {extras.push(`${res.stats.layerCount} EER diagram${res.stats.layerCount === 1 ? '' : 's'} as layers`);}
+            if (res.stats.layerCount > 0)   {extras.push(`${res.stats.layerCount} EER diagram${res.stats.layerCount === 1 ? '' : 's'}`);}
             if (res.stats.multiDiagramTableCount > 0) {
                 extras.push(`${res.stats.multiDiagramTableCount} table${res.stats.multiDiagramTableCount === 1 ? '' : 's'} on multiple diagrams`);
             }
@@ -3589,9 +3186,9 @@ export class DbEditor {
         const pick = await new SearchPalette(index).show();
         if (!pick) {return;}
         /*
-         * Layer pick: switch the active container if needed and flash
-         * the diagram's backdrop. Layers don't have a selection model
-         * (they're pure visual hints), so we don't `_selectOne` them.
+         * Diagram pick: switch the active container if needed and
+         * scope the canvas to the picked diagram. No selection model
+         * for diagrams.
          */
         if (pick.kind === 'diagram' && pick.diagramUnid) {
             this._focusLayer(pick.diagramUnid, pick.containerUnid);
@@ -3616,23 +3213,17 @@ export class DbEditor {
 
     /**
      * Bring a diagram into view: switch the active container if needed,
-     * then scroll the diagram rectangle into view + briefly outline it.
-     * No selection model for layers — this is purely a navigation
-     * affordance triggered from the search palette.
+     * then scope the canvas to that diagram. Diagrams no longer have a
+     * canvas rectangle — scoping is the navigation equivalent.
      */
     private _focusLayer(diagramUnid: string, containerUnid: string): void {
-        if (this._activeContainerUnid !== containerUnid) {
-            this._activeContainerUnid = containerUnid;
-            this._renderCanvas();
+        if (this._activeContainerUnid === containerUnid && this._activeDiagramUnid === diagramUnid) {
+            return;
         }
-        /* Wait for the canvas render so the diagram div exists. */
-        setTimeout(() => {
-            const el = this._zoomLayer?.querySelector(`.db-diagram[data-diagram-unid="${diagramUnid}"]`) as HTMLElement | null;
-            if (!el) {return;}
-            el.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'});
-            el.classList.add('db-diagram--flash');
-            setTimeout(() => el.classList.remove('db-diagram--flash'), 1600);
-        }, 50);
+        this._activeContainerUnid = containerUnid;
+        this._activeDiagramUnid = diagramUnid;
+        this._treeview?.setActive(diagramUnid);
+        this._renderCanvas();
     }
 
     private _flashColumn(tableUnid: string, columnUnid: string): void {
@@ -3839,34 +3430,6 @@ export class DbEditor {
             if (c.type === JsonDataDBType.folder) {out.push(...this._collectDiagrams(c));}
         }
         return out;
-    }
-
-    /**
-     * Geometric hit test: which diagram rectangle (if any) contains the
-     * given canvas point? Returns the first match in the active
-     * container's diagram list. When the canvas is scoped to a single
-     * diagram (`_activeDiagramUnid` set), only that diagram is tested so a
-     * stray drop onto a hidden-elsewhere diagram doesn't silently move
-     * the table to it.
-     */
-    private _diagramAtPoint(x: number, y: number): string | null {
-        if (!this._activeProject || !this._activeContainerUnid) {return null;}
-        const container = this._findContainer(this._activeProject.data, this._activeContainerUnid);
-        if (!container) {return null;}
-        const all = this._collectDiagrams(container);
-        const candidates = this._activeDiagramUnid
-            ? all.filter(l => l.unid === this._activeDiagramUnid)
-            : all;
-        for (const l of candidates) {
-            const left = l.pos.x;
-            const top = l.pos.y;
-            const right = left + l.width;
-            const bottom = top + l.height;
-            if (x >= left && x <= right && y >= top && y <= bottom) {
-                return l.unid;
-            }
-        }
-        return null;
     }
 
     private _findTableInProject(tableUnid: string): JsonTable | null {

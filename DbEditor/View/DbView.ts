@@ -4,7 +4,7 @@ import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
 import {openContextMenu} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
 import {iconEllipsis} from '../Util/Icons.js';
-import {ActiveDiagramContext} from '../Layer/ActiveDiagramContext.js';
+import {ActiveDiagramContext} from '../Layer/ActiveLayerContext.js';
 
 /**
  * Draggable view card on the canvas. Mirrors `DbTable` but much simpler:

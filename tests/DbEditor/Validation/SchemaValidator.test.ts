@@ -17,7 +17,7 @@ const root = (databases: JsonDataDB[]): JsonDataDB => ({
     enums: []
 });
 
-const db = (name: string, opts: {tables?: JsonTable[]; enums?: JsonDataDB['enums']; entrys?: JsonDataDB[]; layers?: JsonDataDB['layers'];} = {}, unid = `db-${name}`): JsonDataDB => {
+const db = (name: string, opts: {tables?: JsonTable[]; enums?: JsonDataDB['enums']; entrys?: JsonDataDB[]; diagrams?: JsonDataDB['diagrams'];} = {}, unid = `db-${name}`): JsonDataDB => {
     const node: JsonDataDB = {
         unid: unid,
         name: name,
@@ -168,7 +168,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
                 indexes: [], foreignKeys: [],
                 diagramUnid: 'L1'
             }],
-            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People'}]
         })]));
         expect(w.find(x => x.message.includes('deleted diagram'))).toBeUndefined();
     });
@@ -185,7 +185,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
                     {diagramUnid: 'gone', pos: {x: 100, y: 100}}
                 ]
             }],
-            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People'}]
         })]));
         expect(messages(w)).toContain('Table "user" placement references a deleted diagram.');
     });
@@ -199,7 +199,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
 
     it('does not flag a view whose diagramUnid resolves', () => {
         const dbNode = db('mydb', {
-            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People'}]
         });
         dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', diagramUnid: 'L1'}];
         const w = validateSchema(root([dbNode]));
@@ -208,7 +208,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
 
     it('flags a view diagramPlacements entry pointing at a deleted diagram', () => {
         const dbNode = db('mydb', {
-            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People'}]
         });
         dbNode.views = [{
             unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1',

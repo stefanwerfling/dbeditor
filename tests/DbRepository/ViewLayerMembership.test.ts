@@ -62,10 +62,7 @@ const seed = (initialLayerUnid?: string): void => {
                 enums: [],
                 diagrams: [{
                     unid: LAYER_UNID,
-                    name: 'EER Diagram 1',
-                    pos: {x: 50, y: 60},
-                    width: 400,
-                    height: 300
+                    name: 'EER Diagram 1'
                 }]
             }],
             tables: [],

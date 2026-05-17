@@ -268,23 +268,14 @@ export type JsonTable = ExtractSchemaResultType<typeof SchemaJsonTable>;
  * tables (and views) at per-diagram positions. NOT a drawable
  * rectangle — when the diagram is the active scope, the canvas
  * just shows its member cards. Visual grouping rectangles within
- * a diagram are a separate concept (the Workbench "Group" —
- * not modelled in this iteration).
- *
- * (Phase 1 of the diagram→diagram refactor keeps `pos`/`width`/
- * `height`/`color` here for backward compat with persisted data;
- * Phase 2 drops them once migration is complete.)
+ * a diagram (the Workbench "Group" / `workbench.physical.Layer`)
+ * are a separate concept and not modelled in this iteration.
  * ---------------------------------------------------------------------------
  */
 
 export const SchemaJsonDiagram = Vts.object({
     unid: Vts.string(),
     name: Vts.string(),
-    /* Legacy visual fields retained while the canvas-rectangle render path is in flight. */
-    pos: SchemaJsonPosition,
-    width: Vts.number(),
-    height: Vts.number(),
-    color: Vts.optional(Vts.string()),
     description: Vts.optional(Vts.string())
 });
 export type JsonDiagram = ExtractSchemaResultType<typeof SchemaJsonDiagram>;

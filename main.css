@@ -352,12 +352,6 @@ body {
   background-color: rgba(58, 124, 196, 0.08);
   z-index: 1000;
 }
-/* Alt+drag variant — sketching a new layer. Different colour so the
-   user can tell selection from layer-creation at a glance. */
-.rubber-band--layer {
-  border: 2px dashed var(--c-pk);
-  background-color: rgba(192, 138, 62, 0.08);
-}
 
 /* ------- search palette ------- */
 .search-palette-backdrop {
@@ -1083,88 +1077,7 @@ body {
   font-size: 11px;
 }
 
-/* ------- db layer (EER grouping rectangle) ------- */
-.db-layer {
-  position: absolute;
-  border: 1px dashed rgba(15, 23, 42, 0.30);
-  border-radius: var(--radius-md);
-  /* Sit behind table cards but above the grid background. */
-  z-index: 0;
-  pointer-events: none;
-}
-.db-layer-label {
-  position: absolute;
-  top: 4px;
-  left: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--c-text-muted);
-  background: rgba(255, 255, 255, 0.85);
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  /* Override the parent layer's pointer-events: none so the label is interactive. */
-  pointer-events: auto;
-  /* Drag affordance — the whole label is the layer's drag handle. */
-  cursor: grab;
-}
-.db-layer-label:active {
-  cursor: grabbing;
-}
-.db-layer-label-name {
-  cursor: text;
-}
-.db-layer-label-menu {
-  font: inherit;
-  font-size: 12px;
-  line-height: 1;
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 80ms;
-}
-.db-layer:hover .db-layer-label-menu {
-  opacity: 1;
-}
-.db-layer-label-input {
-  font: inherit;
-  font-size: 11px;
-  padding: 0 4px;
-  border: 1px solid var(--c-primary);
-  border-radius: var(--radius-sm);
-  width: 160px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.db-layer-resize {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 14px;
-  height: 14px;
-  cursor: nwse-resize;
-  pointer-events: auto;
-  /* Subtle 45° hatch in the corner so the handle is discoverable. */
-  background: linear-gradient(135deg, transparent 50%, rgba(15, 23, 42, 0.30) 50%);
-  border-bottom-right-radius: var(--radius-md);
-  opacity: 0;
-  transition: opacity 80ms;
-}
-.db-layer:hover .db-layer-resize {
-  opacity: 1;
-}
-/* Brief outline pulse for search-palette → layer focus. */
-.db-layer--flash {
-  animation: db-layer-flash 1.6s ease-out;
-}
-/* Floating banner shown when canvas is scoped to one layer.
+/* Floating banner shown when canvas is scoped to one EER diagram.
    Sits on the grid container (outside the zoom-scaled wrapper) so
    it stays a constant size regardless of canvas zoom. */
 .scope-banner {
@@ -1200,12 +1113,6 @@ body {
 .scope-banner-close:hover {
   background: rgba(192, 138, 62, 0.20);
 }
-@keyframes db-layer-flash {
-  0%   { box-shadow: 0 0 0 0 var(--c-primary); }
-  20%  { box-shadow: 0 0 0 6px rgba(62, 126, 156, 0.45); }
-  100% { box-shadow: 0 0 0 0 rgba(62, 126, 156, 0); }
-}
-
 /* ------- db table card ------- */
 .db-table {
   position: absolute;
@@ -1216,7 +1123,6 @@ body {
   min-width: 240px;
   font-size: 12px;
   cursor: move;
-  /* Above .db-layer (z-index 0) so layer backdrops sit behind cards. */
   z-index: 1;
   /* The card is a draggable UI widget. Without this, mousedown-drag
      on text-bearing rows starts text selection instead of letting
@@ -1641,12 +1547,12 @@ body {
 .batch-table-options-dialog .dialog-row select {
   flex: 1 1 auto;
 }
-.layer-picker-dialog .dialog-intro {
+.diagram-picker-dialog .dialog-intro {
   margin: 0 0 12px;
   font-size: 12px;
   color: var(--c-text-muted);
 }
-.layer-picker-list {
+.diagram-picker-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1657,7 +1563,7 @@ body {
   padding: 4px;
   background: var(--c-bg);
 }
-.layer-picker-row {
+.diagram-picker-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1666,18 +1572,10 @@ body {
   cursor: pointer;
   font-size: 13px;
 }
-.layer-picker-row:hover {
+.diagram-picker-row:hover {
   background: var(--c-primary-soft);
 }
-.layer-picker-swatch {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 1px solid var(--c-border-strong);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-.layer-picker-name {
+.diagram-picker-name {
   flex: 1 1 auto;
 }
 /* Bulk-rename dialog */

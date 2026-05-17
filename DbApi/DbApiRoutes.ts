@@ -351,35 +351,27 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         } catch (err) { handleRepoError(err, res); }
     });
 
-    // ---------------- layers (visual grouping rectangles) ----------------
-    app.post('/api/projects/:pid/layers', (req, res) => {
+    // ---------------- diagrams (logical EER tabs) ----------------
+    app.post('/api/projects/:pid/diagrams', (req, res) => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}
-        if (!validate(Bodies.SchemaCreateLayerBody, req.body, res)) {return;}
+        if (!validate(Bodies.SchemaCreateDiagramBody, req.body, res)) {return;}
         try {
-            const {containerUnid, name, pos, width, height, color} = req.body;
-            const result = repo.createDiagram(
-                containerUnid,
-                name,
-                pos ?? null,
-                typeof width === 'number' ? width : null,
-                typeof height === 'number' ? height : null,
-                typeof color === 'string' ? color : null,
-                clientId(req)
-            );
+            const {containerUnid, name} = req.body;
+            const result = repo.createDiagram(containerUnid, name, clientId(req));
             res.json({ success: true, rev: result.rev, diagram: result.diagram });
         } catch (err) { handleRepoError(err, res); }
     });
 
-    app.patch('/api/projects/:pid/layers/:unid', (req, res) => {
+    app.patch('/api/projects/:pid/diagrams/:unid', (req, res) => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}
-        if (!validate(Bodies.SchemaUpdateLayerBody, req.body, res)) {return;}
+        if (!validate(Bodies.SchemaUpdateDiagramBody, req.body, res)) {return;}
         try {
             const rev = repo.updateDiagram(req.params.unid, req.body, clientId(req));
             res.json({ success: true, rev: rev });
         } catch (err) { handleRepoError(err, res); }
     });
 
-    app.delete('/api/projects/:pid/layers/:unid', (req, res) => {
+    app.delete('/api/projects/:pid/diagrams/:unid', (req, res) => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}
         try {
             const rev = repo.deleteDiagram(req.params.unid, clientId(req));

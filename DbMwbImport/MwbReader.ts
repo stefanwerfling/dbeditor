@@ -745,23 +745,12 @@ export type MwbTableCacheEntry = {
  * additional figure becomes a `diagramPlacements` entry so the table
  * keeps its per-diagram position in every diagram it lives in.
  *
- * **Layers**: when a `.mwb` carries no user-authored EER Layers —
+ * **Diagrams**: when a `.mwb` carries no user-authored EER Layers —
  * i.e. every `workbench.physical.Layer` struct is `key="rootLayer"`
- * (one per diagram) — we model each Workbench DIAGRAM as a JsonDiagram
- * so the user sees each diagram as a labeled grouping rectangle.
- * Layer bounds are the bbox of the diagram's figures (after
- * tiling), padded slightly so cards don't sit flush against the
- * border.
+ * (one per diagram) — we model each Workbench DIAGRAM as a
+ * JsonDiagram so the user sees each tab as a logical scope. When
+ * authored layers DO exist, each becomes its own JsonDiagram.
  */
-const PALETTE = [
-    'rgba(64, 145, 220, 0.10)',
-    'rgba(232, 156, 80, 0.10)',
-    'rgba(96, 196, 128, 0.10)',
-    'rgba(196, 96, 196, 0.10)',
-    'rgba(220, 100, 100, 0.10)',
-    'rgba(100, 200, 220, 0.10)',
-    'rgba(200, 200, 80, 0.10)'
-];
 
 const buildFigureData = (root: GrtNode): FigureData => {
     const tableFigures = findStructs(root, 'workbench.physical.TableFigure');
@@ -809,9 +798,7 @@ const buildFigureData = (root: GrtNode): FigureData => {
     }
 
     const GAP = 80;
-    const PAD = 24;
     const FALLBACK_WIDTH = 200;
-    const FALLBACK_HEIGHT = 150;
     const positions = new Map<string, {x: number; y: number;}>();
     const viewPositions = new Map<string, {x: number; y: number;}>();
     const tableToLayer = new Map<string, string>();
@@ -823,18 +810,12 @@ const buildFigureData = (root: GrtNode): FigureData => {
 
     for (const [diagramId, figs] of byDiagram) {
         let dMinLeft = Infinity;
-        let dMinTop = Infinity;
         let dMaxRight = -Infinity;
-        let dMaxBottom = -Infinity;
         for (const entry of figs) {
             const left = childIntRound(entry.fig, 'left');
-            const top = childIntRound(entry.fig, 'top');
             const width = childIntRound(entry.fig, 'width') || FALLBACK_WIDTH;
-            const height = childIntRound(entry.fig, 'height') || FALLBACK_HEIGHT;
             if (left < dMinLeft) {dMinLeft = left;}
-            if (top < dMinTop) {dMinTop = top;}
             if (left + width > dMaxRight) {dMaxRight = left + width;}
-            if (top + height > dMaxBottom) {dMaxBottom = top + height;}
         }
         if (!Number.isFinite(dMinLeft)) {continue;}
 
@@ -859,23 +840,14 @@ const buildFigureData = (root: GrtNode): FigureData => {
                 wbLayerToUnid.set(wbLayerId, diagramUnid);
                 layers.push({
                     unid: diagramUnid,
-                    name: childStr(l, 'name') || `Layer ${layers.length + 1}`,
-                    pos: {
-                        x: childIntRound(l, 'left') + xShift,
-                        y: childIntRound(l, 'top')
-                    },
-                    width: childIntRound(l, 'width') || FALLBACK_WIDTH,
-                    height: childIntRound(l, 'height') || FALLBACK_HEIGHT,
-                    color: childStr(l, 'color') || PALETTE[(diagramIndex + layers.length) % PALETTE.length]
+                    name: childStr(l, 'name') || `Layer ${layers.length + 1}`
                 });
             }
         }
 
         /*
-         * If no authored layers, synthesise one covering the full
-         * diagram bbox so the user still sees Workbench's grouping.
-         * Padded by PAD on each side so cards don't sit flush
-         * against the diagram border.
+         * If no authored layers, synthesise one JsonDiagram per
+         * Workbench diagram so each tab still surfaces as a scope.
          */
         let synthLayerUnid: string | null = null;
         if (wbLayerToUnid.size === 0) {
@@ -886,11 +858,7 @@ const buildFigureData = (root: GrtNode): FigureData => {
                 : `EER Diagram ${diagramIndex + 1}`;
             layers.push({
                 unid: synthLayerUnid,
-                name: layerName,
-                pos: {x: dMinLeft + xShift - PAD, y: dMinTop - PAD},
-                width: (dMaxRight - dMinLeft) + (2 * PAD),
-                height: (dMaxBottom - dMinTop) + (2 * PAD),
-                color: PALETTE[diagramIndex % PALETTE.length]
+                name: layerName
             });
         }
 
@@ -982,7 +950,7 @@ export type MwbImportResult = {
     routineCount: number;
     /** Triggers (table-nested in Workbench, but stored alongside routines in our model). */
     triggerCount: number;
-    /** Synthesised layers — one per Workbench diagram, used as visual grouping rectangles. */
+    /** JsonDiagrams created — one per Workbench diagram (or per authored Layer when present). */
     layerCount: number;
     databases: JsonDataDB[];
     /**

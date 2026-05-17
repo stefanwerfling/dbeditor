@@ -661,15 +661,22 @@ const writeLayersForDiagram = (
 ): string => {
     if (diagrams.length === 0) {return '';}
     let s = `${I(depth)}<value type="list" content-type="object" content-struct-name="workbench.physical.Layer" key="layers">\n`;
+    /*
+     * Diagrams are pure logical containers in our model — no
+     * position/size/color. Workbench's `workbench.physical.Layer`
+     * requires them, so we emit defaults. A re-import will simply
+     * drop these visual fields again (the schema migration strips
+     * them at load time). Lossy round-trip is acceptable scope.
+     */
     for (const diagram of diagrams) {
         const layerGrtId = ids.layerId.get(diagram.unid);
         if (!layerGrtId) {continue;}
         s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.Layer" id="${layerGrtId}">\n`;
-        s += `${I(depth + 2)}<value type="real" key="left">${diagram.pos.x}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="top">${diagram.pos.y}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="width">${diagram.width}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="height">${diagram.height}</value>\n`;
-        s += vStr('color', diagram.color ?? '', depth + 2);
+        s += `${I(depth + 2)}<value type="real" key="left">0</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="top">0</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="width">1200</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="height">800</value>\n`;
+        s += vStr('color', '', depth + 2);
         s += vStr('description', diagram.description ?? '', depth + 2);
         s += vStr('name', diagram.name, depth + 2);
         s += lStr('owner', 'model.Diagram', diagramId, depth + 2);

@@ -52,7 +52,7 @@ export class DiagramPickerDialog extends BaseDialog<LayerPickerResult> {
         list.append(noneRow);
 
         for (const l of layers) {
-            const row = this._buildOption(l.unid, l.name, currentLayerUnid === l.unid, l.color);
+            const row = this._buildOption(l.unid, l.name, currentLayerUnid === l.unid);
             list.append(row);
         }
         this._body.append(list);
@@ -61,7 +61,7 @@ export class DiagramPickerDialog extends BaseDialog<LayerPickerResult> {
         this.addButton('Apply', 'primary', (): void => this.close(this._picked));
     }
 
-    private _buildOption(value: string, label: string, isCurrent: boolean, color?: string): HTMLLabelElement {
+    private _buildOption(value: string, label: string, isCurrent: boolean): HTMLLabelElement {
         const row = document.createElement('label');
         row.className = 'diagram-picker-row';
         const radio = document.createElement('input');
@@ -73,13 +73,10 @@ export class DiagramPickerDialog extends BaseDialog<LayerPickerResult> {
             this._picked = value;
         }
         radio.addEventListener('change', () => {this._picked = value;});
-        const swatch = document.createElement('span');
-        swatch.className = 'diagram-picker-swatch';
-        if (color) {swatch.style.background = color;}
         const name = document.createElement('span');
         name.className = 'diagram-picker-name';
         name.textContent = label;
-        row.append(radio, swatch, name);
+        row.append(radio, name);
         return row;
     }
 

@@ -317,16 +317,16 @@ export class DbApiClient {
         return this._request('DELETE', `/api/projects/${pid}/views/${unid}`);
     }
 
-    public createDiagram(pid: string, containerUnid: string, name: string, opts: {pos?: {x: number; y: number;}; width?: number; height?: number; color?: string;} = {}): Promise<any> {
-        return this._request('POST', `/api/projects/${pid}/layers`, {containerUnid: containerUnid, name: name, ...opts});
+    public createDiagram(pid: string, containerUnid: string, name: string): Promise<any> {
+        return this._request('POST', `/api/projects/${pid}/diagrams`, {containerUnid: containerUnid, name: name});
     }
 
-    public updateDiagram(pid: string, unid: string, patch: {name?: string; pos?: {x: number; y: number;}; width?: number; height?: number; color?: string; description?: string;}): Promise<any> {
-        return this._request('PATCH', `/api/projects/${pid}/layers/${unid}`, patch);
+    public updateDiagram(pid: string, unid: string, patch: {name?: string; description?: string;}): Promise<any> {
+        return this._request('PATCH', `/api/projects/${pid}/diagrams/${unid}`, patch);
     }
 
     public deleteDiagram(pid: string, unid: string): Promise<any> {
-        return this._request('DELETE', `/api/projects/${pid}/layers/${unid}`);
+        return this._request('DELETE', `/api/projects/${pid}/diagrams/${unid}`);
     }
 
     /* routines */

@@ -16,7 +16,7 @@ import {iconDiamondFilled, iconDiamondHollow, iconEllipsis} from '../Util/Icons.
  * The controller owns the data; this class re-renders from data when
  * `setData()` is called.
  */
-import {ActiveDiagramContext} from '../Layer/ActiveDiagramContext.js';
+import {ActiveDiagramContext} from '../Layer/ActiveLayerContext.js';
 
 export class DbTable {
 

@@ -1,8 +1,8 @@
 /*
- * Tests for diagram CRUD on DbFsRepository. Layers come from the .mwb
- * import flow (no `createDiagram` route exists), so this file only covers
- * `updateDiagram` + `deleteDiagram` — the two operations the user can
- * trigger from the canvas.
+ * Tests for diagram CRUD on DbFsRepository. JsonDiagram is a pure
+ * logical container (Phase 2 of the layer→diagram refactor) — name +
+ * description only. Legacy visual props (pos/width/height/color) on
+ * the seed data are stripped by `_migrateLegacyLayerSchema` on load.
  */
 import * as fs from 'fs';
 import * as os from 'os';
@@ -55,11 +55,7 @@ const seed = (): void => {
                 enums: [],
                 diagrams: [{
                     unid: LAYER_UNID,
-                    name: 'EER Diagram 1',
-                    pos: {x: 50, y: 60},
-                    width: 400,
-                    height: 300,
-                    color: 'rgba(64, 145, 220, 0.10)'
+                    name: 'EER Diagram 1'
                 }]
             }],
             tables: [],
@@ -83,47 +79,33 @@ const dbNode = (repo: DbFsRepository): JsonDataDB => repo.data.fs.entrys[0] as J
 
 describe('DbFsRepository.createDiagram', () => {
 
-    it('appends a diagram to the container with the given name + bounds', () => {
+    it('appends a diagram to the container with the given name', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        const result = repo.createDiagram(DB_UNID, 'Customers', {x: 100, y: 200}, 500, 350, 'rgba(0, 0, 0, 0.05)', null);
+        const result = repo.createDiagram(DB_UNID, 'Customers', null);
         expect(result.diagram.name).toBe('Customers');
-        expect(result.diagram.pos).toEqual({x: 100, y: 200});
-        expect(result.diagram.width).toBe(500);
-        expect(result.diagram.height).toBe(350);
-        expect(result.diagram.color).toBe('rgba(0, 0, 0, 0.05)');
         const layers = dbNode(repo).diagrams ?? [];
         expect(layers).toHaveLength(2);
         expect(layers[1].unid).toBe(result.diagram.unid);
     });
 
-    it('uses sensible defaults when pos/size/color omitted', () => {
-        seed();
-        const repo = new DbFsRepository(projectFor(tmpFile));
-        const result = repo.createDiagram(DB_UNID, 'X', null, null, null, null, null);
-        expect(result.diagram.pos).toEqual({x: 80, y: 80});
-        expect(result.diagram.width).toBe(400);
-        expect(result.diagram.height).toBe(300);
-        expect(result.diagram.color).toBeUndefined();
-    });
-
     it('trims whitespace from the name', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        const result = repo.createDiagram(DB_UNID, '  Padded  ', null, null, null, null, null);
+        const result = repo.createDiagram(DB_UNID, '  Padded  ', null);
         expect(result.diagram.name).toBe('Padded');
     });
 
     it('throws on missing container', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        expect(() => repo.createDiagram('no-such-db', 'X', null, null, null, null, null)).toThrow(RepoNotFoundError);
+        expect(() => repo.createDiagram('no-such-db', 'X', null)).toThrow(RepoNotFoundError);
     });
 
     it('throws on empty name', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        expect(() => repo.createDiagram(DB_UNID, '   ', null, null, null, null, null)).toThrow();
+        expect(() => repo.createDiagram(DB_UNID, '   ', null)).toThrow();
     });
 
     it('publishes a diagram.create event and is undoable', () => {
@@ -131,7 +113,7 @@ describe('DbFsRepository.createDiagram', () => {
         const repo = new DbFsRepository(projectFor(tmpFile));
         const events: string[] = [];
         repo.bus.subscribe(ev => events.push(ev.op));
-        repo.createDiagram(DB_UNID, 'NewOne', null, null, null, null, null);
+        repo.createDiagram(DB_UNID, 'NewOne', null);
         expect(events).toContain('diagram.create');
         repo.undo(null);
         expect((dbNode(repo).diagrams ?? []).map(l => l.name)).toEqual(['EER Diagram 1']);
@@ -149,32 +131,11 @@ describe('DbFsRepository.updateDiagram', () => {
         expect(diagram.name).toBe('People');
     });
 
-    it('partial patch leaves other fields untouched', () => {
+    it('sets description when provided', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateDiagram(LAYER_UNID, {name: 'X'}, null);
+        repo.updateDiagram(LAYER_UNID, {description: 'note'}, null);
         const diagram = (dbNode(repo).diagrams ?? [])[0];
-        expect(diagram.pos).toEqual({x: 50, y: 60});
-        expect(diagram.width).toBe(400);
-        expect(diagram.height).toBe(300);
-        expect(diagram.color).toBe('rgba(64, 145, 220, 0.10)');
-    });
-
-    it('updates pos / size / color when provided', () => {
-        seed();
-        const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateDiagram(LAYER_UNID, {
-            pos: {x: 100, y: 200},
-            width: 500,
-            height: 350,
-            color: 'rgba(0, 0, 0, 0.05)',
-            description: 'note'
-        }, null);
-        const diagram = (dbNode(repo).diagrams ?? [])[0];
-        expect(diagram.pos).toEqual({x: 100, y: 200});
-        expect(diagram.width).toBe(500);
-        expect(diagram.height).toBe(350);
-        expect(diagram.color).toBe('rgba(0, 0, 0, 0.05)');
         expect(diagram.description).toBe('note');
     });
 
@@ -230,10 +191,7 @@ describe('DbFsRepository.updateTable diagramUnid semantics', () => {
                     enums: [],
                     diagrams: [{
                         unid: LAYER_UNID,
-                        name: 'L1',
-                        pos: {x: 0, y: 0},
-                        width: 200,
-                        height: 200
+                        name: 'L1'
                     }]
                 }],
                 tables: [],
@@ -321,6 +279,51 @@ describe('DbFsRepository.deleteDiagram', () => {
         expect(layers).toHaveLength(1);
         expect(layers[0].unid).toBe(LAYER_UNID);
         expect(layers[0].name).toBe('EER Diagram 1');
+    });
+
+});
+
+describe('DbFsRepository legacy schema migration', () => {
+
+    it('strips pos/width/height/color from legacy diagram entries on load', () => {
+        const legacy = {
+            fs: {
+                unid: 'root',
+                name: 'root',
+                type: JsonDataDBType.root,
+                entrys: [{
+                    unid: DB_UNID,
+                    name: 'main',
+                    type: JsonDataDBType.database,
+                    entrys: [],
+                    tables: [],
+                    views: [],
+                    enums: [],
+                    layers: [{
+                        unid: LAYER_UNID,
+                        name: 'Legacy',
+                        pos: {x: 50, y: 60},
+                        width: 400,
+                        height: 300,
+                        color: 'rgba(64, 145, 220, 0.10)'
+                    }]
+                }],
+                tables: [],
+                views: [],
+                enums: []
+            },
+            editor: {}
+        };
+        fs.writeFileSync(tmpFile, JSON.stringify(legacy));
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        const diagrams = dbNode(repo).diagrams ?? [];
+        expect(diagrams).toHaveLength(1);
+        const d = diagrams[0] as Record<string, unknown>;
+        expect(d.name).toBe('Legacy');
+        expect(d.pos).toBeUndefined();
+        expect(d.width).toBeUndefined();
+        expect(d.height).toBeUndefined();
+        expect(d.color).toBeUndefined();
     });
 
 });
