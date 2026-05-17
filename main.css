@@ -933,6 +933,24 @@ body {
 .treeview-bucket-list--collapsed {
   display: none;
 }
+/* Expandable diagram leaf: chevron + nested member tables/views. */
+.treeview-diagram-toggle {
+  display: inline-flex;
+  align-items: center;
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--c-text-muted);
+  cursor: pointer;
+}
+.treeview-diagram-children {
+  padding-left: 18px;
+}
+.treeview-diagram-children--collapsed {
+  display: none;
+}
+.treeview--filter-active .treeview-diagram-children--collapsed {
+  display: block;
+}
 /* Empty-state hint inside an otherwise empty bucket. Faint italic
    text that resolves to a prompt-and-create action on click — same
    flow the bucket parent's context menu uses, but discoverable

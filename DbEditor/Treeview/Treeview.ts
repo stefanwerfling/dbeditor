@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonDataDBType, JsonRoutineKind} from '../JsonData.js';
+import {JsonDataDB, JsonDataDBType, JsonRoutineKind, JsonTable, JsonView} from '../JsonData.js';
 import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
 import {openContextMenu, ContextMenuItem} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
@@ -29,6 +29,23 @@ export type TreeviewMode = 'model' | 'live';
  * remains. The mode toggle sits at the top of the panel.
  */
 export class Treeview {
+
+    /**
+     * Membership predicates duplicated from DbEditor's static helpers
+     * (DbEditor doesn't export them and Treeview shouldn't reach into
+     * the controller). A table/view belongs to a diagram when its
+     * primary `diagramUnid` matches OR a `diagramPlacements` entry
+     * references that diagram.
+     */
+    private static _tableInDiagram(t: JsonTable, diagramUnid: string): boolean {
+        if (t.diagramUnid === diagramUnid) {return true;}
+        return (t.diagramPlacements ?? []).some(p => p.diagramUnid === diagramUnid);
+    }
+
+    private static _viewInDiagram(v: JsonView, diagramUnid: string): boolean {
+        if (v.diagramUnid === diagramUnid) {return true;}
+        return (v.diagramPlacements ?? []).some(p => p.diagramUnid === diagramUnid);
+    }
 
     private _el: HTMLElement;
     private _activeUnid: string | null = null;
@@ -276,9 +293,30 @@ export class Treeview {
                  * a database, never on a folder.
                  */
                 if (node.type === JsonDataDBType.database) {
+                    /*
+                     * EER-diagram leaves expand to show their member
+                     * tables + views (everything whose `diagramUnid`
+                     * matches, plus anything carrying a matching
+                     * `diagramPlacements` entry). The expand state is
+                     * collapsed by default — diagrams can hold dozens
+                     * of cards and an auto-expanded tree would dwarf
+                     * the rest of the database.
+                     */
+                    const memberTables = (diagramUnid: string): JsonTable[] =>
+                        node.tables.filter(t => Treeview._tableInDiagram(t, diagramUnid));
+                    const memberViews = (diagramUnid: string): JsonView[] =>
+                        node.views.filter(v => Treeview._viewInDiagram(v, diagramUnid));
                     children.append(this._renderBucket(
                         node.unid, 'layers', 'EER diagrams', JsonDataDBType.diagram,
-                        layers.map(l => ({unid: l.unid, name: l.name, parentDbUnid: node.unid})),
+                        layers.map(l => ({
+                            unid: l.unid,
+                            name: l.name,
+                            parentDbUnid: node.unid,
+                            members: {
+                                tables: memberTables(l.unid),
+                                views: memberViews(l.unid)
+                            }
+                        })),
                         {
                             label: '+ Add EER diagram',
                             event: EditorEvents.createDiagramIn,
@@ -351,7 +389,7 @@ export class Treeview {
         kind: string,
         label: string,
         leafType: JsonDataDBType,
-        items: {unid: string; name: string; parentDbUnid: string;}[],
+        items: {unid: string; name: string; parentDbUnid: string; members?: {tables: JsonTable[]; views: JsonView[];};}[],
         addHint?: {
             label: string;
             event: string;
@@ -384,7 +422,7 @@ export class Treeview {
         list.className = 'treeview-bucket-list';
         if (collapsed) {list.classList.add('treeview-bucket-list--collapsed');}
         for (const item of items) {
-            list.append(this._renderLeaf(item.unid, item.name, leafType, item.parentDbUnid));
+            list.append(this._renderLeaf(item.unid, item.name, leafType, item.parentDbUnid, item.members));
         }
         /*
          * Empty-state hint: a faint "+ Add X" row that triggers the
@@ -421,11 +459,48 @@ export class Treeview {
         return wrap;
     }
 
-    private _renderLeaf(unid: string, name: string, type: JsonDataDBType, parentDbUnid?: string): HTMLElement {
+    private _renderLeaf(
+        unid: string,
+        name: string,
+        type: JsonDataDBType,
+        parentDbUnid?: string,
+        members?: {tables: JsonTable[]; views: JsonView[];}
+    ): HTMLElement {
         const wrap = document.createElement('div');
         wrap.className = 'treeview-entry';
         const row = this._buildRow(unid, name, this._iconFor(type), type, parentDbUnid);
         wrap.append(row);
+        /*
+         * Diagram leaves expand to show their member tables/views.
+         * Toggle state persists per-diagram in localStorage; default
+         * collapsed so a database with many diagrams doesn't explode
+         * the sidebar on first load.
+         */
+        if (type === JsonDataDBType.diagram && members && (members.tables.length || members.views.length)) {
+            const storageKey = `dbeditor.tv.diagram.${unid}`;
+            const collapsed = localStorage.getItem(storageKey) !== '1';
+            const toggle = document.createElement('span');
+            toggle.className = 'treeview-diagram-toggle';
+            toggle.replaceChildren(collapsed ? iconChevronRight() : iconChevronDown());
+            row.prepend(toggle);
+            const childList = document.createElement('div');
+            childList.className = 'treeview-diagram-children';
+            if (collapsed) {childList.classList.add('treeview-diagram-children--collapsed');}
+            for (const t of members.tables) {
+                childList.append(this._renderLeaf(t.unid, t.name, JsonDataDBType.table, parentDbUnid));
+            }
+            for (const v of members.views) {
+                childList.append(this._renderLeaf(v.unid, v.name, JsonDataDBType.view, parentDbUnid));
+            }
+            wrap.append(childList);
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const nowCollapsed = !childList.classList.contains('treeview-diagram-children--collapsed');
+                childList.classList.toggle('treeview-diagram-children--collapsed', nowCollapsed);
+                toggle.replaceChildren(nowCollapsed ? iconChevronRight() : iconChevronDown());
+                localStorage.setItem(storageKey, nowCollapsed ? '0' : '1');
+            });
+        }
         return wrap;
     }
 

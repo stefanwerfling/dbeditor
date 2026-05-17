@@ -173,6 +173,80 @@ describe('Treeview — empty-bucket hint click flow', () => {
 
 });
 
+describe('Treeview — diagram leaves expand to show member tables/views', () => {
+
+    /*
+     * Each diagram leaf carries a chevron when it has at least one
+     * member. Tables/views are members when their primary
+     * `diagramUnid` matches OR a `diagramPlacements` entry references
+     * the diagram. The expand state persists per-diagram in
+     * localStorage; default is collapsed.
+     */
+
+    const dbWithDiagram = (): JsonDataDB => mkDb({
+        unid: 'db-1',
+        tables: [
+            {...mkTable('orders', 't-orders'), diagramUnid: 'dg-1'},
+            {...mkTable('users', 't-users'), diagramPlacements: [{diagramUnid: 'dg-1', pos: {x: 0, y: 0}}]},
+            {...mkTable('off_topic', 't-off')}
+        ],
+        views: [
+            {unid: 'v-active', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', diagramUnid: 'dg-1'}
+        ],
+        diagrams: [{unid: 'dg-1', name: 'People'}]
+    });
+
+    const diagramRow = (): HTMLElement | null =>
+        container.querySelector('.treeview-entry-row[data-unid="dg-1"]');
+
+    const diagramChildren = (): HTMLElement | null => {
+        const row = diagramRow();
+        const entry = row?.parentElement;
+        return entry?.querySelector('.treeview-diagram-children') as HTMLElement | null;
+    };
+
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it('renders a chevron on a diagram leaf that has members', () => {
+        view.render([wrapProject(dbWithDiagram())]);
+        expect(diagramRow()?.querySelector('.treeview-diagram-toggle')).not.toBeNull();
+    });
+
+    it('renders no children block when the diagram has no members', () => {
+        const db = mkDb({diagrams: [{unid: 'dg-empty', name: 'Empty'}]});
+        view.render([wrapProject(db)]);
+        const row = container.querySelector('.treeview-entry-row[data-unid="dg-empty"]');
+        expect(row?.parentElement?.querySelector('.treeview-diagram-children')).toBeNull();
+        expect(row?.querySelector('.treeview-diagram-toggle')).toBeNull();
+    });
+
+    it('default state is collapsed — child rows exist but the block is hidden', () => {
+        view.render([wrapProject(dbWithDiagram())]);
+        const children = diagramChildren();
+        expect(children).not.toBeNull();
+        expect(children!.classList.contains('treeview-diagram-children--collapsed')).toBe(true);
+    });
+
+    it('clicking the chevron expands and persists the state', () => {
+        view.render([wrapProject(dbWithDiagram())]);
+        const toggle = diagramRow()?.querySelector<HTMLElement>('.treeview-diagram-toggle');
+        toggle?.click();
+        expect(diagramChildren()!.classList.contains('treeview-diagram-children--collapsed')).toBe(false);
+        expect(localStorage.getItem('dbeditor.tv.diagram.dg-1')).toBe('1');
+    });
+
+    it('lists primary-membership tables, placement-membership tables, and member views — but NOT off-diagram tables', () => {
+        view.render([wrapProject(dbWithDiagram())]);
+        const children = diagramChildren()!;
+        const rows = Array.from(children.querySelectorAll('.treeview-entry-row'));
+        const names = rows.map(r => r.querySelector('.treeview-entry-name')?.textContent ?? '');
+        expect(names.sort()).toEqual(['active_users', 'orders', 'users']);
+    });
+
+});
+
 describe('Treeview — Modell / Live mode bar', () => {
 
     it('renders the live badge with the connection count when > 0', () => {
