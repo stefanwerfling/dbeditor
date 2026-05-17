@@ -168,6 +168,15 @@ const checkView = (
             containerUnid: container?.unid
         });
     }
+    for (const p of v.layerPlacements ?? []) {
+        if (!layersByUnid.has(p.layerUnid)) {
+            out.push({
+                severity: 'warning',
+                message: `View "${v.name}" placement references a deleted layer.`,
+                containerUnid: container?.unid
+            });
+        }
+    }
 };
 
 const walk = (

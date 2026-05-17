@@ -303,13 +303,13 @@ export const SchemaJsonView = Vts.object({
     materialized: Vts.optional(Vts.boolean()),
     description: Vts.optional(Vts.string()),
     /**
-     * Single EER-diagram membership (no multi-diagram placements yet —
-     * unlike JsonTable, views can only belong to one diagram at a
-     * time). When set, the view appears on the canvas only while the
-     * matching diagram is the active scope; when unset, the view shows
-     * unscoped only.
+     * Primary EER-diagram membership. Same semantics as
+     * `JsonTable.layerUnid` — the home diagram whose `pos` the view
+     * inherits. Additional diagrams go in `layerPlacements`, each
+     * with their own per-diagram position.
      */
     layerUnid: Vts.optional(Vts.string()),
+    layerPlacements: Vts.optional(Vts.array(SchemaJsonLayerPlacement)),
     wbPassthrough: Vts.optional(SchemaWbPassthrough)
 });
 export type JsonView = ExtractSchemaResultType<typeof SchemaJsonView>;

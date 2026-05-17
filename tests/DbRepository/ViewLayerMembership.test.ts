@@ -128,3 +128,32 @@ describe('DbFsRepository.updateView — layerUnid membership', () => {
     });
 
 });
+
+describe('DbFsRepository.updateView — layerPlacements multi-membership', () => {
+
+    it('sets layerPlacements when patch carries a non-empty array', () => {
+        seed();
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        expect(viewNode(repo).layerPlacements).toBeUndefined();
+        repo.updateView(VIEW_UNID, {layerPlacements: [{layerUnid: LAYER_UNID, pos: {x: 200, y: 300}}]}, null);
+        expect(viewNode(repo).layerPlacements).toEqual([{layerUnid: LAYER_UNID, pos: {x: 200, y: 300}}]);
+    });
+
+    it('clears layerPlacements when patch carries an empty array', () => {
+        seed();
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        repo.updateView(VIEW_UNID, {layerPlacements: [{layerUnid: LAYER_UNID, pos: {x: 200, y: 300}}]}, null);
+        expect(viewNode(repo).layerPlacements).toBeDefined();
+        repo.updateView(VIEW_UNID, {layerPlacements: []}, null);
+        expect(viewNode(repo).layerPlacements).toBeUndefined();
+    });
+
+    it('replaces the array on each update (not merged)', () => {
+        seed();
+        const repo = new DbFsRepository(projectFor(tmpFile));
+        repo.updateView(VIEW_UNID, {layerPlacements: [{layerUnid: 'L1', pos: {x: 1, y: 1}}]}, null);
+        repo.updateView(VIEW_UNID, {layerPlacements: [{layerUnid: 'L2', pos: {x: 2, y: 2}}]}, null);
+        expect(viewNode(repo).layerPlacements).toEqual([{layerUnid: 'L2', pos: {x: 2, y: 2}}]);
+    });
+
+});

@@ -664,14 +664,17 @@ export class DbEditor {
              * swap `pos` on a shallow clone so DbTable's read-only
              * positioning logic doesn't need to know about placements.
              *
-             * Views have single-membership only (no per-diagram
-             * placements yet) — include a view in this scope iff its
-             * `layerUnid` matches.
+             * Views follow the same multi-membership pattern: primary
+             * `layerUnid` OR any `layerPlacements` entry counts as
+             * membership; effective position comes from the matching
+             * placement when present.
              */
             tables = tables
             .filter(t => DbEditor._tableInLayer(t, layerUnid))
             .map(t => DbEditor._tableWithEffectivePos(t, layerUnid));
-            views = views.filter(v => v.layerUnid === layerUnid);
+            views = views
+            .filter(v => DbEditor._viewInLayer(v, layerUnid))
+            .map(v => DbEditor._viewWithEffectivePos(v, layerUnid));
             layers = layers.filter(l => l.unid === layerUnid);
         }
         this._renderScopeBanner(layers.length === 1 && this._activeLayerUnid ? layers[0].name : null);
@@ -2073,6 +2076,20 @@ export class DbEditor {
         });
         window.addEventListener(EditorEvents.viewMoved, (e) => {
             const { viewUnid, x, y } = (e as CustomEvent).detail;
+            const current = this._findViewInProject(viewUnid);
+            if (!current) {return;}
+            /*
+             * Scope-aware drag commit mirrors the table flow. When
+             * scoped to a non-primary diagram the view sits in via
+             * `layerPlacements`, write to that placement; otherwise
+             * the primary `pos` is the canonical home.
+             */
+            const activeLayer = this._activeLayerUnid;
+            if (activeLayer && current.layerUnid !== activeLayer) {
+                const nextPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], activeLayer, {x: x, y: y});
+                this._mutate(p => this._api.updateView(p.unid, viewUnid, {layerPlacements: nextPlacements}));
+                return;
+            }
             this._mutate(p => this._api.updateView(p.unid, viewUnid, { pos: { x: x, y: y } }));
         });
         window.addEventListener(EditorEvents.generateScoped, (e) => {
@@ -2288,8 +2305,20 @@ export class DbEditor {
         window.addEventListener(EditorEvents.removeViewFromLayer, (e) => {
             const { viewUnid, layerUnid } = (e as CustomEvent).detail as {viewUnid: string; layerUnid: string;};
             const view = this._findViewInProject(viewUnid);
-            if (!view || view.layerUnid !== layerUnid) {return;}
-            this._mutate(p => this._api.updateView(p.unid, viewUnid, {layerUnid: ''}))
+            if (!view) {return;}
+            /*
+             * Symmetric to removeTableFromLayer: clear primary if it
+             * matches and drop any layerPlacements entry for the layer.
+             * Send only the changed fields.
+             */
+            const patch: {layerUnid?: string; layerPlacements?: {layerUnid: string; pos: {x: number; y: number;};}[];} = {};
+            if (view.layerUnid === layerUnid) {patch.layerUnid = '';}
+            const placements = view.layerPlacements ?? [];
+            if (placements.some(p => p.layerUnid === layerUnid)) {
+                patch.layerPlacements = placements.filter(p => p.layerUnid !== layerUnid);
+            }
+            if (patch.layerUnid === undefined && patch.layerPlacements === undefined) {return;}
+            this._mutate(p => this._api.updateView(p.unid, viewUnid, patch as Record<string, unknown>))
             .then(() => this._reload());
         });
         window.addEventListener(EditorEvents.addForeignKey, (e) => {
@@ -3787,6 +3816,20 @@ export class DbEditor {
         return {...t, pos: eff};
     }
 
+    private static _viewInLayer(v: JsonView, layerUnid: string): boolean {
+        if (v.layerUnid === layerUnid) {return true;}
+        for (const p of v.layerPlacements ?? []) {
+            if (p.layerUnid === layerUnid) {return true;}
+        }
+        return false;
+    }
+
+    private static _viewWithEffectivePos(v: JsonView, layerUnid: string): JsonView {
+        const hit = (v.layerPlacements ?? []).find(p => p.layerUnid === layerUnid);
+        if (!hit) {return v;}
+        return {...v, pos: hit.pos};
+    }
+
     /**
      * Return a new `layerPlacements` array with `layerUnid` set to
      * `pos`. Replaces an existing entry in-place if present (so a
@@ -3865,12 +3908,12 @@ export class DbEditor {
         return null;
     }
 
-    /**
-     * Single-membership picker for a view. Opens the same
-     * `LayerPickerDialog` used for bulk-table assignment so the UI is
-     * consistent. Empty selection clears the assignment. Views don't
-     * yet support multi-diagram membership, hence the single-select
-     * flavour.
+    /*
+     * Mirrors `_pickLayerForTables` single-target branch: open the
+     * multi-membership dialog with the view's current memberships
+     * pre-checked. First checked diagram becomes the primary
+     * `layerUnid`; rest go into `layerPlacements` whose positions
+     * carry over from existing placements or fall back to `pos`.
      */
     private async _pickLayerForView(viewUnid: string): Promise<void> {
         if (!this._activeProject) {return;}
@@ -3881,9 +3924,26 @@ export class DbEditor {
             : null;
         const layers = container ? this._collectLayers(container) : [];
         if (layers.length === 0) {return;}
-        const result = await new LayerPickerDialog(layers, 1, view.layerUnid ?? null).show();
-        if (result === null) {return;}
-        await this._mutate(p => this._api.updateView(p.unid, viewUnid, {layerUnid: result}));
+        const currentMemberships: string[] = [];
+        if (view.layerUnid) {currentMemberships.push(view.layerUnid);}
+        for (const p of view.layerPlacements ?? []) {currentMemberships.push(p.layerUnid);}
+        const picked = await new LayerMembershipDialog(layers, currentMemberships).show();
+        if (picked === null) {return;}
+        const patch: {layerUnid: string; layerPlacements: {layerUnid: string; pos: {x: number; y: number;};}[];} = {
+            layerUnid: '',
+            layerPlacements: []
+        };
+        if (picked.length > 0) {
+            patch.layerUnid = picked[0];
+            for (const extra of picked.slice(1)) {
+                const existing = (view.layerPlacements ?? []).find(p => p.layerUnid === extra);
+                patch.layerPlacements.push({
+                    layerUnid: extra,
+                    pos: existing ? existing.pos : view.pos
+                });
+            }
+        }
+        await this._mutate(p => this._api.updateView(p.unid, viewUnid, patch));
         await this._reload();
     }
 

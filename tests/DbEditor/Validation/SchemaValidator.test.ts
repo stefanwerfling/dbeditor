@@ -206,6 +206,19 @@ describe('SchemaValidator — dangling layerUnid', () => {
         expect(w.find(x => x.message.includes('deleted layer'))).toBeUndefined();
     });
 
+    it('flags a view layerPlacements entry pointing at a deleted layer', () => {
+        const dbNode = db('mydb', {
+            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+        });
+        dbNode.views = [{
+            unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1',
+            layerUnid: 'L1',
+            layerPlacements: [{layerUnid: 'gone', pos: {x: 1, y: 1}}]
+        }];
+        const w = validateSchema(root([dbNode]));
+        expect(messages(w)).toContain('View "active_users" placement references a deleted layer.');
+    });
+
 });
 
 describe('SchemaValidator — duplicate table names within database', () => {

@@ -687,7 +687,7 @@ export class DbFsRepository {
         return { rev: rev, view: view };
     }
 
-    public updateView(unid: string, patch: Partial<Pick<JsonView, 'name' | 'pos' | 'select' | 'materialized' | 'description' | 'layerUnid'>>, clientId: string | null): number {
+    public updateView(unid: string, patch: Partial<Pick<JsonView, 'name' | 'pos' | 'select' | 'materialized' | 'description' | 'layerUnid' | 'layerPlacements'>>, clientId: string | null): number {
         const hit = DbFsTreeWalker.findView(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`view ${unid} not found`);}
         if (patch.name !== undefined) {hit.view.name = patch.name;}
@@ -699,6 +699,10 @@ export class DbFsRepository {
             /* Empty string is the "clear assignment" sentinel — matches updateTable's layerUnid handling. */
             if (patch.layerUnid === '') {delete hit.view.layerUnid;}
             else {hit.view.layerUnid = patch.layerUnid;}
+        }
+        if (patch.layerPlacements !== undefined) {
+            if (patch.layerPlacements.length === 0) {delete hit.view.layerPlacements;}
+            else {hit.view.layerPlacements = patch.layerPlacements;}
         }
         return this._commit('view.update', { unid: unid, patch: patch }, clientId);
     }
