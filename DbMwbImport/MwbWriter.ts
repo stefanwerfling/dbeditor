@@ -579,67 +579,109 @@ const collectDatabases = (node: JsonDataDB): JsonDataDB[] => {
  * disk or streams them to the browser.
  */
 /**
- * Walk every positioned table AND view across all databases and emit
- * one figure per entity (TableFigure / ViewFigure). We bundle them into
- * a single `model.Diagram` named "EER Diagram" — the user can split
- * into multiple diagrams from inside Workbench afterwards. An entity is
- * "positioned" if its `pos` differs from the (80, 80) default fallback
- * the importer uses; entities without an authored position are skipped
- * so Workbench's auto-layout can place them.
+ * Emit `model.Figure` children (TableFigure / ViewFigure) for the
+ * entities the caller already filtered down to belong to one
+ * specific Workbench Diagram. Each figure carries its position
+ * within THAT diagram + an `owner` link back. Returns the
+ * `<value …>…</value>` list wrapper or empty when the entity set
+ * is empty (caller decides whether to fall back to an empty list
+ * placeholder).
  */
-const writeDiagramFigures = (
-    databases: JsonDataDB[],
+const writeFigures = (
+    entries: ({kind: 'table'; table: JsonTable; pos: {x: number; y: number;};} | {kind: 'view'; view: JsonView; pos: {x: number; y: number;};})[],
     ids: IdMaps,
     diagramId: string,
     depth: number
 ): string => {
-    const positionedTables: JsonTable[] = [];
-    const positionedViews: JsonView[] = [];
-    for (const db of databases) {
-        for (const tbl of db.tables ?? []) {
-            if (tbl.pos.x === 80 && tbl.pos.y === 80) {continue;}
-            positionedTables.push(tbl);
-        }
-        for (const v of db.views ?? []) {
-            if (v.pos.x === 80 && v.pos.y === 80) {continue;}
-            positionedViews.push(v);
-        }
-    }
-    if (positionedTables.length === 0 && positionedViews.length === 0) {return '';}
-
+    if (entries.length === 0) {return '';}
     let s = `${I(depth)}<value type="list" content-type="object" content-struct-name="model.Figure" key="figures">\n`;
-    for (const tbl of positionedTables) {
-        const tableId = ids.tableId.get(tbl.unid);
-        if (!tableId) {continue;}
-        const figId = randomUUID();
-        s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.TableFigure" id="${figId}">\n`;
-        s += vInt('expanded', 1, depth + 2);
-        s += vInt('visible', 1, depth + 2);
-        s += vInt('locked', 0, depth + 2);
-        s += `${I(depth + 2)}<value type="real" key="left">${tbl.pos.x}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="top">${tbl.pos.y}</value>\n`;
-        s += lStr('table', 'db.Table', tableId, depth + 2);
-        s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
-        s += vStr('name', tbl.name, depth + 2);
-        s += `${I(depth + 1)}</value>\n`;
-    }
-    for (const v of positionedViews) {
-        const viewId = ids.viewId.get(v.unid);
-        if (!viewId) {continue;}
-        const figId = randomUUID();
-        s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.ViewFigure" id="${figId}">\n`;
-        s += vInt('expanded', 1, depth + 2);
-        s += vInt('visible', 1, depth + 2);
-        s += vInt('locked', 0, depth + 2);
-        s += `${I(depth + 2)}<value type="real" key="left">${v.pos.x}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="top">${v.pos.y}</value>\n`;
-        s += lStr('view', 'db.View', viewId, depth + 2);
-        s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
-        s += vStr('name', v.name, depth + 2);
-        s += `${I(depth + 1)}</value>\n`;
+    for (const entry of entries) {
+        if (entry.kind === 'table') {
+            const tableId = ids.tableId.get(entry.table.unid);
+            if (!tableId) {continue;}
+            const figId = randomUUID();
+            s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.TableFigure" id="${figId}">\n`;
+            s += vInt('expanded', 1, depth + 2);
+            s += vInt('visible', 1, depth + 2);
+            s += vInt('locked', 0, depth + 2);
+            s += `${I(depth + 2)}<value type="real" key="left">${entry.pos.x}</value>\n`;
+            s += `${I(depth + 2)}<value type="real" key="top">${entry.pos.y}</value>\n`;
+            s += lStr('table', 'db.Table', tableId, depth + 2);
+            s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
+            s += vStr('name', entry.table.name, depth + 2);
+            s += `${I(depth + 1)}</value>\n`;
+        } else {
+            const viewId = ids.viewId.get(entry.view.unid);
+            if (!viewId) {continue;}
+            const figId = randomUUID();
+            s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.ViewFigure" id="${figId}">\n`;
+            s += vInt('expanded', 1, depth + 2);
+            s += vInt('visible', 1, depth + 2);
+            s += vInt('locked', 0, depth + 2);
+            s += `${I(depth + 2)}<value type="real" key="left">${entry.pos.x}</value>\n`;
+            s += `${I(depth + 2)}<value type="real" key="top">${entry.pos.y}</value>\n`;
+            s += lStr('view', 'db.View', viewId, depth + 2);
+            s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
+            s += vStr('name', entry.view.name, depth + 2);
+            s += `${I(depth + 1)}</value>\n`;
+        }
     }
     s += `${I(depth)}</value>\n`;
     return s;
+};
+
+type FigureEntry =
+    | {kind: 'table'; table: JsonTable; pos: {x: number; y: number;};}
+    | {kind: 'view'; view: JsonView; pos: {x: number; y: number;};};
+
+/**
+ * For one JsonDiagram, walk every database and collect the figures
+ * that belong to it. A table belongs to a diagram when its primary
+ * `diagramUnid` matches OR a `diagramPlacements` entry references
+ * the diagram; the figure pos comes from the placement entry when
+ * present (per-diagram coords), else the entity's top-level `pos`.
+ */
+const figuresForDiagram = (databases: JsonDataDB[], diagramUnid: string): FigureEntry[] => {
+    const out: FigureEntry[] = [];
+    for (const db of databases) {
+        for (const tbl of db.tables ?? []) {
+            const placement = (tbl.diagramPlacements ?? []).find(p => p.diagramUnid === diagramUnid);
+            if (placement) {
+                out.push({kind: 'table', table: tbl, pos: placement.pos});
+            } else if (tbl.diagramUnid === diagramUnid) {
+                out.push({kind: 'table', table: tbl, pos: tbl.pos});
+            }
+        }
+        for (const v of db.views ?? []) {
+            const placement = (v.diagramPlacements ?? []).find(p => p.diagramUnid === diagramUnid);
+            if (placement) {
+                out.push({kind: 'view', view: v, pos: placement.pos});
+            } else if (v.diagramUnid === diagramUnid) {
+                out.push({kind: 'view', view: v, pos: v.pos});
+            }
+        }
+    }
+    return out;
+};
+
+/**
+ * Fallback figure set for projects that carry no JsonDiagrams at
+ * all: emit every entity with a non-default `pos` to the synthetic
+ * "EER Diagram" so Workbench has something to render on open.
+ */
+const figuresForFallback = (databases: JsonDataDB[]): FigureEntry[] => {
+    const out: FigureEntry[] = [];
+    for (const db of databases) {
+        for (const tbl of db.tables ?? []) {
+            if (tbl.pos.x === 80 && tbl.pos.y === 80) {continue;}
+            out.push({kind: 'table', table: tbl, pos: tbl.pos});
+        }
+        for (const v of db.views ?? []) {
+            if (v.pos.x === 80 && v.pos.y === 80) {continue;}
+            out.push({kind: 'view', view: v, pos: v.pos});
+        }
+    }
+    return out;
 };
 
 /**
@@ -758,16 +800,18 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions
         ids.layerId.set(layer.unid, randomUUID());
     }
     /*
-     * Single-Workbench-Diagram export: collapse every JsonDiagram
-     * into one Workbench `workbench.physical.Diagram`. We borrow the
-     * first JsonDiagram's name (alphabetical-first is too clever —
-     * insertion order matches user intent best) so a single-diagram
-     * round-trip preserves the tab label. With multiple JsonDiagrams
-     * the secondary names are lost on export.
+     * Per-JsonDiagram fanout: one Workbench `workbench.physical.Diagram`
+     * per JsonDiagram, each with its own member figures and its own
+     * layers (filtered by `layer.diagramUnid`). When the project has
+     * NO JsonDiagrams we still emit a synthetic "EER Diagram" so
+     * Workbench has something to render on open.
      */
     const allDiagrams = collectDiagrams(databases);
-    const diagramId = randomUUID();
-    const wbDiagramName = allDiagrams.length > 0 ? allDiagrams[0].name : 'EER Diagram';
+    const diagramIdByUnid = new Map<string, string>();
+    for (const d of allDiagrams) {
+        diagramIdByUnid.set(d.unid, randomUUID());
+    }
+    const fallbackDiagramId = randomUUID();
 
     let xml = '<?xml version="1.0"?>\n';
     xml += '<data grt_format="2.0" document_type="MySQL Workbench Model" version="1.4.4">\n';
@@ -794,23 +838,52 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions
     xml += vStr('name', 'catalog', 5);
     xml += `${I(4)}</value>\n`;
 
-    /* Diagrams list — a single canvas with one TableFigure per positioned table. */
-    const figuresXml = writeDiagramFigures(databases, ids, diagramId, 5);
-    if (figuresXml === '' && allLayers.length === 0) {
+    /* Diagrams list — one Workbench Diagram per JsonDiagram, plus a fallback for diagram-less projects. */
+    const diagramBlocks: {id: string; name: string; figures: FigureEntry[]; layers: JsonLayer[];}[] = [];
+    if (allDiagrams.length === 0) {
+        const fallbackFigures = figuresForFallback(databases);
+        if (fallbackFigures.length > 0 || allLayers.length > 0) {
+            diagramBlocks.push({
+                id: fallbackDiagramId,
+                name: 'EER Diagram',
+                figures: fallbackFigures,
+                layers: allLayers
+            });
+        }
+    } else {
+        for (const d of allDiagrams) {
+            const id = diagramIdByUnid.get(d.unid)!;
+            diagramBlocks.push({
+                id: id,
+                name: d.name,
+                figures: figuresForDiagram(databases, d.unid),
+                layers: allLayers.filter(l => l.diagramUnid === d.unid)
+            });
+        }
+    }
+
+    if (diagramBlocks.length === 0) {
         xml += emptyList('diagrams', 'workbench.physical.Diagram', 'object', 4);
     } else {
-        const layersXml = writeLayersForDiagram(allLayers, ids, diagramId, 5);
         xml += `${I(4)}<value type="list" content-type="object" content-struct-name="workbench.physical.Diagram" key="diagrams">\n`;
-        xml += `${I(5)}<value type="object" struct-name="workbench.physical.Diagram" id="${diagramId}">\n`;
-        xml += figuresXml;
-        xml += emptyList('connections', 'model.Connection', 'object', 6);
-        if (layersXml === '') {
-            xml += emptyList('layers', 'workbench.physical.Layer', 'object', 6);
-        } else {
-            xml += layersXml;
+        for (const block of diagramBlocks) {
+            const figuresXml = writeFigures(block.figures, ids, block.id, 5);
+            const layersXml = writeLayersForDiagram(block.layers, ids, block.id, 5);
+            xml += `${I(5)}<value type="object" struct-name="workbench.physical.Diagram" id="${block.id}">\n`;
+            if (figuresXml === '') {
+                xml += emptyList('figures', 'model.Figure', 'object', 6);
+            } else {
+                xml += figuresXml;
+            }
+            xml += emptyList('connections', 'model.Connection', 'object', 6);
+            if (layersXml === '') {
+                xml += emptyList('layers', 'workbench.physical.Layer', 'object', 6);
+            } else {
+                xml += layersXml;
+            }
+            xml += vStr('name', block.name, 6);
+            xml += `${I(5)}</value>\n`;
         }
-        xml += vStr('name', wbDiagramName, 6);
-        xml += `${I(5)}</value>\n`;
         xml += `${I(4)}</value>\n`;
     }
 

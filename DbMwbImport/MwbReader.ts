@@ -782,15 +782,16 @@ const buildFigureData = (root: GrtNode): FigureData => {
 
     /*
      * Group figures (tables AND views) by `owner` link (the diagram
-     * UUID). One unified map so the per-diagram bbox and the xShift
-     * tiling apply consistently to both kinds — a view and a table on
-     * the same diagram share the coordinate system. Map insertion
-     * order matches document order of the *first* figure for each
-     * diagram, which is stable across runs. Tables are inserted before
-     * views so a diagram with only views still groups under its own
-     * owner key.
+     * UUID). Pre-seed every known Workbench Diagram so an empty
+     * diagram (no figures, just authored Layers) still produces a
+     * JsonDiagram on the output side. One unified map so the per-
+     * diagram bbox and xShift tiling apply consistently to tables
+     * + views — they share the diagram's coord system. Map
+     * insertion order matches Workbench's document order, stable
+     * across runs.
      */
     const byDiagram = new Map<string, FigureEntry[]>();
+    for (const id of diagramById.keys()) {byDiagram.set(id, []);}
     for (const fig of tableFigures) {
         const owner = childLink(fig, 'owner') ?? 'unknown';
         const list = byDiagram.get(owner) ?? [];
@@ -825,9 +826,16 @@ const buildFigureData = (root: GrtNode): FigureData => {
             if (left < dMinLeft) {dMinLeft = left;}
             if (left + width > dMaxRight) {dMaxRight = left + width;}
         }
-        if (!Number.isFinite(dMinLeft)) {continue;}
-
-        const xShift = isFirst ? 0 : runningRight + GAP - dMinLeft;
+        /*
+         * Empty diagram (no figures): produce a JsonDiagram + any
+         * authored layers anyway, but with zero xShift so the
+         * coordinate-tiling math degenerates cleanly. `dMinLeft`
+         * stays at Infinity but we skip the figure loop later, so
+         * the value is never read. `runningRight` doesn't advance
+         * — empty diagrams don't push the next diagram's origin.
+         */
+        const isEmptyDiagram = !Number.isFinite(dMinLeft);
+        const xShift = isFirst || isEmptyDiagram ? 0 : runningRight + GAP - dMinLeft;
 
         /*
          * One JsonDiagram per Workbench diagram. Named from the
@@ -910,8 +918,10 @@ const buildFigureData = (root: GrtNode): FigureData => {
             }
         }
 
-        runningRight = isFirst ? dMaxRight : runningRight + GAP + (dMaxRight - dMinLeft);
-        isFirst = false;
+        if (!isEmptyDiagram) {
+            runningRight = isFirst ? dMaxRight : runningRight + GAP + (dMaxRight - dMinLeft);
+            isFirst = false;
+        }
         diagramIndex++;
     }
     return {

@@ -299,12 +299,77 @@ describe('writeMwb — synthetic build', () => {
             }]
         };
         const r = parseMwb(writeMwb([db]));
-        expect(r.layerCount).toBe(1);
         const reLayers = r.databases[0].diagrams ?? [];
         expect(reLayers).toHaveLength(1);
         expect(reLayers[0].name).toBe('People');
         const reTable = r.databases[0].tables[0];
         expect(reTable.diagramUnid).toBe(reLayers[0].unid);
+    });
+
+    it('fans out multiple JsonDiagrams into one Workbench Diagram each on round-trip', () => {
+        /*
+         * Two diagrams ("People", "Billing") with distinct table sets.
+         * After write + re-parse we should see two JsonDiagrams (one
+         * per Workbench Diagram) and each table tagged with the
+         * correct one.
+         */
+        const peopleUnid = 'dg-people';
+        const billingUnid = 'dg-billing';
+        const db: JsonDataDB = {
+            unid: 'db-1', name: 'mini', type: JsonDataDBType.database, entrys: [],
+            tables: [
+                {
+                    unid: 't-user', name: 'user', pos: {x: 100, y: 100},
+                    columns: [mkCol({name: 'id', type: 'int', primaryKey: true})],
+                    indexes: [], foreignKeys: [],
+                    diagramUnid: peopleUnid
+                },
+                {
+                    unid: 't-invoice', name: 'invoice', pos: {x: 200, y: 100},
+                    columns: [mkCol({name: 'id', type: 'int', primaryKey: true})],
+                    indexes: [], foreignKeys: [],
+                    diagramUnid: billingUnid
+                }
+            ],
+            views: [], enums: [], routines: [],
+            diagrams: [
+                {unid: peopleUnid, name: 'People'},
+                {unid: billingUnid, name: 'Billing'}
+            ]
+        };
+        const r = parseMwb(writeMwb([db]));
+        const reLayers = r.databases[0].diagrams ?? [];
+        const reNames = reLayers.map(l => l.name).sort();
+        expect(reNames).toEqual(['Billing', 'People']);
+        const layerByName = new Map(reLayers.map(l => [l.name, l]));
+        const reTables = new Map(r.databases[0].tables.map(t => [t.name, t]));
+        expect(reTables.get('user')!.diagramUnid).toBe(layerByName.get('People')!.unid);
+        expect(reTables.get('invoice')!.diagramUnid).toBe(layerByName.get('Billing')!.unid);
+    });
+
+    it('emits JsonLayers under the right parent Workbench Diagram', () => {
+        const peopleUnid = 'dg-people';
+        const billingUnid = 'dg-billing';
+        const db: JsonDataDB = {
+            unid: 'db-1', name: 'mini', type: JsonDataDBType.database, entrys: [],
+            tables: [], views: [], enums: [], routines: [],
+            diagrams: [
+                {unid: peopleUnid, name: 'People'},
+                {unid: billingUnid, name: 'Billing'}
+            ],
+            layers: [
+                {unid: 'lay-p', name: 'Core', diagramUnid: peopleUnid, pos: {x: 10, y: 20}, width: 300, height: 200, color: 'rgba(64, 145, 220, 0.10)'},
+                {unid: 'lay-b', name: 'Reports', diagramUnid: billingUnid, pos: {x: 50, y: 60}, width: 400, height: 250}
+            ]
+        };
+        const r = parseMwb(writeMwb([db]));
+        const reLayers = r.databases[0].layers ?? [];
+        expect(reLayers).toHaveLength(2);
+        const byName = new Map(reLayers.map(l => [l.name, l]));
+        const peopleDiagram = (r.databases[0].diagrams ?? []).find(d => d.name === 'People');
+        const billingDiagram = (r.databases[0].diagrams ?? []).find(d => d.name === 'Billing');
+        expect(byName.get('Core')!.diagramUnid).toBe(peopleDiagram!.unid);
+        expect(byName.get('Reports')!.diagramUnid).toBe(billingDiagram!.unid);
     });
 
     it('write a positioned view and re-parse the pos via ViewFigure', () => {
