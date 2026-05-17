@@ -10,7 +10,8 @@
  */
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Treeview} from '../../../DbEditor/Treeview/Treeview.js';
-import {JsonDataDB, JsonDataDBType, JsonTable} from '../../../DbEditor/JsonData.js';
+import {EditorEvents} from '../../../DbEditor/Base/EditorEvents.js';
+import {JsonDataDB, JsonDataDBType, JsonTable, JsonRoutineKind} from '../../../DbEditor/JsonData.js';
 
 const mkTable = (name: string, unid?: string): JsonTable => ({
     unid: unid ?? `t-${name}`,
@@ -109,6 +110,65 @@ describe('Treeview — bucket rendering', () => {
         view.setMode('live');
         view.render([wrapProject(mkDb())]);
         expect(bucketHints()).toEqual([]);
+    });
+
+});
+
+describe('Treeview — empty-bucket hint click flow', () => {
+
+    /*
+     * Each hint opens a name prompt and then dispatches a create-in
+     * event with `{containerUnid, name, ...extra}`. The container
+     * unid is the parent database (NOT the runtime project UUID) —
+     * required for the repo's tree walk to find the parent.
+     */
+    const stubPrompt = (returns: string | null): void => {
+        (window as unknown as {prompt: (msg?: string, def?: string) => string | null;}).prompt = (): string | null => returns;
+    };
+
+    const clickHint = (label: string): void => {
+        const hint = Array.from(container.querySelectorAll<HTMLElement>('.treeview-bucket-empty-hint'))
+        .find(e => e.textContent?.trim() === label);
+        if (!hint) {throw new Error(`hint "${label}" not found`);}
+        hint.click();
+    };
+
+    const captureEvent = <T,>(name: string): T[] => {
+        const out: T[] = [];
+        window.addEventListener(name, (e) => out.push((e as CustomEvent).detail as T));
+        return out;
+    };
+
+    it('"+ Add table" prompts then dispatches createTableIn with {containerUnid, name}', () => {
+        stubPrompt('orders');
+        const events = captureEvent<{containerUnid: string; name: string;}>(EditorEvents.createTableIn);
+        view.render([wrapProject(mkDb({unid: 'db-X'}))]);
+        clickHint('+ Add table');
+        expect(events).toEqual([{containerUnid: 'db-X', name: 'orders'}]);
+    });
+
+    it('"+ Add routine" carries the procedure kind in the payload', () => {
+        stubPrompt('sp_calc');
+        const events = captureEvent<{containerUnid: string; name: string; kind: string;}>(EditorEvents.createRoutineIn);
+        view.render([wrapProject(mkDb({unid: 'db-X'}))]);
+        clickHint('+ Add routine');
+        expect(events).toEqual([{containerUnid: 'db-X', name: 'sp_calc', kind: JsonRoutineKind.procedure}]);
+    });
+
+    it('cancelling the prompt skips the dispatch', () => {
+        stubPrompt(null);
+        const events = captureEvent<unknown>(EditorEvents.createViewIn);
+        view.render([wrapProject(mkDb())]);
+        clickHint('+ Add view');
+        expect(events).toEqual([]);
+    });
+
+    it('whitespace-only name skips the dispatch (trim() yields empty)', () => {
+        stubPrompt('   ');
+        const events = captureEvent<unknown>(EditorEvents.createEnumIn);
+        view.render([wrapProject(mkDb())]);
+        clickHint('+ Add enum');
+        expect(events).toEqual([]);
     });
 
 });
