@@ -92,6 +92,18 @@ Die Erfolgsmeldung zählt das Ergebnis auf (`Placed N of M tables and K of L vie
 
 Roundtrip-relevante Felder, die Workbench braucht, dbeditor aber nicht modelliert, werden opak mitgeschleppt und beim Export wieder herausgeschrieben — so kannst du `.mwb` öffnen → editieren → zurückspeichern ohne Datenverlust. Das Sample unter `sample/example.mwb` ist ein kleines Demo-Schema, das die Roundtrip-Tests benutzen.
 
+### Byte-Identischer Roundtrip
+
+Wenn du eine `.mwb` öffnest und ohne Änderungen direkt wieder über **File → Export .mwb** speicherst, bekommst du **bytegleich dieselbe Datei** zurück — der Server cached die rohen Import-Bytes und gibt sie unverändert aus.
+
+Sobald du irgendetwas änderst, fällt der Cache weg und der Export wird neu generiert. Auf Objekt-Ebene gibt es aber einen feineren Cache, der pro Routine, View und Tabelle die originalen XML-Bytes bewahrt:
+
+- Änderst du nur **eine Routine**, werden Tabellen und Views weiter byteweise aus dem Cache emittiert; nur die betroffene Routine regeneriert.
+- Änderst du eine **Spalte oder einen FK in einer Tabelle**, wird der ganze Tabellen-Cache verworfen (Tables sind all-or-nothing wegen FK-Cross-Refs), Routinen und Views bleiben aber unangetastet.
+- **Restart** des Dev-Servers verliert alle Object-Caches (in-memory). Der nächste Import re-armed sie.
+
+Vorteil gegenüber reiner Regeneration: erhaltene GRT-IDs (Workbench-interne UUIDs), erhaltene Attribut-Reihenfolge, erhaltene Whitespace-Details in SQL-Bodies. In der Praxis bedeutet das: ein Roundtrip dbeditor↔Workbench schleppt deutlich weniger kosmetischen Drift mit.
+
 ## Die Editor-Oberfläche
 
 ### Menüleiste

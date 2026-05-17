@@ -92,6 +92,18 @@ The success alert reports how many of each (`Placed N of M tables and K of L vie
 
 Roundtrip-preserving fields Workbench needs but dbeditor doesn't model are captured opaquely and re-emitted on export, so you can open → edit → save back to `.mwb` without losing data. The sample at `sample/example.mwb` is a small demo schema used by the round-trip tests.
 
+### Byte-identical roundtrip
+
+If you open a `.mwb` and immediately save it back via **File → Export .mwb** without any edits, you get **byte-identical bytes** — the server caches the raw import bytes and returns them as-is.
+
+The moment you edit something, that whole-file cache drops and the export gets regenerated. A finer per-object cache then kicks in, preserving the raw XML bytes for each Routine, View and Table:
+
+- Edit **one Routine** → Tables and Views still emit byte-for-byte from cache; only the changed routine regenerates.
+- Edit a **column or FK in any Table** → the entire Tables cache drops (all-or-nothing because FKs cross-reference table + column GRT ids), but Routines and Views stay untouched.
+- **Restart** the dev server and the per-object caches are gone (in-memory only). The next import re-arms them.
+
+What this buys over plain regeneration: original GRT ids (Workbench's internal UUIDs) preserved, original attribute order, original whitespace in SQL bodies. In practice: an open-edit-save roundtrip drops noticeably less cosmetic drift.
+
 ## The editor UI
 
 ### Menubar
