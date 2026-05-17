@@ -9,8 +9,8 @@ import {DbForeignKeyDialog} from './Table/DbForeignKeyDialog.js';
 import {DbTableOptionsDialog} from './Table/DbTableOptionsDialog.js';
 import {DbBatchTableOptionsDialog} from './Table/DbBatchTableOptionsDialog.js';
 import {DbBulkRenameDialog} from './Table/DbBulkRenameDialog.js';
-import {LayerPickerDialog} from './Layer/LayerPickerDialog.js';
-import {LayerMembershipDialog} from './Layer/LayerMembershipDialog.js';
+import {DiagramPickerDialog} from './Layer/DiagramPickerDialog.js';
+import {DiagramMembershipDialog} from './Layer/DiagramMembershipDialog.js';
 import {LayerColorDialog, extractHex} from './Layer/LayerColorDialog.js';
 import {DbEnumDialog} from './Enum/DbEnumDialog.js';
 import {DbViewDialog} from './View/DbViewDialog.js';
@@ -41,7 +41,7 @@ import {crowsFoot, oneBar} from './Util/CrowsFoot.js';
 import {isOneToOneFk} from './Util/FkCardinality.js';
 import {ZOOM_DEFAULT, clampZoom, formatZoom, isAtDefault, snapToStep, stepZoom, zoomFocalScroll} from './Util/Zoom.js';
 import {rectFromCorners, rectsIntersect} from './Util/Rect.js';
-import {JsonColumn, JsonDataDB, JsonDataDBType, JsonEnum, JsonForeignKey, JsonLayer, JsonRoutine, JsonTable, JsonView} from './JsonData.js';
+import {JsonColumn, JsonDataDB, JsonDataDBType, JsonEnum, JsonForeignKey, JsonDiagram, JsonRoutine, JsonTable, JsonView} from './JsonData.js';
 
 type LoadedProject = {
     unid: string;
@@ -81,11 +81,11 @@ export class DbEditor {
     private _activeProject: LoadedProject | null = null;
     private _activeContainerUnid: string | null = null;
     /**
-     * When set, the canvas filters tables to those whose `layerUnid`
-     * matches — entered via clicking a layer in the treeview. Cleared
+     * When set, the canvas filters tables to those whose `diagramUnid`
+     * matches — entered via clicking a diagram in the treeview. Cleared
      * on container activation (back to "show all in this database").
      */
-    private _activeLayerUnid: string | null = null;
+    private _activeDiagramUnid: string | null = null;
     /*
      * Multi-select. The Set holds every currently-selected table's unid.
      * Single-select is just the special case `size === 1`. Mutators go
@@ -244,14 +244,14 @@ export class DbEditor {
             }
 
             /*
-             * `L` opens the layer picker for the current selection.
+             * `L` opens the diagram picker for the current selection.
              * Same single/multi semantics as `O` — applies the
-             * chosen layer to every selected table.
+             * chosen diagram to every selected table.
              */
             if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
                 e.preventDefault();
                 this._pickLayerForTables(Array.from(this._selectedTableUnids))
-                .catch((err: unknown): void => console.error('[DbEditor] layer pick failed:', err));
+                .catch((err: unknown): void => console.error('[DbEditor] diagram pick failed:', err));
                 return;
             }
 
@@ -347,11 +347,11 @@ export class DbEditor {
     }
 
     /**
-     * Open a layer picker for one or more tables. Layers come from
+     * Open a diagram picker for one or more tables. Layers come from
      * the active container (and folder descendants); pre-selects the
-     * common current layer when all targets agree, otherwise no row
+     * common current diagram when all targets agree, otherwise no row
      * is initially selected. On apply: sequential `updateTable` per
-     * target with the chosen `layerUnid` (`''` clears the field).
+     * target with the chosen `diagramUnid` (`''` clears the field).
      */
     private async _pickLayerForTables(tableUnids: string[]): Promise<void> {
         if (!this._activeProject || tableUnids.length === 0) {return;}
@@ -361,7 +361,7 @@ export class DbEditor {
         const container = this._activeContainerUnid
             ? this._findContainer(this._activeProject.data, this._activeContainerUnid)
             : null;
-        const layers = container ? this._collectLayers(container) : [];
+        const layers = container ? this._collectDiagrams(container) : [];
 
         if (targets.length === 1) {
             /*
@@ -369,23 +369,23 @@ export class DbEditor {
              * user can pick the table's full set of diagrams in one
              * shot (MWB-style: one table appears in several diagrams
              * with per-diagram positions). The first checked diagram
-             * becomes the primary (`layerUnid`), the rest become
-             * `layerPlacements` whose positions inherit from the
+             * becomes the primary (`diagramUnid`), the rest become
+             * `diagramPlacements` whose positions inherit from the
              * existing placement entries (if any) or default to the
              * table's home `pos`.
              */
             const t = targets[0];
             const currentMemberships: string[] = [];
-            if (t.layerUnid) {currentMemberships.push(t.layerUnid);}
-            for (const p of t.layerPlacements ?? []) {currentMemberships.push(p.layerUnid);}
-            const picked = await new LayerMembershipDialog(layers, currentMemberships).show();
+            if (t.diagramUnid) {currentMemberships.push(t.diagramUnid);}
+            for (const p of t.diagramPlacements ?? []) {currentMemberships.push(p.diagramUnid);}
+            const picked = await new DiagramMembershipDialog(layers, currentMemberships).show();
             if (picked === null) {return;}
-            const patch: {layerUnid: string; layerPlacements: {layerUnid: string; pos: {x: number; y: number;};}[];} = {
-                layerUnid: '',
-                layerPlacements: []
+            const patch: {diagramUnid: string; diagramPlacements: {diagramUnid: string; pos: {x: number; y: number;};}[];} = {
+                diagramUnid: '',
+                diagramPlacements: []
             };
             if (picked.length > 0) {
-                patch.layerUnid = picked[0];
+                patch.diagramUnid = picked[0];
                 for (const extra of picked.slice(1)) {
                     /*
                      * Preserve any existing per-diagram positions so
@@ -393,9 +393,9 @@ export class DbEditor {
                      * doesn't jump back to (0,0). New memberships
                      * inherit the table's home position.
                      */
-                    const existing = (t.layerPlacements ?? []).find(p => p.layerUnid === extra);
-                    patch.layerPlacements.push({
-                        layerUnid: extra,
+                    const existing = (t.diagramPlacements ?? []).find(p => p.diagramUnid === extra);
+                    patch.diagramPlacements.push({
+                        diagramUnid: extra,
                         pos: existing ? existing.pos : t.pos
                     });
                 }
@@ -411,14 +411,14 @@ export class DbEditor {
          * and most users want "make all these N tables members of
          * diagram X". Pre-select the current diagram when shared.
          */
-        const first = targets[0].layerUnid ?? '';
-        const allSame = targets.every(t => (t.layerUnid ?? '') === first);
+        const first = targets[0].diagramUnid ?? '';
+        const allSame = targets.every(t => (t.diagramUnid ?? '') === first);
         const initial = allSame ? first : null;
-        const result = await new LayerPickerDialog(layers, targets.length, initial).show();
+        const result = await new DiagramPickerDialog(layers, targets.length, initial).show();
         if (result === null) {return;}
         for (const t of targets) {
             // eslint-disable-next-line no-await-in-loop
-            await this._mutate(p => this._api.updateTable(p.unid, t.unid, {layerUnid: result}));
+            await this._mutate(p => this._api.updateTable(p.unid, t.unid, {diagramUnid: result}));
         }
         await this._reload();
     }
@@ -644,39 +644,39 @@ export class DbEditor {
         const enums = this._collectEnums(container);
         let tables = this._collectTables(container);
         let views = this._collectViews(container);
-        let layers = this._collectLayers(container);
+        let layers = this._collectDiagrams(container);
         /*
-         * Layer scope: when a layer is the active filter (set via
-         * clicking a layer in the treeview), restrict the canvas to
+         * Layer scope: when a diagram is the active filter (set via
+         * clicking a diagram in the treeview), restrict the canvas to
          * its member tables only. Views/enums are out-of-scope for
-         * layers — hide them. The active layer itself stays visible
+         * layers — hide them. The active diagram itself stays visible
          * so the user sees the grouping they're focused on.
          */
-        if (this._activeLayerUnid) {
-            const layerUnid = this._activeLayerUnid;
+        if (this._activeDiagramUnid) {
+            const diagramUnid = this._activeDiagramUnid;
             /*
              * Multi-diagram membership: a table is "in" this diagram
-             * if its primary `layerUnid` matches OR any entry in
-             * `layerPlacements` does. The position for rendering then
+             * if its primary `diagramUnid` matches OR any entry in
+             * `diagramPlacements` does. The position for rendering then
              * comes from the matching placement when one exists, else
              * from `pos` (the primary diagram's home position). We
              * swap `pos` on a shallow clone so DbTable's read-only
              * positioning logic doesn't need to know about placements.
              *
              * Views follow the same multi-membership pattern: primary
-             * `layerUnid` OR any `layerPlacements` entry counts as
+             * `diagramUnid` OR any `diagramPlacements` entry counts as
              * membership; effective position comes from the matching
              * placement when present.
              */
             tables = tables
-            .filter(t => DbEditor._tableInLayer(t, layerUnid))
-            .map(t => DbEditor._tableWithEffectivePos(t, layerUnid));
+            .filter(t => DbEditor._tableInDiagram(t, diagramUnid))
+            .map(t => DbEditor._tableWithEffectivePos(t, diagramUnid));
             views = views
-            .filter(v => DbEditor._viewInLayer(v, layerUnid))
-            .map(v => DbEditor._viewWithEffectivePos(v, layerUnid));
-            layers = layers.filter(l => l.unid === layerUnid);
+            .filter(v => DbEditor._viewInDiagram(v, diagramUnid))
+            .map(v => DbEditor._viewWithEffectivePos(v, diagramUnid));
+            layers = layers.filter(l => l.unid === diagramUnid);
         }
-        this._renderScopeBanner(layers.length === 1 && this._activeLayerUnid ? layers[0].name : null);
+        this._renderScopeBanner(layers.length === 1 && this._activeDiagramUnid ? layers[0].name : null);
         if (!tables.length && !views.length) {
             this._renderEmptyCanvas('No tables or views yet.', 'Click "Add Table" in the topbar.');
             return;
@@ -688,37 +688,37 @@ export class DbEditor {
          * handles, no drag, no events; clicks pass through to the
          * canvas for rubber-band selection.
          */
-        cardHost.querySelectorAll('.db-layer').forEach(e => e.remove());
-        for (const layer of layers) {
+        cardHost.querySelectorAll('.db-diagram').forEach(e => e.remove());
+        for (const diagram of layers) {
             const el = document.createElement('div');
-            el.className = 'db-layer';
-            el.dataset.layerUnid = layer.unid;
-            el.style.left = `${layer.pos.x}px`;
-            el.style.top = `${layer.pos.y}px`;
-            el.style.width = `${layer.width}px`;
-            el.style.height = `${layer.height}px`;
-            if (layer.color) {el.style.background = layer.color;}
+            el.className = 'db-diagram';
+            el.dataset.diagramUnid = diagram.unid;
+            el.style.left = `${diagram.pos.x}px`;
+            el.style.top = `${diagram.pos.y}px`;
+            el.style.width = `${diagram.width}px`;
+            el.style.height = `${diagram.height}px`;
+            if (diagram.color) {el.style.background = diagram.color;}
             /*
-             * Suppress the in-canvas layer label when this layer is
+             * Suppress the in-canvas diagram label when this diagram is
              * the currently scoped one — the scope banner above the
              * canvas already names it, and the treeview shows it as
              * the active row. Rename/delete actions remain reachable
              * via the treeview's ⋯ menu. Resize handle still renders
              * so the user can size the diagram area.
              */
-            if (this._activeLayerUnid !== layer.unid) {
-                this._buildLayerLabel(layer, el);
+            if (this._activeDiagramUnid !== diagram.unid) {
+                this._buildLayerLabel(diagram, el);
             }
-            this._buildLayerResizeHandle(layer, el);
+            this._buildLayerResizeHandle(diagram, el);
             cardHost.append(el);
         }
         /*
-         * Pass active-layer context to each card so its ⋯ menu can
+         * Pass active-diagram context to each card so its ⋯ menu can
          * surface the "Remove from this diagram" entry when scoped.
          * `layers` was filtered to a single entry above when
-         * `_activeLayerUnid` is set, so `layers[0]` is that layer.
+         * `_activeDiagramUnid` is set, so `layers[0]` is that diagram.
          */
-        const activeLayerCtx = this._activeLayerUnid && layers.length === 1
+        const activeLayerCtx = this._activeDiagramUnid && layers.length === 1
             ? {unid: layers[0].unid, name: layers[0].name}
             : null;
         for (const t of tables) {
@@ -760,10 +760,10 @@ export class DbEditor {
     }
 
     /**
-     * Floating banner shown when the canvas is scoped to a layer.
-     * Mounted on the `#dbgrid` container (outside the zoom layer so
+     * Floating banner shown when the canvas is scoped to a diagram.
+     * Mounted on the `#dbgrid` container (outside the zoom diagram so
      * it doesn't scale) with an × button to clear the scope. Re-runs
-     * on every `_renderCanvas` — passes the layer's name or null to
+     * on every `_renderCanvas` — passes the diagram's name or null to
      * dismiss.
      */
     private _renderScopeBanner(layerName: string | null): void {
@@ -786,7 +786,7 @@ export class DbEditor {
         close.addEventListener('click', () => {
             const dbUnid = this._activeContainerUnid;
             if (!dbUnid) {return;}
-            this._activeLayerUnid = null;
+            this._activeDiagramUnid = null;
             this._treeview?.setActive(dbUnid);
             this._renderCanvas();
         });
@@ -795,42 +795,42 @@ export class DbEditor {
     }
 
     /**
-     * Build the corner label for a layer with rename + delete affordances.
+     * Build the corner label for a diagram with rename + delete affordances.
      * `pointer-events: auto` on the label so it catches clicks; the
-     * parent layer keeps `pointer-events: none` so the rest of the
+     * parent diagram keeps `pointer-events: none` so the rest of the
      * backdrop is click-through (rubber-band selection still works).
      *
      * Double-click on the name → inline rename input. Hover → ⋯ menu
      * with Rename + Delete (both routed through the standard event +
      * mutate flow, so undo restores the prior state).
      */
-    private _buildLayerLabel(layer: JsonLayer, layerEl: HTMLElement): void {
+    private _buildLayerLabel(diagram: JsonDiagram, layerEl: HTMLElement): void {
         const lbl = document.createElement('div');
-        lbl.className = 'db-layer-label';
+        lbl.className = 'db-diagram-label';
 
         /*
          * Mousedown anywhere on the label that ISN'T the rename
          * input or the menu button starts a drag of the whole
-         * layer. The name span and ⋯ button stop propagation
+         * diagram. The name span and ⋯ button stop propagation
          * themselves so they don't fire this handler accidentally.
          */
         lbl.addEventListener('mousedown', (e: MouseEvent) => {
             if (e.button !== 0) {return;}
-            this._startLayerDrag(layer, layerEl, e);
+            this._startLayerDrag(diagram, layerEl, e);
         });
 
         const nameSpan = document.createElement('span');
-        nameSpan.className = 'db-layer-label-name';
-        nameSpan.textContent = layer.name;
+        nameSpan.className = 'db-diagram-label-name';
+        nameSpan.textContent = diagram.name;
         nameSpan.addEventListener('mousedown', (e) => e.stopPropagation());
         nameSpan.addEventListener('dblclick', (e) => {
             e.stopPropagation();
-            this._startLayerRename(nameSpan, layer);
+            this._startLayerRename(nameSpan, diagram);
         });
 
         const menuBtn = document.createElement('button');
         menuBtn.type = 'button';
-        menuBtn.className = 'db-layer-label-menu';
+        menuBtn.className = 'db-diagram-label-menu';
         menuBtn.replaceChildren(iconEllipsis());
         menuBtn.title = 'EER diagram actions';
         menuBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -839,11 +839,11 @@ export class DbEditor {
             openContextMenu(menuBtn, [
                 {
                     label: 'Rename…',
-                    onSelect: (): void => this._startLayerRename(nameSpan, layer)
+                    onSelect: (): void => this._startLayerRename(nameSpan, diagram)
                 },
                 {
                     label: 'Change color…',
-                    onSelect: (): void => this._pickLayerColor(layer)
+                    onSelect: (): void => this._pickLayerColor(diagram)
                 },
                 {
                     label: 'Delete EER diagram',
@@ -851,11 +851,11 @@ export class DbEditor {
                     onSelect: async(): Promise<void> => {
                         const ok = await ConfirmDialog.showConfirm(
                             'Delete EER diagram',
-                            `Delete diagram "${layer.name}"? Tables inside are not deleted; their diagram reference becomes empty.\n\nUse Ctrl+Z to undo.`,
+                            `Delete diagram "${diagram.name}"? Tables inside are not deleted; their diagram reference becomes empty.\n\nUse Ctrl+Z to undo.`,
                             'danger'
                         );
                         if (!ok) {return;}
-                        window.dispatchEvent(new CustomEvent(EditorEvents.deleteLayer, {detail: {unid: layer.unid}}));
+                        window.dispatchEvent(new CustomEvent(EditorEvents.deleteDiagram, {detail: {unid: diagram.unid}}));
                     }
                 }
             ]);
@@ -870,11 +870,11 @@ export class DbEditor {
      * resize, mousemove updates `width/height` directly (zoom-
      * aware, just like drag), mouseup persists. Top-left position
      * stays fixed; only the SE corner moves. Min width/height
-     * 60px so the user can't accidentally collapse a layer to zero.
+     * 60px so the user can't accidentally collapse a diagram to zero.
      */
-    private _buildLayerResizeHandle(layer: JsonLayer, layerEl: HTMLElement): void {
+    private _buildLayerResizeHandle(diagram: JsonDiagram, layerEl: HTMLElement): void {
         const handle = document.createElement('div');
-        handle.className = 'db-layer-resize';
+        handle.className = 'db-diagram-resize';
         handle.title = 'Drag to resize';
         handle.addEventListener('mousedown', (e: MouseEvent) => {
             if (e.button !== 0) {return;}
@@ -882,8 +882,8 @@ export class DbEditor {
             e.stopPropagation();
             const startScreenX = e.clientX;
             const startScreenY = e.clientY;
-            const startW = layer.width;
-            const startH = layer.height;
+            const startW = diagram.width;
+            const startH = diagram.height;
             const zoom = this._zoomLevel || 1;
             const MIN = 60;
             let moved = false;
@@ -897,14 +897,14 @@ export class DbEditor {
                 const nh = Math.max(MIN, Math.round(startH + dy));
                 layerEl.style.width = `${nw}px`;
                 layerEl.style.height = `${nh}px`;
-                layer.width = nw;
-                layer.height = nh;
+                diagram.width = nw;
+                diagram.height = nh;
             };
             const onUp = (): void => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('mouseup', onUp);
                 if (!moved) {return;}
-                this._mutate(p => this._api.updateLayer(p.unid, layer.unid, {width: layer.width, height: layer.height}))
+                this._mutate(p => this._api.updateDiagram(p.unid, diagram.unid, {width: diagram.width, height: diagram.height}))
                 .then(() => this._reload());
             };
             window.addEventListener('mousemove', onMove);
@@ -914,32 +914,32 @@ export class DbEditor {
     }
 
     /**
-     * Drag a whole layer rectangle. Mousedown on the label
+     * Drag a whole diagram rectangle. Mousedown on the label
      * background (not on the name span or menu button) starts the
      * drag; mousemove updates `layerEl.style.left/top` directly so
-     * the move feels immediate; mouseup commits via `updateLayer` if
+     * the move feels immediate; mouseup commits via `updateDiagram` if
      * the cursor moved past a small threshold (so a plain click
      * doesn't fire a no-op API call).
      *
      * Mouse delta is in screen pixels — we divide by `_zoomLevel`
-     * because the layer sits inside the zoom-scaled wrapper, so a
-     * 100px screen drag at 0.5× zoom should advance the layer by
+     * because the diagram sits inside the zoom-scaled wrapper, so a
+     * 100px screen drag at 0.5× zoom should advance the diagram by
      * 200 canvas pixels.
      */
-    private _startLayerDrag(layer: JsonLayer, layerEl: HTMLElement, downEv: MouseEvent): void {
+    private _startLayerDrag(diagram: JsonDiagram, layerEl: HTMLElement, downEv: MouseEvent): void {
         downEv.preventDefault();
         downEv.stopPropagation();
         const startScreenX = downEv.clientX;
         const startScreenY = downEv.clientY;
-        const startPosX = layer.pos.x;
-        const startPosY = layer.pos.y;
+        const startPosX = diagram.pos.x;
+        const startPosY = diagram.pos.y;
         const zoom = this._zoomLevel || 1;
         let moved = false;
 
         /*
-         * Member tables move with the layer: anything whose
-         * `layerUnid` matches gets the same delta. Visual-only-
-         * overlap tables (no layerUnid) stay put — the layer is just
+         * Member tables move with the diagram: anything whose
+         * `diagramUnid` matches gets the same delta. Visual-only-
+         * overlap tables (no diagramUnid) stay put — the diagram is just
          * a backdrop for them. Snapshot starting positions so each
          * mousemove computes from the original, not the previous
          * frame (avoids drift accumulation).
@@ -949,7 +949,7 @@ export class DbEditor {
             const container = this._findContainer(this._activeProject.data, this._activeContainerUnid);
             if (container) {
                 for (const t of this._collectTables(container)) {
-                    if (!DbEditor._tableInLayer(t, layer.unid)) {continue;}
+                    if (!DbEditor._tableInDiagram(t, diagram.unid)) {continue;}
                     const card = this._tables.get(t.unid);
                     if (!card) {continue;}
                     /*
@@ -961,13 +961,13 @@ export class DbEditor {
                      * doesn't accidentally overwrite the primary
                      * `pos` that's used outside diagram scope.
                      */
-                    const eff = DbEditor._effectivePos(t, layer.unid);
+                    const eff = DbEditor._effectivePos(t, diagram.unid);
                     memberCards.push({
                         tableUnid: t.unid,
                         card: {element: card.element},
                         startX: eff.x,
                         startY: eff.y,
-                        isPrimary: t.layerUnid === layer.unid
+                        isPrimary: t.diagramUnid === diagram.unid
                     });
                 }
             }
@@ -982,8 +982,8 @@ export class DbEditor {
             const ny = Math.round(startPosY + dy);
             layerEl.style.left = `${nx}px`;
             layerEl.style.top = `${ny}px`;
-            layer.pos.x = nx;
-            layer.pos.y = ny;
+            diagram.pos.x = nx;
+            diagram.pos.y = ny;
             for (const m of memberCards) {
                 const tx = Math.round(m.startX + dx);
                 const ty = Math.round(m.startY + dy);
@@ -996,13 +996,13 @@ export class DbEditor {
             window.removeEventListener('mouseup', onUp);
             if (!moved) {return;}
             /*
-             * Persist the layer move + every dragged-along table.
+             * Persist the diagram move + every dragged-along table.
              * Sequential because each `updateTable` re-validates
              * server-side and we want the snapshot consistent.
              */
             const tableMoves = memberCards.map(m => {
-                const finalX = Math.round(m.startX + (layer.pos.x - startPosX));
-                const finalY = Math.round(m.startY + (layer.pos.y - startPosY));
+                const finalX = Math.round(m.startX + (diagram.pos.x - startPosX));
+                const finalY = Math.round(m.startY + (diagram.pos.y - startPosY));
                 return {
                     tableUnid: m.tableUnid,
                     pos: {x: finalX, y: finalY},
@@ -1010,7 +1010,7 @@ export class DbEditor {
                 };
             });
             (async(): Promise<void> => {
-                await this._mutate(p => this._api.updateLayer(p.unid, layer.unid, {pos: {x: layer.pos.x, y: layer.pos.y}}));
+                await this._mutate(p => this._api.updateDiagram(p.unid, diagram.unid, {pos: {x: diagram.pos.x, y: diagram.pos.y}}));
                 for (const move of tableMoves) {
                     if (move.isPrimary) {
                         // eslint-disable-next-line no-await-in-loop
@@ -1026,37 +1026,37 @@ export class DbEditor {
                          */
                         const current = this._findTableInProject(move.tableUnid);
                         const nextPlacements = current
-                            ? DbEditor._upsertPlacement(current.layerPlacements ?? [], layer.unid, move.pos)
-                            : [{layerUnid: layer.unid, pos: move.pos}];
+                            ? DbEditor._upsertPlacement(current.diagramPlacements ?? [], diagram.unid, move.pos)
+                            : [{diagramUnid: diagram.unid, pos: move.pos}];
                         // eslint-disable-next-line no-await-in-loop
-                        await this._mutate(p => this._api.updateTable(p.unid, move.tableUnid, {layerPlacements: nextPlacements}));
+                        await this._mutate(p => this._api.updateTable(p.unid, move.tableUnid, {diagramPlacements: nextPlacements}));
                     }
                 }
                 await this._reload();
-            })().catch((err: unknown): void => console.error('[DbEditor] layer drag persist failed:', err));
+            })().catch((err: unknown): void => console.error('[DbEditor] diagram drag persist failed:', err));
         };
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
     }
 
     /**
-     * Open the native color picker for a layer. Stored color carries
-     * an alpha suffix (`26` ≈ 15%) so the layer renders translucent
+     * Open the native color picker for a diagram. Stored color carries
+     * an alpha suffix (`26` ≈ 15%) so the diagram renders translucent
      * and table cards on top stay readable. Picker only edits the
      * RGB part — alpha is fixed by the backdrop convention.
      */
-    private async _pickLayerColor(layer: JsonLayer): Promise<void> {
-        const result = await new LayerColorDialog(layer.name, extractHex(layer.color)).show();
+    private async _pickLayerColor(diagram: JsonDiagram): Promise<void> {
+        const result = await new LayerColorDialog(diagram.name, extractHex(diagram.color)).show();
         if (result === null) {return;}
         const stored = `${result}26`;
-        await this._mutate(p => this._api.updateLayer(p.unid, layer.unid, {color: stored}));
+        await this._mutate(p => this._api.updateDiagram(p.unid, diagram.unid, {color: stored}));
         await this._reload();
     }
 
-    private _startLayerRename(nameSpan: HTMLSpanElement, layer: JsonLayer): void {
+    private _startLayerRename(nameSpan: HTMLSpanElement, diagram: JsonDiagram): void {
         const input = document.createElement('input');
-        input.className = 'db-layer-label-input';
-        input.value = layer.name;
+        input.className = 'db-diagram-label-input';
+        input.value = diagram.name;
         nameSpan.replaceWith(input);
         input.focus();
         input.select();
@@ -1066,8 +1066,8 @@ export class DbEditor {
             committed = true;
             const next = input.value.trim();
             input.replaceWith(nameSpan);
-            if (next && next !== layer.name) {
-                window.dispatchEvent(new CustomEvent(EditorEvents.renameLayer, {detail: {unid: layer.unid, name: next}}));
+            if (next && next !== diagram.name) {
+                window.dispatchEvent(new CustomEvent(EditorEvents.renameDiagram, {detail: {unid: diagram.unid, name: next}}));
             }
         };
         input.addEventListener('blur', commit);
@@ -1976,17 +1976,17 @@ export class DbEditor {
             const c = this._activeProject ? this._findContainer(this._activeProject.data, unid) : null;
             if (c) {
                 this._activeContainerUnid = unid;
-                /* Switching containers always clears the layer scope. */
-                this._activeLayerUnid = null;
+                /* Switching containers always clears the diagram scope. */
+                this._activeDiagramUnid = null;
                 this._renderCanvas();
             }
         });
-        window.addEventListener(EditorEvents.scopeToLayer, (e) => {
-            const {layerUnid, containerUnid} = (e as CustomEvent).detail as {layerUnid: string; containerUnid: string;};
+        window.addEventListener(EditorEvents.scopeToDiagram, (e) => {
+            const {diagramUnid, containerUnid} = (e as CustomEvent).detail as {diagramUnid: string; containerUnid: string;};
             const c = this._activeProject ? this._findContainer(this._activeProject.data, containerUnid) : null;
             if (!c) {return;}
             this._activeContainerUnid = containerUnid;
-            this._activeLayerUnid = layerUnid;
+            this._activeDiagramUnid = diagramUnid;
             this._renderCanvas();
         });
         window.addEventListener(EditorEvents.focusTable, (e) => {
@@ -2027,7 +2027,7 @@ export class DbEditor {
              *
              *   1) Layer-scoped view: write to the placement entry
              *      for the active diagram. If active diagram is the
-             *      primary one (`t.layerUnid === activeLayer`), top-
+             *      primary one (`t.diagramUnid === activeLayer`), top-
              *      level `pos` is the canonical home; otherwise we
              *      append/replace the matching placement entry.
              *
@@ -2040,30 +2040,30 @@ export class DbEditor {
              *   3) Unscoped view, no diagram under cursor: just
              *      move `pos`. Doesn't change membership.
              */
-            const activeLayer = this._activeLayerUnid;
+            const activeLayer = this._activeDiagramUnid;
             if (activeLayer) {
-                if (current.layerUnid === activeLayer) {
+                if (current.diagramUnid === activeLayer) {
                     this._mutate(p => this._api.updateTable(p.unid, tableUnid, {pos: {x: x, y: y}}));
                 } else {
-                    const nextPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], activeLayer, {x: x, y: y});
-                    this._mutate(p => this._api.updateTable(p.unid, tableUnid, {layerPlacements: nextPlacements}));
+                    const nextPlacements = DbEditor._upsertPlacement(current.diagramPlacements ?? [], activeLayer, {x: x, y: y});
+                    this._mutate(p => this._api.updateTable(p.unid, tableUnid, {diagramPlacements: nextPlacements}));
                 }
                 return;
             }
 
-            const droppedOn = this._layerAtPoint(x, y);
-            const patch: {pos: {x: number; y: number;}; layerPlacements?: {layerUnid: string; pos: {x: number; y: number;};}[];} = { pos: { x: x, y: y } };
-            if (droppedOn && current.layerUnid !== droppedOn) {
+            const droppedOn = this._diagramAtPoint(x, y);
+            const patch: {pos: {x: number; y: number;}; diagramPlacements?: {diagramUnid: string; pos: {x: number; y: number;};}[];} = { pos: { x: x, y: y } };
+            if (droppedOn && current.diagramUnid !== droppedOn) {
                 /*
                  * Multi-diagram add: instead of overwriting the
-                 * primary `layerUnid`, append a placement for the
+                 * primary `diagramUnid`, append a placement for the
                  * dropped-on diagram (existing primary stays). If a
                  * placement for this diagram already exists, update
                  * its pos. This gives the user MWB-style "same table
                  * in two diagrams" behaviour without clobbering the
                  * primary home view.
                  */
-                patch.layerPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], droppedOn, {x: x, y: y});
+                patch.diagramPlacements = DbEditor._upsertPlacement(current.diagramPlacements ?? [], droppedOn, {x: x, y: y});
             }
             this._mutate(p => this._api.updateTable(p.unid, tableUnid, patch));
         });
@@ -2080,16 +2080,16 @@ export class DbEditor {
              *      `pos` also moves.
              *   3) Unscoped, no diagram under cursor → move `pos`.
              */
-            const activeLayer = this._activeLayerUnid;
-            if (activeLayer && current.layerUnid !== activeLayer) {
-                const nextPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], activeLayer, {x: x, y: y});
-                this._mutate(p => this._api.updateView(p.unid, viewUnid, {layerPlacements: nextPlacements}));
+            const activeLayer = this._activeDiagramUnid;
+            if (activeLayer && current.diagramUnid !== activeLayer) {
+                const nextPlacements = DbEditor._upsertPlacement(current.diagramPlacements ?? [], activeLayer, {x: x, y: y});
+                this._mutate(p => this._api.updateView(p.unid, viewUnid, {diagramPlacements: nextPlacements}));
                 return;
             }
-            const droppedOn = activeLayer ? null : this._layerAtPoint(x, y);
-            const patch: {pos: {x: number; y: number;}; layerPlacements?: {layerUnid: string; pos: {x: number; y: number;};}[];} = { pos: { x: x, y: y } };
-            if (droppedOn && current.layerUnid !== droppedOn) {
-                patch.layerPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], droppedOn, {x: x, y: y});
+            const droppedOn = activeLayer ? null : this._diagramAtPoint(x, y);
+            const patch: {pos: {x: number; y: number;}; diagramPlacements?: {diagramUnid: string; pos: {x: number; y: number;};}[];} = { pos: { x: x, y: y } };
+            if (droppedOn && current.diagramUnid !== droppedOn) {
+                patch.diagramPlacements = DbEditor._upsertPlacement(current.diagramPlacements ?? [], droppedOn, {x: x, y: y});
             }
             this._mutate(p => this._api.updateView(p.unid, viewUnid, patch));
         });
@@ -2097,7 +2097,7 @@ export class DbEditor {
             const detail = (e as CustomEvent).detail as {
                 databaseUnid?: string;
                 tableUnid?: string;
-                layerUnid?: string;
+                diagramUnid?: string;
                 layerName?: string;
             };
             this._generateScoped(detail).catch((err: unknown): void => console.error('[DbEditor] scoped generate failed:', err));
@@ -2184,8 +2184,8 @@ export class DbEditor {
             const { containerUnid, name } = (e as CustomEvent).detail;
             this._mutate(p => this._api.createEnum(p.unid, containerUnid, name, { x: 80, y: 80 })).then(() => this._reload());
         });
-        window.addEventListener(EditorEvents.assignTableToLayer, (e) => {
-            const { tableUnid, layerUnid } = (e as CustomEvent).detail as {tableUnid: string; layerUnid: string;};
+        window.addEventListener(EditorEvents.assignTableToDiagram, (e) => {
+            const { tableUnid, diagramUnid } = (e as CustomEvent).detail as {tableUnid: string; diagramUnid: string;};
             const current = this._findTableInProject(tableUnid);
             /*
              * Multi-diagram-aware drop semantics:
@@ -2196,40 +2196,40 @@ export class DbEditor {
              *     a second diagram, primary stays intact)
              */
             if (!current) {return;}
-            if (!current.layerUnid) {
-                this._mutate(p => this._api.updateTable(p.unid, tableUnid, {layerUnid: layerUnid})).then(() => this._reload());
+            if (!current.diagramUnid) {
+                this._mutate(p => this._api.updateTable(p.unid, tableUnid, {diagramUnid: diagramUnid})).then(() => this._reload());
                 return;
             }
-            if (current.layerUnid === layerUnid) {return;}
-            if ((current.layerPlacements ?? []).some(p => p.layerUnid === layerUnid)) {return;}
-            const nextPlacements = DbEditor._upsertPlacement(current.layerPlacements ?? [], layerUnid, current.pos);
-            this._mutate(p => this._api.updateTable(p.unid, tableUnid, {layerPlacements: nextPlacements})).then(() => this._reload());
+            if (current.diagramUnid === diagramUnid) {return;}
+            if ((current.diagramPlacements ?? []).some(p => p.diagramUnid === diagramUnid)) {return;}
+            const nextPlacements = DbEditor._upsertPlacement(current.diagramPlacements ?? [], diagramUnid, current.pos);
+            this._mutate(p => this._api.updateTable(p.unid, tableUnid, {diagramPlacements: nextPlacements})).then(() => this._reload());
         });
-        window.addEventListener(EditorEvents.removeTableFromLayer, (e) => {
-            const { tableUnid, layerUnid } = (e as CustomEvent).detail as {tableUnid: string; layerUnid: string;};
+        window.addEventListener(EditorEvents.removeTableFromDiagram, (e) => {
+            const { tableUnid, diagramUnid } = (e as CustomEvent).detail as {tableUnid: string; diagramUnid: string;};
             const current = this._findTableInProject(tableUnid);
             if (!current) {return;}
             /*
-             * Symmetric to assignTableToLayer: take whichever membership
+             * Symmetric to assignTableToDiagram: take whichever membership
              * exists (primary, placement, or both) and clear it. The
              * table remains in the model and still renders unscoped; it
              * just no longer belongs to this EER diagram. We patch only
              * the fields that change so we don't accidentally clobber
              * concurrent edits to the rest of the table.
              */
-            const patch: {layerUnid?: string | null; layerPlacements?: {layerUnid: string; pos: {x: number; y: number;};}[];} = {};
-            if (current.layerUnid === layerUnid) {
-                patch.layerUnid = '';
+            const patch: {diagramUnid?: string | null; diagramPlacements?: {diagramUnid: string; pos: {x: number; y: number;};}[];} = {};
+            if (current.diagramUnid === diagramUnid) {
+                patch.diagramUnid = '';
             }
-            const placements = current.layerPlacements ?? [];
-            if (placements.some(p => p.layerUnid === layerUnid)) {
-                patch.layerPlacements = placements.filter(p => p.layerUnid !== layerUnid);
+            const placements = current.diagramPlacements ?? [];
+            if (placements.some(p => p.diagramUnid === diagramUnid)) {
+                patch.diagramPlacements = placements.filter(p => p.diagramUnid !== diagramUnid);
             }
-            if (patch.layerUnid === undefined && patch.layerPlacements === undefined) {return;}
+            if (patch.diagramUnid === undefined && patch.diagramPlacements === undefined) {return;}
             this._mutate(p => this._api.updateTable(p.unid, tableUnid, patch as Record<string, unknown>))
             .then(() => this._reload());
         });
-        window.addEventListener(EditorEvents.createLayerIn, (e) => {
+        window.addEventListener(EditorEvents.createDiagramIn, (e) => {
             const { containerUnid, name } = (e as CustomEvent).detail;
             /*
              * Default-size diagram positioned at (80,80) — same shape as
@@ -2237,7 +2237,7 @@ export class DbEditor {
              * standard 400×300 backdrop regardless of how they invoked
              * the creation.
              */
-            this._mutate(p => this._api.createLayer(p.unid, containerUnid, name, {
+            this._mutate(p => this._api.createDiagram(p.unid, containerUnid, name, {
                 pos: {x: 80, y: 80},
                 width: 400,
                 height: 300
@@ -2287,38 +2287,38 @@ export class DbEditor {
             const { unid } = (e as CustomEvent).detail;
             this._editRoutine(unid);
         });
-        window.addEventListener(EditorEvents.renameLayer, (e) => {
+        window.addEventListener(EditorEvents.renameDiagram, (e) => {
             const { unid, name } = (e as CustomEvent).detail;
-            this._mutate(p => this._api.updateLayer(p.unid, unid, { name: name })).then(() => this._reload());
+            this._mutate(p => this._api.updateDiagram(p.unid, unid, { name: name })).then(() => this._reload());
         });
-        window.addEventListener(EditorEvents.deleteLayer, (e) => {
+        window.addEventListener(EditorEvents.deleteDiagram, (e) => {
             const { unid } = (e as CustomEvent).detail;
-            this._mutate(p => this._api.deleteLayer(p.unid, unid)).then(() => this._reload());
+            this._mutate(p => this._api.deleteDiagram(p.unid, unid)).then(() => this._reload());
         });
-        window.addEventListener(EditorEvents.pickLayerForTables, (e) => {
+        window.addEventListener(EditorEvents.pickDiagramForTables, (e) => {
             const { tableUnids } = (e as CustomEvent).detail as {tableUnids: string[];};
-            this._pickLayerForTables(tableUnids).catch((err: unknown): void => console.error('[DbEditor] layer pick failed:', err));
+            this._pickLayerForTables(tableUnids).catch((err: unknown): void => console.error('[DbEditor] diagram pick failed:', err));
         });
-        window.addEventListener(EditorEvents.pickLayerForView, (e) => {
+        window.addEventListener(EditorEvents.pickDiagramForView, (e) => {
             const { viewUnid } = (e as CustomEvent).detail as {viewUnid: string;};
-            this._pickLayerForView(viewUnid).catch((err: unknown): void => console.error('[DbEditor] view layer pick failed:', err));
+            this._pickLayerForView(viewUnid).catch((err: unknown): void => console.error('[DbEditor] view diagram pick failed:', err));
         });
-        window.addEventListener(EditorEvents.removeViewFromLayer, (e) => {
-            const { viewUnid, layerUnid } = (e as CustomEvent).detail as {viewUnid: string; layerUnid: string;};
+        window.addEventListener(EditorEvents.removeViewFromDiagram, (e) => {
+            const { viewUnid, diagramUnid } = (e as CustomEvent).detail as {viewUnid: string; diagramUnid: string;};
             const view = this._findViewInProject(viewUnid);
             if (!view) {return;}
             /*
-             * Symmetric to removeTableFromLayer: clear primary if it
-             * matches and drop any layerPlacements entry for the layer.
+             * Symmetric to removeTableFromDiagram: clear primary if it
+             * matches and drop any diagramPlacements entry for the diagram.
              * Send only the changed fields.
              */
-            const patch: {layerUnid?: string; layerPlacements?: {layerUnid: string; pos: {x: number; y: number;};}[];} = {};
-            if (view.layerUnid === layerUnid) {patch.layerUnid = '';}
-            const placements = view.layerPlacements ?? [];
-            if (placements.some(p => p.layerUnid === layerUnid)) {
-                patch.layerPlacements = placements.filter(p => p.layerUnid !== layerUnid);
+            const patch: {diagramUnid?: string; diagramPlacements?: {diagramUnid: string; pos: {x: number; y: number;};}[];} = {};
+            if (view.diagramUnid === diagramUnid) {patch.diagramUnid = '';}
+            const placements = view.diagramPlacements ?? [];
+            if (placements.some(p => p.diagramUnid === diagramUnid)) {
+                patch.diagramPlacements = placements.filter(p => p.diagramUnid !== diagramUnid);
             }
-            if (patch.layerUnid === undefined && patch.layerPlacements === undefined) {return;}
+            if (patch.diagramUnid === undefined && patch.diagramPlacements === undefined) {return;}
             this._mutate(p => this._api.updateView(p.unid, viewUnid, patch as Record<string, unknown>))
             .then(() => this._reload());
         });
@@ -2348,22 +2348,22 @@ export class DbEditor {
             if (!this._activeProject) {return;}
             const detail = (e as CustomEvent).detail ?? {};
             let databaseUnid = detail.databaseUnid as string | undefined;
-            const layerUnid = typeof detail.layerUnid === 'string' && detail.layerUnid !== '' ? detail.layerUnid : undefined;
+            const diagramUnid = typeof detail.diagramUnid === 'string' && detail.diagramUnid !== '' ? detail.diagramUnid : undefined;
             const layerName = typeof detail.layerName === 'string' ? detail.layerName : undefined;
             /*
-             * Layer-scoped dispatch from the treeview's layer ⋯ menu
+             * Layer-scoped dispatch from the treeview's diagram ⋯ menu
              * doesn't supply `databaseUnid` (the menu doesn't know
-             * which database the layer belongs to). Resolve it by
+             * which database the diagram belongs to). Resolve it by
              * walking the project tree to find the database whose
              * `layers[]` contains this unid.
              */
-            if (!databaseUnid && layerUnid) {
-                const dbFound = this._findDatabaseOfLayer(this._activeProject.data, layerUnid);
+            if (!databaseUnid && diagramUnid) {
+                const dbFound = this._findDatabaseOfLayer(this._activeProject.data, diagramUnid);
                 if (dbFound) {databaseUnid = dbFound.unid;}
             }
             if (!databaseUnid) {return;}
             /*
-             * Reject layer-scoped sync if the parent database has no
+             * Reject diagram-scoped sync if the parent database has no
              * connection — preview would 400 with "no live connection
              * configured" which is a confusing path to discovery.
              */
@@ -2376,7 +2376,7 @@ export class DbEditor {
             }
             const container = this._findContainer(this._activeProject.data, databaseUnid);
             const label = container?.name ?? databaseUnid;
-            const dlg = new SyncDialog(this._api, this._activeProject.unid, databaseUnid, label, layerUnid, layerName);
+            const dlg = new SyncDialog(this._api, this._activeProject.unid, databaseUnid, label, diagramUnid, layerName);
             await dlg.show();
         });
 
@@ -2428,7 +2428,7 @@ export class DbEditor {
     /**
      * Fit every visible card (tables + views + layers) into the
      * viewport. Computes the unscaled-canvas bbox by walking the
-     * tracker maps + the layer DOM, picks the largest zoom that
+     * tracker maps + the diagram DOM, picks the largest zoom that
      * fits with a 40px padding margin, then scrolls to centre the
      * bbox in the visible area. No-op when there's nothing to
      * frame (empty canvas).
@@ -2452,7 +2452,7 @@ export class DbEditor {
         };
         for (const card of this._tables.values()) {observe(card.element);}
         for (const card of this._views.values()) {observe(card.element);}
-        this._zoomLayer.querySelectorAll<HTMLElement>('.db-layer').forEach(observe);
+        this._zoomLayer.querySelectorAll<HTMLElement>('.db-diagram').forEach(observe);
         if (!Number.isFinite(minX) || !Number.isFinite(maxX)) {return;}
 
         const bboxW = (maxX - minX) + (2 * PAD);
@@ -2543,7 +2543,7 @@ export class DbEditor {
         const ensureBand = (): HTMLDivElement => {
             if (bandEl) {return bandEl;}
             const el = document.createElement('div');
-            el.className = downModifiers.alt ? 'rubber-band rubber-band--layer' : 'rubber-band';
+            el.className = downModifiers.alt ? 'rubber-band rubber-band--diagram' : 'rubber-band';
             document.body.append(el);
             bandEl = el;
             return el;
@@ -2612,10 +2612,10 @@ export class DbEditor {
 
             if (wasAlt) {
                 /*
-                 * Alt+drag = sketch a new layer. Translate the
+                 * Alt+drag = sketch a new diagram. Translate the
                  * viewport-coords bbox into canvas coords (subtract
-                 * the zoom-layer's screen rect, divide by zoom) so
-                 * the new layer lands exactly under the gesture. No
+                 * the zoom-diagram's screen rect, divide by zoom) so
+                 * the new diagram lands exactly under the gesture. No
                  * selection change.
                  */
                 this._createLayerFromBand(bandRect);
@@ -2637,11 +2637,11 @@ export class DbEditor {
     }
 
     /**
-     * Create a layer from a viewport-coords rubber-band rectangle
+     * Create a diagram from a viewport-coords rubber-band rectangle
      * sketched with Alt+drag. We round to integer canvas coords +
      * enforce a minimum size so a tiny drag doesn't silently produce
-     * a sub-60px layer the user can't see. Pre-fills the prompt with
-     * "New Layer" — the user types a name and the layer appears.
+     * a sub-60px diagram the user can't see. Pre-fills the prompt with
+     * "New Layer" — the user types a name and the diagram appears.
      */
     private _createLayerFromBand(bandRect: {left: number; top: number; right: number; bottom: number;}): void {
         if (!this._activeProject || !this._activeContainerUnid) {return;}
@@ -2655,12 +2655,12 @@ export class DbEditor {
         const h = Math.max(60, Math.round((bandRect.bottom - bandRect.top) / zoom));
         InputDialog.showInput('New EER diagram', 'Diagram name', 'New diagram').then(name => {
             if (!name) {return;}
-            this._mutate(p => this._api.createLayer(p.unid, this._activeContainerUnid!, name, {
+            this._mutate(p => this._api.createDiagram(p.unid, this._activeContainerUnid!, name, {
                 pos: {x: x, y: y},
                 width: w,
                 height: h
             })).then(() => this._reload());
-        }).catch((err: unknown): void => console.error('[DbEditor] layer create failed:', err));
+        }).catch((err: unknown): void => console.error('[DbEditor] diagram create failed:', err));
     }
 
     private _wireMiddleMousePan(): void {
@@ -2753,7 +2753,7 @@ export class DbEditor {
         for (const card of this._tables.values()) {observe(card.element);}
         for (const card of this._views.values()) {observe(card.element);}
         if (this._zoomLayer) {
-            this._zoomLayer.querySelectorAll<HTMLElement>('.db-layer').forEach(observe);
+            this._zoomLayer.querySelectorAll<HTMLElement>('.db-diagram').forEach(observe);
         }
         const w = (maxRight + pad) * this._zoomLevel;
         const h = (maxBottom + pad) * this._zoomLevel;
@@ -2847,7 +2847,7 @@ export class DbEditor {
          * too big. Initial position is top-left — user drags from
          * the label to wherever they want.
          */
-        await this._mutate(p => this._api.createLayer(p.unid, this._activeContainerUnid!, name, {
+        await this._mutate(p => this._api.createDiagram(p.unid, this._activeContainerUnid!, name, {
             pos: {x: 80, y: 80},
             width: 400,
             height: 300
@@ -2927,28 +2927,28 @@ export class DbEditor {
     private async _generateScoped(detail: {
         databaseUnid?: string;
         tableUnid?: string;
-        layerUnid?: string;
+        diagramUnid?: string;
         layerName?: string;
     }): Promise<void> {
         if (!this._activeProject) {return;}
-        const {databaseUnid, tableUnid, layerUnid, layerName} = detail;
-        if (!databaseUnid && !tableUnid && !layerUnid) {return;}
+        const {databaseUnid, tableUnid, diagramUnid, layerName} = detail;
+        if (!databaseUnid && !tableUnid && !diagramUnid) {return;}
 
         /*
          * Layer scope: resolve to the set of `tableUnids` whose
-         * `layerUnid` matches, then route through the existing
+         * `diagramUnid` matches, then route through the existing
          * tableUnids-based generate. If no tables are assigned to the
-         * layer the user gets a polite alert instead of an empty
+         * diagram the user gets a polite alert instead of an empty
          * preview.
          */
         let tableUnids: string[] | undefined;
-        if (layerUnid) {
+        if (diagramUnid) {
             const all = this._collectAllTables(this._activeProject.data);
-            tableUnids = all.filter(t => t.layerUnid === layerUnid).map(t => t.unid);
+            tableUnids = all.filter(t => t.diagramUnid === diagramUnid).map(t => t.unid);
             if (tableUnids.length === 0) {
                 await AlertDialog.showAlert(
                     'Empty EER diagram',
-                    `EER diagram "${layerName ?? layerUnid}" has no tables assigned. Use "Assign to EER diagram…" first.`
+                    `EER diagram "${layerName ?? diagramUnid}" has no tables assigned. Use "Assign to EER diagram…" first.`
                 );
                 return;
             }
@@ -2966,7 +2966,7 @@ export class DbEditor {
              * full project's generated output.
              */
             let scopeLabel = ' · scoped to database';
-            if (layerUnid) {scopeLabel = ` · scoped to EER diagram "${layerName ?? layerUnid}"`;}
+            if (diagramUnid) {scopeLabel = ` · scoped to EER diagram "${layerName ?? diagramUnid}"`;}
             else if (tableUnid) {scopeLabel = ' · scoped to table';}
             await new SqlPreviewDialog(
                 this._activeProject.name + scopeLabel,
@@ -3179,20 +3179,20 @@ export class DbEditor {
     }
 
     /**
-     * Find the database container that owns a given layerUnid. Used
-     * to resolve `databaseUnid` for layer-scoped sync, where the
+     * Find the database container that owns a given diagramUnid. Used
+     * to resolve `databaseUnid` for diagram-scoped sync, where the
      * treeview-side menu doesn't carry the parent database in its
      * event detail. Returns `null` if no database in the project
-     * has a matching layer.
+     * has a matching diagram.
      */
-    private _findDatabaseOfLayer(root: JsonDataDB, layerUnid: string): JsonDataDB | null {
+    private _findDatabaseOfLayer(root: JsonDataDB, diagramUnid: string): JsonDataDB | null {
         if (root.type === JsonDataDBType.database) {
-            for (const l of root.layers ?? []) {
-                if (l.unid === layerUnid) {return root;}
+            for (const l of root.diagrams ?? []) {
+                if (l.unid === diagramUnid) {return root;}
             }
         }
         for (const child of root.entrys ?? []) {
-            const hit = this._findDatabaseOfLayer(child, layerUnid);
+            const hit = this._findDatabaseOfLayer(child, diagramUnid);
             if (hit) {return hit;}
         }
         return null;
@@ -3505,14 +3505,14 @@ export class DbEditor {
         if (!container) {return;}
         let tables = this._collectTables(container);
         /*
-         * If the canvas is scoped to a layer, only arrange that
-         * layer's tables — leave the hidden ones alone. Without this
-         * filter, the layer-scope user would re-arrange the entire
+         * If the canvas is scoped to a diagram, only arrange that
+         * diagram's tables — leave the hidden ones alone. Without this
+         * filter, the diagram-scope user would re-arrange the entire
          * database invisibly and silently dirty the schema file.
          */
-        if (this._activeLayerUnid) {
-            const layerUnid = this._activeLayerUnid;
-            tables = tables.filter(t => DbEditor._tableInLayer(t, layerUnid));
+        if (this._activeDiagramUnid) {
+            const diagramUnid = this._activeDiagramUnid;
+            tables = tables.filter(t => DbEditor._tableInDiagram(t, diagramUnid));
         }
         if (!tables.length) {return;}
         const tableSet = new Set(tables.map(t => t.unid));
@@ -3590,11 +3590,11 @@ export class DbEditor {
         if (!pick) {return;}
         /*
          * Layer pick: switch the active container if needed and flash
-         * the layer's backdrop. Layers don't have a selection model
+         * the diagram's backdrop. Layers don't have a selection model
          * (they're pure visual hints), so we don't `_selectOne` them.
          */
-        if (pick.kind === 'layer' && pick.layerUnid) {
-            this._focusLayer(pick.layerUnid, pick.containerUnid);
+        if (pick.kind === 'diagram' && pick.diagramUnid) {
+            this._focusLayer(pick.diagramUnid, pick.containerUnid);
             return;
         }
         if (!pick.tableUnid) {return;}
@@ -3615,23 +3615,23 @@ export class DbEditor {
     }
 
     /**
-     * Bring a layer into view: switch the active container if needed,
-     * then scroll the layer rectangle into view + briefly outline it.
+     * Bring a diagram into view: switch the active container if needed,
+     * then scroll the diagram rectangle into view + briefly outline it.
      * No selection model for layers — this is purely a navigation
      * affordance triggered from the search palette.
      */
-    private _focusLayer(layerUnid: string, containerUnid: string): void {
+    private _focusLayer(diagramUnid: string, containerUnid: string): void {
         if (this._activeContainerUnid !== containerUnid) {
             this._activeContainerUnid = containerUnid;
             this._renderCanvas();
         }
-        /* Wait for the canvas render so the layer div exists. */
+        /* Wait for the canvas render so the diagram div exists. */
         setTimeout(() => {
-            const el = this._zoomLayer?.querySelector(`.db-layer[data-layer-unid="${layerUnid}"]`) as HTMLElement | null;
+            const el = this._zoomLayer?.querySelector(`.db-diagram[data-diagram-unid="${diagramUnid}"]`) as HTMLElement | null;
             if (!el) {return;}
             el.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'});
-            el.classList.add('db-layer--flash');
-            setTimeout(() => el.classList.remove('db-layer--flash'), 1600);
+            el.classList.add('db-diagram--flash');
+            setTimeout(() => el.classList.remove('db-diagram--flash'), 1600);
         }, 50);
     }
 
@@ -3759,14 +3759,14 @@ export class DbEditor {
 
     /**
      * Membership check: is this table inside the given EER diagram?
-     * Multi-membership semantics — primary `layerUnid` OR any entry
-     * in `layerPlacements` counts.
+     * Multi-membership semantics — primary `diagramUnid` OR any entry
+     * in `diagramPlacements` counts.
      */
-    private static _tableInLayer(t: JsonTable, layerUnid: string): boolean {
-        if (t.layerUnid === layerUnid) {return true;}
-        if (t.layerPlacements) {
-            for (const p of t.layerPlacements) {
-                if (p.layerUnid === layerUnid) {return true;}
+    private static _tableInDiagram(t: JsonTable, diagramUnid: string): boolean {
+        if (t.diagramUnid === diagramUnid) {return true;}
+        if (t.diagramPlacements) {
+            for (const p of t.diagramPlacements) {
+                if (p.diagramUnid === diagramUnid) {return true;}
             }
         }
         return false;
@@ -3774,13 +3774,13 @@ export class DbEditor {
 
     /**
      * Resolve the position to use when rendering `t` inside diagram
-     * `layerUnid`. Placement entry wins if present (this is how a
+     * `diagramUnid`. Placement entry wins if present (this is how a
      * table can sit at different coordinates in different diagrams);
      * otherwise fall back to the table's top-level `pos`.
      */
-    private static _effectivePos(t: JsonTable, layerUnid: string): {x: number; y: number;} {
-        if (t.layerPlacements) {
-            const hit = t.layerPlacements.find(p => p.layerUnid === layerUnid);
+    private static _effectivePos(t: JsonTable, diagramUnid: string): {x: number; y: number;} {
+        if (t.diagramPlacements) {
+            const hit = t.diagramPlacements.find(p => p.diagramUnid === diagramUnid);
             if (hit) {return hit.pos;}
         }
         return t.pos;
@@ -3788,74 +3788,74 @@ export class DbEditor {
 
     /**
      * Shallow-clone the table with `pos` swapped to the placement's
-     * position (when one exists for `layerUnid`). DbTable reads
+     * position (when one exists for `diagramUnid`). DbTable reads
      * `pos` once at construction time + on `setData`; never mutates
      * it back, so handing it a clone is safe and isolates per-
      * diagram position state from the underlying canonical table.
      */
-    private static _tableWithEffectivePos(t: JsonTable, layerUnid: string): JsonTable {
-        const eff = DbEditor._effectivePos(t, layerUnid);
+    private static _tableWithEffectivePos(t: JsonTable, diagramUnid: string): JsonTable {
+        const eff = DbEditor._effectivePos(t, diagramUnid);
         if (eff === t.pos) {return t;}
         return {...t, pos: eff};
     }
 
-    private static _viewInLayer(v: JsonView, layerUnid: string): boolean {
-        if (v.layerUnid === layerUnid) {return true;}
-        for (const p of v.layerPlacements ?? []) {
-            if (p.layerUnid === layerUnid) {return true;}
+    private static _viewInDiagram(v: JsonView, diagramUnid: string): boolean {
+        if (v.diagramUnid === diagramUnid) {return true;}
+        for (const p of v.diagramPlacements ?? []) {
+            if (p.diagramUnid === diagramUnid) {return true;}
         }
         return false;
     }
 
-    private static _viewWithEffectivePos(v: JsonView, layerUnid: string): JsonView {
-        const hit = (v.layerPlacements ?? []).find(p => p.layerUnid === layerUnid);
+    private static _viewWithEffectivePos(v: JsonView, diagramUnid: string): JsonView {
+        const hit = (v.diagramPlacements ?? []).find(p => p.diagramUnid === diagramUnid);
         if (!hit) {return v;}
         return {...v, pos: hit.pos};
     }
 
     /**
-     * Return a new `layerPlacements` array with `layerUnid` set to
+     * Return a new `diagramPlacements` array with `diagramUnid` set to
      * `pos`. Replaces an existing entry in-place if present (so a
      * second drop on the same diagram doesn't accumulate duplicates),
      * otherwise appends. Pure / immutable so the caller can hand the
-     * result straight to `_api.updateTable({layerPlacements: ...})`.
+     * result straight to `_api.updateTable({diagramPlacements: ...})`.
      */
     private static _upsertPlacement(
-        placements: {layerUnid: string; pos: {x: number; y: number;};}[],
-        layerUnid: string,
+        placements: {diagramUnid: string; pos: {x: number; y: number;};}[],
+        diagramUnid: string,
         pos: {x: number; y: number;}
-    ): {layerUnid: string; pos: {x: number; y: number;};}[] {
-        const idx = placements.findIndex(p => p.layerUnid === layerUnid);
-        if (idx < 0) {return [...placements, {layerUnid: layerUnid, pos: pos}];}
+    ): {diagramUnid: string; pos: {x: number; y: number;};}[] {
+        const idx = placements.findIndex(p => p.diagramUnid === diagramUnid);
+        if (idx < 0) {return [...placements, {diagramUnid: diagramUnid, pos: pos}];}
         const out = [...placements];
-        out[idx] = {layerUnid: layerUnid, pos: pos};
+        out[idx] = {diagramUnid: diagramUnid, pos: pos};
         return out;
     }
 
     /** Collect layers from this container and its subfolders. */
-    private _collectLayers(node: JsonDataDB): JsonLayer[] {
-        const out = [...node.layers ?? []];
+    private _collectDiagrams(node: JsonDataDB): JsonDiagram[] {
+        const out = [...node.diagrams ?? []];
         for (const c of node.entrys as JsonDataDB[]) {
-            if (c.type === JsonDataDBType.folder) {out.push(...this._collectLayers(c));}
+            if (c.type === JsonDataDBType.folder) {out.push(...this._collectDiagrams(c));}
         }
         return out;
     }
 
     /**
-     * Geometric hit test: which layer rectangle (if any) contains the
+     * Geometric hit test: which diagram rectangle (if any) contains the
      * given canvas point? Returns the first match in the active
-     * container's layer list. When the canvas is scoped to a single
-     * layer (`_activeLayerUnid` set), only that layer is tested so a
-     * stray drop onto a hidden-elsewhere layer doesn't silently move
+     * container's diagram list. When the canvas is scoped to a single
+     * diagram (`_activeDiagramUnid` set), only that diagram is tested so a
+     * stray drop onto a hidden-elsewhere diagram doesn't silently move
      * the table to it.
      */
-    private _layerAtPoint(x: number, y: number): string | null {
+    private _diagramAtPoint(x: number, y: number): string | null {
         if (!this._activeProject || !this._activeContainerUnid) {return null;}
         const container = this._findContainer(this._activeProject.data, this._activeContainerUnid);
         if (!container) {return null;}
-        const all = this._collectLayers(container);
-        const candidates = this._activeLayerUnid
-            ? all.filter(l => l.unid === this._activeLayerUnid)
+        const all = this._collectDiagrams(container);
+        const candidates = this._activeDiagramUnid
+            ? all.filter(l => l.unid === this._activeDiagramUnid)
             : all;
         for (const l of candidates) {
             const left = l.pos.x;
@@ -3895,7 +3895,7 @@ export class DbEditor {
      * Mirrors `_pickLayerForTables` single-target branch: open the
      * multi-membership dialog with the view's current memberships
      * pre-checked. First checked diagram becomes the primary
-     * `layerUnid`; rest go into `layerPlacements` whose positions
+     * `diagramUnid`; rest go into `diagramPlacements` whose positions
      * carry over from existing placements or fall back to `pos`.
      */
     private async _pickLayerForView(viewUnid: string): Promise<void> {
@@ -3905,23 +3905,23 @@ export class DbEditor {
         const container = this._activeContainerUnid
             ? this._findContainer(this._activeProject.data, this._activeContainerUnid)
             : null;
-        const layers = container ? this._collectLayers(container) : [];
+        const layers = container ? this._collectDiagrams(container) : [];
         if (layers.length === 0) {return;}
         const currentMemberships: string[] = [];
-        if (view.layerUnid) {currentMemberships.push(view.layerUnid);}
-        for (const p of view.layerPlacements ?? []) {currentMemberships.push(p.layerUnid);}
-        const picked = await new LayerMembershipDialog(layers, currentMemberships).show();
+        if (view.diagramUnid) {currentMemberships.push(view.diagramUnid);}
+        for (const p of view.diagramPlacements ?? []) {currentMemberships.push(p.diagramUnid);}
+        const picked = await new DiagramMembershipDialog(layers, currentMemberships).show();
         if (picked === null) {return;}
-        const patch: {layerUnid: string; layerPlacements: {layerUnid: string; pos: {x: number; y: number;};}[];} = {
-            layerUnid: '',
-            layerPlacements: []
+        const patch: {diagramUnid: string; diagramPlacements: {diagramUnid: string; pos: {x: number; y: number;};}[];} = {
+            diagramUnid: '',
+            diagramPlacements: []
         };
         if (picked.length > 0) {
-            patch.layerUnid = picked[0];
+            patch.diagramUnid = picked[0];
             for (const extra of picked.slice(1)) {
-                const existing = (view.layerPlacements ?? []).find(p => p.layerUnid === extra);
-                patch.layerPlacements.push({
-                    layerUnid: extra,
+                const existing = (view.diagramPlacements ?? []).find(p => p.diagramUnid === extra);
+                patch.diagramPlacements.push({
+                    diagramUnid: extra,
                     pos: existing ? existing.pos : view.pos
                 });
             }

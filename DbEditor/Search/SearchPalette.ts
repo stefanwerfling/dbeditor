@@ -99,7 +99,7 @@ export class SearchPalette {
             });
             const kind = document.createElement('span');
             kind.className = `search-palette-kind search-palette-kind--${m.entry.kind}`;
-            const KIND_LABEL: Record<string, string> = {column: 'COL', layer: 'LAY', table: 'TBL'};
+            const KIND_LABEL: Record<string, string> = {column: 'COL', diagram: 'LAY', table: 'TBL'};
             kind.textContent = KIND_LABEL[m.entry.kind] ?? 'TBL';
             const name = document.createElement('span');
             name.className = 'search-palette-row-name';

@@ -1,7 +1,7 @@
 /*
  * Literal ${VAR} strings in this file are *test data* — they exercise
  * that env-placeholder syntax round-trips through the connection
- * persistence layer untouched, not stray un-templated literals.
+ * persistence diagram untouched, not stray un-templated literals.
  */
 /* eslint-disable no-template-curly-in-string */
 import {describe, expect, it} from 'vitest';

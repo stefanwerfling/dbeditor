@@ -78,10 +78,10 @@ describe('Treeview — bucket rendering', () => {
         ]);
     });
 
-    it('reflects the layer count when the database carries layers', () => {
+    it('reflects the diagram count when the database carries layers', () => {
         const db = mkDb({
             tables: [mkTable('users')],
-            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 300, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 300, height: 200}]
         });
         view.render([wrapProject(db)]);
         expect(bucketLabels()[0]).toBe('EER diagrams (1)');

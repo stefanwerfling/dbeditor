@@ -3,9 +3,9 @@ import {BaseDialog} from '../Base/BaseDialog.js';
 export type LayerColorResult = string | null;
 
 /**
- * Pick a backdrop color for a layer. Returns the chosen hex (`#rrggbb`)
+ * Pick a backdrop color for a diagram. Returns the chosen hex (`#rrggbb`)
  * or `null` on cancel. The caller is responsible for appending the
- * alpha suffix to keep layer fills translucent.
+ * alpha suffix to keep diagram fills translucent.
  *
  * Native `<input type="color">` is the simplest cross-browser picker
  * we can lean on; users get the OS-native color UI and we don't have

@@ -16,7 +16,7 @@ import {iconDiamondFilled, iconDiamondHollow, iconEllipsis} from '../Util/Icons.
  * The controller owns the data; this class re-renders from data when
  * `setData()` is called.
  */
-import {ActiveLayerContext} from '../Layer/ActiveLayerContext.js';
+import {ActiveDiagramContext} from '../Layer/ActiveDiagramContext.js';
 
 export class DbTable {
 
@@ -24,13 +24,13 @@ export class DbTable {
     private _data: JsonTable;
     private readonly _jsp: BrowserJsPlumbInstance;
     private readonly _enums: JsonEnum[];
-    private readonly _activeLayer: ActiveLayerContext | null;
+    private readonly _activeLayer: ActiveDiagramContext | null;
 
     public constructor(
         table: JsonTable,
         jsp: BrowserJsPlumbInstance,
         enums: JsonEnum[],
-        activeLayer: ActiveLayerContext | null = null
+        activeLayer: ActiveDiagramContext | null = null
     ) {
         this._data = table;
         this._jsp = jsp;
@@ -173,22 +173,22 @@ export class DbTable {
             const items: Parameters<typeof openContextMenu>[1] = [
                 {label: 'Rename table', onClick: (): void => this._renameInline(title)},
                 {label: 'Table options…', onClick: (): void => dispatch(EditorEvents.editTableOptions, {tableUnid: this._data.unid})},
-                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickLayerForTables, {tableUnids: [this._data.unid]})}
+                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickDiagramForTables, {tableUnids: [this._data.unid]})}
             ];
             /*
              * Symmetric "remove from this diagram" only when the canvas
              * is currently scoped to a single diagram. Without that
              * scope, "this diagram" is ambiguous so the option would be
-             * confusing. The handler clears primary `layerUnid` if it
-             * matches and drops any matching `layerPlacements` entry —
+             * confusing. The handler clears primary `diagramUnid` if it
+             * matches and drops any matching `diagramPlacements` entry —
              * the table stays in the model, just no longer belongs to
              * this EER diagram.
              */
             if (this._activeLayer) {
-                const layer = this._activeLayer;
-                items.push({label: `Remove from "${layer.name}"`, onClick: (): void => dispatch(EditorEvents.removeTableFromLayer, {
+                const diagram = this._activeLayer;
+                items.push({label: `Remove from "${diagram.name}"`, onClick: (): void => dispatch(EditorEvents.removeTableFromDiagram, {
                     tableUnid: this._data.unid,
-                    layerUnid: layer.unid
+                    diagramUnid: diagram.unid
                 })});
             }
             items.push(

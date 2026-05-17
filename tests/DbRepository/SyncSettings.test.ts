@@ -1,5 +1,5 @@
 /*
- * Tests for the persisted sync-overrides layer:
+ * Tests for the persisted sync-overrides diagram:
  * `DbFsRepository.updateSyncSettings()` + `effectiveSync()`.
  *
  * `project.sync` from `dbeditor.json` is the default; values written via

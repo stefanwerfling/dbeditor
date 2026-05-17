@@ -76,18 +76,18 @@ export const EditorEvents = {
     /** UI asks to create an enum inside a specific container. Detail: { containerUnid, name }. */
     createEnumIn: 'dbeditor:create-enum-in',
 
-    /** UI asks to create an EER diagram (layer) inside a database container. Detail: { containerUnid, name }. */
-    createLayerIn: 'dbeditor:create-layer-in',
+    /** UI asks to create an EER diagram (diagram) inside a database container. Detail: { containerUnid, name }. */
+    createDiagramIn: 'dbeditor:create-diagram-in',
 
-    /** UI directly assigns one table to a specific layer (drag-drop, no picker). Detail: { tableUnid, layerUnid }. */
-    assignTableToLayer: 'dbeditor:assign-table-to-layer',
+    /** UI directly assigns one table to a specific diagram (drag-drop, no picker). Detail: { tableUnid, diagramUnid }. */
+    assignTableToDiagram: 'dbeditor:assign-table-to-diagram',
 
     /**
      * UI asks to detach one table from a specific EER diagram. The
-     * controller clears `layerUnid` when it matches and removes the
-     * matching entry from `layerPlacements`. Detail: { tableUnid, layerUnid }.
+     * controller clears `diagramUnid` when it matches and removes the
+     * matching entry from `diagramPlacements`. Detail: { tableUnid, diagramUnid }.
      */
-    removeTableFromLayer: 'dbeditor:remove-table-from-layer',
+    removeTableFromDiagram: 'dbeditor:remove-table-from-diagram',
 
     /** UI asks to rename an enum. Detail: { unid, name }. */
     renameEnum: 'dbeditor:rename-enum',
@@ -111,10 +111,10 @@ export const EditorEvents = {
     editView: 'dbeditor:edit-view',
 
     /** UI asks to pick / clear a view's EER-diagram membership. Detail: { viewUnid }. */
-    pickLayerForView: 'dbeditor:pick-layer-for-view',
+    pickDiagramForView: 'dbeditor:pick-diagram-for-view',
 
-    /** UI asks to detach a view from a specific EER diagram. Detail: { viewUnid, layerUnid }. */
-    removeViewFromLayer: 'dbeditor:remove-view-from-layer',
+    /** UI asks to detach a view from a specific EER diagram. Detail: { viewUnid, diagramUnid }. */
+    removeViewFromDiagram: 'dbeditor:remove-view-from-diagram',
 
     /** A view card was moved on the canvas. Detail: { viewUnid, x, y }. */
     viewMoved: 'dbeditor:view-moved',
@@ -131,27 +131,27 @@ export const EditorEvents = {
     /** UI asks to open the routine editor (name + kind + body). Detail: { unid }. */
     editRoutine: 'dbeditor:edit-routine',
 
-    /** UI asks to rename a layer. Detail: { unid, name }. */
-    renameLayer: 'dbeditor:rename-layer',
+    /** UI asks to rename a diagram. Detail: { unid, name }. */
+    renameDiagram: 'dbeditor:rename-diagram',
 
-    /** UI asks to delete a layer. Detail: { unid }. */
-    deleteLayer: 'dbeditor:delete-layer',
+    /** UI asks to delete a diagram. Detail: { unid }. */
+    deleteDiagram: 'dbeditor:delete-diagram',
 
     /**
-     * UI asks to assign one or more tables to a layer (or unassign).
+     * UI asks to assign one or more tables to a diagram (or unassign).
      * Detail: { tableUnids: string[] }. The controller opens the
      * picker and applies the result via updateTable per table.
      */
-    pickLayerForTables: 'dbeditor:pick-layer-for-tables',
+    pickDiagramForTables: 'dbeditor:pick-diagram-for-tables',
 
     /**
-     * UI asks to scope the canvas to a single EER-diagram (layer):
+     * UI asks to scope the canvas to a single EER-diagram (diagram):
      * activate the parent database and show only tables whose
-     * `layerUnid` matches. Detail: { layerUnid, containerUnid }.
-     * Re-activating a different container (or any non-layer node)
+     * `diagramUnid` matches. Detail: { diagramUnid, containerUnid }.
+     * Re-activating a different container (or any non-diagram node)
      * clears the scope.
      */
-    scopeToLayer: 'dbeditor:scope-to-layer',
+    scopeToDiagram: 'dbeditor:scope-to-diagram',
 
     /**
      * UI asks to generate SQL for a single database or table (preview-only,

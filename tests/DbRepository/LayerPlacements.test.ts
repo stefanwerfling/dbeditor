@@ -1,13 +1,13 @@
 /*
  * Tests for the multi-diagram placement helpers on DbFsRepository.
  * Covers `setTablePlacement` (add/update) and `removeTablePlacement`,
- * plus the `layerPlacements` field on `updateTable`'s patch.
+ * plus the `diagramPlacements` field on `updateTable`'s patch.
  *
  * Membership semantics under test:
- *   - `layerUnid` + `pos` = the table's PRIMARY diagram (legacy
+ *   - `diagramUnid` + `pos` = the table's PRIMARY diagram (legacy
  *     single-membership). Placement writes for the primary update
  *     the top-level `pos` directly.
- *   - `layerPlacements[]` = ADDITIONAL diagrams the same table also
+ *   - `diagramPlacements[]` = ADDITIONAL diagrams the same table also
  *     appears in. Each carries its own per-diagram position.
  */
 import * as fs from 'fs';
@@ -68,7 +68,7 @@ const seed = (tablePatch: Partial<JsonTable> = {}): void => {
                 }],
                 views: [],
                 enums: [],
-                layers: [
+                diagrams: [
                     {unid: LAYER_A, name: 'Diagram A', pos: {x: 0, y: 0}, width: 300, height: 200},
                     {unid: LAYER_B, name: 'Diagram B', pos: {x: 400, y: 0}, width: 300, height: 200}
                 ]
@@ -102,39 +102,39 @@ describe('setTablePlacement', () => {
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.setTablePlacement(TABLE_UNID, LAYER_A, {x: 50, y: 60}, null);
         const t = tableOf(repo);
-        expect(t.layerPlacements).toEqual([{layerUnid: LAYER_A, pos: {x: 50, y: 60}}]);
+        expect(t.diagramPlacements).toEqual([{diagramUnid: LAYER_A, pos: {x: 50, y: 60}}]);
         /* primary stays unchanged */
-        expect(t.layerUnid).toBeUndefined();
+        expect(t.diagramUnid).toBeUndefined();
         expect(t.pos).toEqual({x: 10, y: 20});
     });
 
     it('updates an existing placement in place rather than appending', () => {
-        seed({layerPlacements: [{layerUnid: LAYER_A, pos: {x: 50, y: 60}}]});
+        seed({diagramPlacements: [{diagramUnid: LAYER_A, pos: {x: 50, y: 60}}]});
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.setTablePlacement(TABLE_UNID, LAYER_A, {x: 80, y: 90}, null);
         const t = tableOf(repo);
-        expect(t.layerPlacements).toHaveLength(1);
-        expect(t.layerPlacements![0]).toEqual({layerUnid: LAYER_A, pos: {x: 80, y: 90}});
+        expect(t.diagramPlacements).toHaveLength(1);
+        expect(t.diagramPlacements![0]).toEqual({diagramUnid: LAYER_A, pos: {x: 80, y: 90}});
     });
 
     it('writes to top-level pos when the diagram is the primary one', () => {
-        seed({layerUnid: LAYER_A});
+        seed({diagramUnid: LAYER_A});
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.setTablePlacement(TABLE_UNID, LAYER_A, {x: 500, y: 600}, null);
         const t = tableOf(repo);
         expect(t.pos).toEqual({x: 500, y: 600});
         /* no placement entry should sneak in for the primary diagram */
-        expect(t.layerPlacements).toBeUndefined();
+        expect(t.diagramPlacements).toBeUndefined();
     });
 
     it('allows a table to be in two diagrams with distinct positions', () => {
-        seed({layerUnid: LAYER_A});
+        seed({diagramUnid: LAYER_A});
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.setTablePlacement(TABLE_UNID, LAYER_B, {x: 700, y: 80}, null);
         const t = tableOf(repo);
-        expect(t.layerUnid).toBe(LAYER_A);
+        expect(t.diagramUnid).toBe(LAYER_A);
         expect(t.pos).toEqual({x: 10, y: 20});
-        expect(t.layerPlacements).toEqual([{layerUnid: LAYER_B, pos: {x: 700, y: 80}}]);
+        expect(t.diagramPlacements).toEqual([{diagramUnid: LAYER_B, pos: {x: 700, y: 80}}]);
     });
 
 });
@@ -142,30 +142,30 @@ describe('setTablePlacement', () => {
 describe('removeTablePlacement', () => {
 
     it('strips a matching placement entry', () => {
-        seed({layerPlacements: [
-            {layerUnid: LAYER_A, pos: {x: 50, y: 60}},
-            {layerUnid: LAYER_B, pos: {x: 700, y: 80}}
+        seed({diagramPlacements: [
+            {diagramUnid: LAYER_A, pos: {x: 50, y: 60}},
+            {diagramUnid: LAYER_B, pos: {x: 700, y: 80}}
         ]});
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.removeTablePlacement(TABLE_UNID, LAYER_A, null);
         const t = tableOf(repo);
-        expect(t.layerPlacements).toEqual([{layerUnid: LAYER_B, pos: {x: 700, y: 80}}]);
+        expect(t.diagramPlacements).toEqual([{diagramUnid: LAYER_B, pos: {x: 700, y: 80}}]);
     });
 
-    it('clears the primary layerUnid when the diagram matches', () => {
-        seed({layerUnid: LAYER_A});
+    it('clears the primary diagramUnid when the diagram matches', () => {
+        seed({diagramUnid: LAYER_A});
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.removeTablePlacement(TABLE_UNID, LAYER_A, null);
         const t = tableOf(repo);
-        expect(t.layerUnid).toBeUndefined();
+        expect(t.diagramUnid).toBeUndefined();
     });
 
     it('drops the placements key entirely when emptied', () => {
-        seed({layerPlacements: [{layerUnid: LAYER_A, pos: {x: 50, y: 60}}]});
+        seed({diagramPlacements: [{diagramUnid: LAYER_A, pos: {x: 50, y: 60}}]});
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.removeTablePlacement(TABLE_UNID, LAYER_A, null);
         const t = tableOf(repo);
-        expect(t.layerPlacements).toBeUndefined();
+        expect(t.diagramPlacements).toBeUndefined();
     });
 
     it('is a no-op when the table is not in the diagram', () => {
@@ -173,30 +173,30 @@ describe('removeTablePlacement', () => {
         const repo = new DbFsRepository(projectFor(tmpFile));
         repo.removeTablePlacement(TABLE_UNID, LAYER_A, null);
         const t = tableOf(repo);
-        expect(t.layerUnid).toBeUndefined();
-        expect(t.layerPlacements).toBeUndefined();
+        expect(t.diagramUnid).toBeUndefined();
+        expect(t.diagramPlacements).toBeUndefined();
     });
 
 });
 
-describe('updateTable accepts layerPlacements in the patch', () => {
+describe('updateTable accepts diagramPlacements in the patch', () => {
 
     it('full-replaces the placement list', () => {
-        seed({layerPlacements: [{layerUnid: LAYER_A, pos: {x: 50, y: 60}}]});
+        seed({diagramPlacements: [{diagramUnid: LAYER_A, pos: {x: 50, y: 60}}]});
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateTable(TABLE_UNID, {layerPlacements: [
-            {layerUnid: LAYER_B, pos: {x: 700, y: 80}}
+        repo.updateTable(TABLE_UNID, {diagramPlacements: [
+            {diagramUnid: LAYER_B, pos: {x: 700, y: 80}}
         ]}, null);
         const t = tableOf(repo);
-        expect(t.layerPlacements).toEqual([{layerUnid: LAYER_B, pos: {x: 700, y: 80}}]);
+        expect(t.diagramPlacements).toEqual([{diagramUnid: LAYER_B, pos: {x: 700, y: 80}}]);
     });
 
     it('drops the key when patched to an empty list', () => {
-        seed({layerPlacements: [{layerUnid: LAYER_A, pos: {x: 50, y: 60}}]});
+        seed({diagramPlacements: [{diagramUnid: LAYER_A, pos: {x: 50, y: 60}}]});
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateTable(TABLE_UNID, {layerPlacements: []}, null);
+        repo.updateTable(TABLE_UNID, {diagramPlacements: []}, null);
         const t = tableOf(repo);
-        expect(t.layerPlacements).toBeUndefined();
+        expect(t.diagramPlacements).toBeUndefined();
     });
 
 });

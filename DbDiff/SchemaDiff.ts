@@ -57,7 +57,7 @@ export class SchemaDiff {
         liveDb: JsonDataDB,
         sync: DbProjectSync,
         modelRoot?: JsonDataDB,
-        layerUnid?: string,
+        diagramUnid?: string,
         renames?: SchemaRenameHints
     ): SchemaChangeSet {
         const changes: SchemaChange[] = [];
@@ -69,18 +69,18 @@ export class SchemaDiff {
         for (const {table} of DbFsTreeWalker.allTables(root)) {modelTablesByUnid.set(table.unid, table);}
 
         /*
-         * Layer-scoping (optional). When `layerUnid` is supplied, we
+         * Layer-scoping (optional). When `diagramUnid` is supplied, we
          * restrict the diff to the set of table NAMES whose
-         * `layerUnid` matches in the model. The live side is filtered
-         * to the same names so live-only tables outside the layer
+         * `diagramUnid` matches in the model. The live side is filtered
+         * to the same names so live-only tables outside the diagram
          * don't pollute the diff (they'd otherwise surface as
          * `tableDropped` since the model doesn't have them in
          * scope). Views/enums/routines are skipped entirely under
-         * layer-scope — layers don't own non-table objects.
+         * diagram-scope — layers don't own non-table objects.
          */
-        const layerTableNames = layerUnid
+        const layerTableNames = diagramUnid
             ? new Set<string>([...DbFsTreeWalker.allTables(modelDb)]
-            .filter(({table}) => table.layerUnid === layerUnid)
+            .filter(({table}) => table.diagramUnid === diagramUnid)
             .map(({table}) => table.name))
             : null;
 
@@ -121,7 +121,7 @@ export class SchemaDiff {
 
         /*
          * ---------------- views ----------------
-         * Under layer-scope, views are excluded — layers in the model
+         * Under diagram-scope, views are excluded — layers in the model
          * are a table-only grouping construct. Views still get
          * synced normally on the unscoped (database-level) flow.
          */

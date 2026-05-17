@@ -44,7 +44,7 @@ describe('DbView — ⋯ menu items', () => {
         ]);
     });
 
-    it('scoped: inserts "Remove from <layer>" between Assign and Delete', () => {
+    it('scoped: inserts "Remove from <diagram>" between Assign and Delete', () => {
         const view = new DbView(mkView(), jspStub, {unid: 'L1', name: 'Authoring'});
         document.body.append(view.element);
         expect(openMenuAndReadItems(view.element)).toEqual([
@@ -55,33 +55,33 @@ describe('DbView — ⋯ menu items', () => {
         ]);
     });
 
-    it('clicking Remove dispatches removeViewFromLayer with the right payload', () => {
-        const view = new DbView(mkView({unid: 'v-target'}), jspStub, {unid: 'layer-x', name: 'Auth'});
+    it('clicking Remove dispatches removeViewFromDiagram with the right payload', () => {
+        const view = new DbView(mkView({unid: 'v-target'}), jspStub, {unid: 'diagram-x', name: 'Auth'});
         document.body.append(view.element);
-        const events: {viewUnid: string; layerUnid: string;}[] = [];
+        const events: {viewUnid: string; diagramUnid: string;}[] = [];
         const listener = (e: Event): void => {
-            events.push((e as CustomEvent).detail as {viewUnid: string; layerUnid: string;});
+            events.push((e as CustomEvent).detail as {viewUnid: string; diagramUnid: string;});
         };
-        window.addEventListener(EditorEvents.removeViewFromLayer, listener);
+        window.addEventListener(EditorEvents.removeViewFromDiagram, listener);
         try {
             openMenuAndReadItems(view.element);
             const removeBtn = Array.from(document.querySelectorAll<HTMLButtonElement>('.context-menu-item'))
             .find(b => b.textContent?.includes('Remove from'));
             removeBtn?.click();
-            expect(events).toEqual([{viewUnid: 'v-target', layerUnid: 'layer-x'}]);
+            expect(events).toEqual([{viewUnid: 'v-target', diagramUnid: 'diagram-x'}]);
         } finally {
-            window.removeEventListener(EditorEvents.removeViewFromLayer, listener);
+            window.removeEventListener(EditorEvents.removeViewFromDiagram, listener);
         }
     });
 
-    it('clicking Assign dispatches pickLayerForView with the view unid', () => {
+    it('clicking Assign dispatches pickDiagramForView with the view unid', () => {
         const view = new DbView(mkView({unid: 'v-pick'}), jspStub);
         document.body.append(view.element);
         const events: {viewUnid: string;}[] = [];
         const listener = (e: Event): void => {
             events.push((e as CustomEvent).detail as {viewUnid: string;});
         };
-        window.addEventListener(EditorEvents.pickLayerForView, listener);
+        window.addEventListener(EditorEvents.pickDiagramForView, listener);
         try {
             openMenuAndReadItems(view.element);
             const assignBtn = Array.from(document.querySelectorAll<HTMLButtonElement>('.context-menu-item'))
@@ -89,7 +89,7 @@ describe('DbView — ⋯ menu items', () => {
             assignBtn?.click();
             expect(events).toEqual([{viewUnid: 'v-pick'}]);
         } finally {
-            window.removeEventListener(EditorEvents.pickLayerForView, listener);
+            window.removeEventListener(EditorEvents.pickDiagramForView, listener);
         }
     });
 

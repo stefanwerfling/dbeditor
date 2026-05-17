@@ -52,7 +52,7 @@ describe('DbTable — ⋯ menu items', () => {
         ]);
     });
 
-    it('scoped: adds a "Remove from <layer>" entry with the layer name in quotes', () => {
+    it('scoped: adds a "Remove from <diagram>" entry with the diagram name in quotes', () => {
         const tbl = new DbTable(mkTable(), jspStub, [], {unid: 'L1', name: 'Authoring'});
         document.body.append(tbl.element);
         expect(openMenuAndReadItems(tbl.element)).toEqual([
@@ -65,22 +65,22 @@ describe('DbTable — ⋯ menu items', () => {
         ]);
     });
 
-    it('clicking "Remove from …" dispatches removeTableFromLayer with the right payload', async() => {
-        const tbl = new DbTable(mkTable({unid: 't-target'}), jspStub, [], {unid: 'layer-x', name: 'Auth'});
+    it('clicking "Remove from …" dispatches removeTableFromDiagram with the right payload', async() => {
+        const tbl = new DbTable(mkTable({unid: 't-target'}), jspStub, [], {unid: 'diagram-x', name: 'Auth'});
         document.body.append(tbl.element);
-        const events: {tableUnid: string; layerUnid: string;}[] = [];
+        const events: {tableUnid: string; diagramUnid: string;}[] = [];
         const listener = (e: Event): void => {
-            events.push((e as CustomEvent).detail as {tableUnid: string; layerUnid: string;});
+            events.push((e as CustomEvent).detail as {tableUnid: string; diagramUnid: string;});
         };
-        window.addEventListener(EditorEvents.removeTableFromLayer, listener);
+        window.addEventListener(EditorEvents.removeTableFromDiagram, listener);
         try {
             openMenuAndReadItems(tbl.element);
             const removeBtn = Array.from(document.querySelectorAll<HTMLButtonElement>('.context-menu-item'))
             .find(b => b.textContent?.includes('Remove from'));
             removeBtn?.click();
-            expect(events).toEqual([{tableUnid: 't-target', layerUnid: 'layer-x'}]);
+            expect(events).toEqual([{tableUnid: 't-target', diagramUnid: 'diagram-x'}]);
         } finally {
-            window.removeEventListener(EditorEvents.removeTableFromLayer, listener);
+            window.removeEventListener(EditorEvents.removeTableFromDiagram, listener);
         }
     });
 

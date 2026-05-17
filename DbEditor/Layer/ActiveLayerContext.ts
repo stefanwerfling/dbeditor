@@ -3,4 +3,4 @@
  * EER diagram is currently scoped and can show / label
  * "Remove from <diagram>" entries. `null` when no scope is active.
  */
-export type ActiveLayerContext = { unid: string; name: string; };
+export type ActiveDiagramContext = { unid: string; name: string; };

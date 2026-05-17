@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonEnum, JsonLayer, JsonTable, JsonView} from '../JsonData.js';
+import {JsonDataDB, JsonEnum, JsonDiagram, JsonTable, JsonView} from '../JsonData.js';
 
 export type WarningSeverity = 'error' | 'warning' | 'info';
 
@@ -17,32 +17,32 @@ const checkTable = (
     t: JsonTable,
     container: JsonDataDB | null,
     enumsByUnid: Map<string, JsonEnum>,
-    layersByUnid: Map<string, JsonLayer>,
+    layersByUnid: Map<string, JsonDiagram>,
     out: SchemaWarning[]
 ): void => {
     const containerUnid = container?.unid;
     const base = {containerUnid: containerUnid, tableUnid: t.unid, tableName: t.name};
 
     /*
-     * Dangling layerUnid — table references a layer the user deleted.
-     * `deleteLayer` deliberately leaves the ref intact so undo can
-     * restore the layer; this surfaces it in the warnings panel so
-     * the user can clear it (or recreate the layer) when they're done.
+     * Dangling diagramUnid — table references a diagram the user deleted.
+     * `deleteDiagram` deliberately leaves the ref intact so undo can
+     * restore the diagram; this surfaces it in the warnings panel so
+     * the user can clear it (or recreate the diagram) when they're done.
      * Multi-membership placements get the same treatment — one warning
      * per dangling reference rather than collapsing to one summary.
      */
-    if (t.layerUnid && !layersByUnid.has(t.layerUnid)) {
+    if (t.diagramUnid && !layersByUnid.has(t.diagramUnid)) {
         out.push({
             severity: 'warning',
-            message: `Table "${t.name}" references a deleted layer.`,
+            message: `Table "${t.name}" references a deleted diagram.`,
             ...base
         });
     }
-    for (const p of t.layerPlacements ?? []) {
-        if (!layersByUnid.has(p.layerUnid)) {
+    for (const p of t.diagramPlacements ?? []) {
+        if (!layersByUnid.has(p.diagramUnid)) {
             out.push({
                 severity: 'warning',
-                message: `Table "${t.name}" placement references a deleted layer.`,
+                message: `Table "${t.name}" placement references a deleted diagram.`,
                 ...base
             });
         }
@@ -158,21 +158,21 @@ const checkTable = (
 const checkView = (
     v: JsonView,
     container: JsonDataDB | null,
-    layersByUnid: Map<string, JsonLayer>,
+    layersByUnid: Map<string, JsonDiagram>,
     out: SchemaWarning[]
 ): void => {
-    if (v.layerUnid && !layersByUnid.has(v.layerUnid)) {
+    if (v.diagramUnid && !layersByUnid.has(v.diagramUnid)) {
         out.push({
             severity: 'warning',
-            message: `View "${v.name}" references a deleted layer.`,
+            message: `View "${v.name}" references a deleted diagram.`,
             containerUnid: container?.unid
         });
     }
-    for (const p of v.layerPlacements ?? []) {
-        if (!layersByUnid.has(p.layerUnid)) {
+    for (const p of v.diagramPlacements ?? []) {
+        if (!layersByUnid.has(p.diagramUnid)) {
             out.push({
                 severity: 'warning',
-                message: `View "${v.name}" placement references a deleted layer.`,
+                message: `View "${v.name}" placement references a deleted diagram.`,
                 containerUnid: container?.unid
             });
         }
@@ -183,7 +183,7 @@ const walk = (
     node: JsonDataDB,
     container: JsonDataDB | null,
     enumsByUnid: Map<string, JsonEnum>,
-    layersByUnid: Map<string, JsonLayer>,
+    layersByUnid: Map<string, JsonDiagram>,
     out: SchemaWarning[]
 ): void => {
     const myContainer = isContainer(node) ? node : container;
@@ -207,9 +207,9 @@ const collectEnums = (node: JsonDataDB, out: Map<string, JsonEnum>): void => {
     for (const child of node.entrys as JsonDataDB[]) {collectEnums(child, out);}
 };
 
-/** Pre-pass: collect every layer so dangling `layerUnid` checks resolve in O(1). */
-const collectLayers = (node: JsonDataDB, out: Map<string, JsonLayer>): void => {
-    for (const l of node.layers ?? []) {out.set(l.unid, l);}
+/** Pre-pass: collect every diagram so dangling `diagramUnid` checks resolve in O(1). */
+const collectLayers = (node: JsonDataDB, out: Map<string, JsonDiagram>): void => {
+    for (const l of node.diagrams ?? []) {out.set(l.unid, l);}
     for (const child of node.entrys as JsonDataDB[]) {collectLayers(child, out);}
 };
 
@@ -260,7 +260,7 @@ const checkDuplicateTableNames = (node: JsonDataDB, out: SchemaWarning[]): void 
 export const validateSchema = (root: JsonDataDB): SchemaWarning[] => {
     const out: SchemaWarning[] = [];
     const enumsByUnid = new Map<string, JsonEnum>();
-    const layersByUnid = new Map<string, JsonLayer>();
+    const layersByUnid = new Map<string, JsonDiagram>();
     collectEnums(root, enumsByUnid);
     collectLayers(root, layersByUnid);
     walk(root, null, enumsByUnid, layersByUnid, out);

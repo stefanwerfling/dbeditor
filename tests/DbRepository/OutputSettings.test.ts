@@ -1,5 +1,5 @@
 /*
- * Tests for the per-project output-settings override layer. `project.output`
+ * Tests for the per-project output-settings override diagram. `project.output`
  * (from `dbeditor.json`) is the default; `data.output` (from the schema
  * file) overrides per-field. The repo surfaces the merge as
  * `effectiveOutput()` / `effectiveProject`.

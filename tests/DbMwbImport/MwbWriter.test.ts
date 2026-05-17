@@ -73,14 +73,14 @@ describe('writeMwb — example.mwb round-trip', () => {
         expect(totalCols).toBe(original.columnCount);
     });
 
-    it('round-trip preserves layer count + per-table layer-membership', () => {
+    it('round-trip preserves diagram count + per-table diagram-membership', () => {
         /*
          * Phase E — layers survive parse → write → parse. The writer
-         * emits each JsonLayer as `workbench.physical.Layer` inside
-         * the single diagram, plus a `layer` link on each TableFigure.
+         * emits each JsonDiagram as `workbench.physical.Layer` inside
+         * the single diagram, plus a `diagram` link on each TableFigure.
          * The parser detects authored layers (any non-rootLayer
          * Layer struct) and uses them — so the re-parse should
-         * produce the same layer count and the same table → layer
+         * produce the same diagram count and the same table → diagram
          * grouping (matched by name, since unids are minted afresh).
          */
         const original = parseMwb(fs.readFileSync(SAMPLE));
@@ -89,19 +89,19 @@ describe('writeMwb — example.mwb round-trip', () => {
         expect(re.layerCount).toBe(original.layerCount);
 
         /*
-         * Build name-keyed groupings from each side: layer name →
+         * Build name-keyed groupings from each side: diagram name →
          * set of table names. The two sides should match.
          */
         const groupingFor = (databases: typeof original.databases): Map<string, Set<string>> => {
-            const layersByUnid = new Map((databases[0].layers ?? []).map(l => [l.unid, l]));
+            const layersByUnid = new Map((databases[0].diagrams ?? []).map(l => [l.unid, l]));
             const groups = new Map<string, Set<string>>();
             for (const t of databases[0].tables) {
-                if (!t.layerUnid) {continue;}
-                const layer = layersByUnid.get(t.layerUnid);
-                if (!layer) {continue;}
-                const set = groups.get(layer.name) ?? new Set<string>();
+                if (!t.diagramUnid) {continue;}
+                const diagram = layersByUnid.get(t.diagramUnid);
+                if (!diagram) {continue;}
+                const set = groups.get(diagram.name) ?? new Set<string>();
                 set.add(t.name);
-                groups.set(layer.name, set);
+                groups.set(diagram.name, set);
             }
             return groups;
         };
@@ -281,20 +281,20 @@ describe('writeMwb — synthetic build', () => {
         expect(fk.columns[0].refColumnUnid).toBe(userIdPk.unid);
     });
 
-    it('write a layer + table.layerUnid and re-parse the grouping', () => {
+    it('write a diagram + table.diagramUnid and re-parse the grouping', () => {
         const userPk = mkCol({name: 'id', type: 'int', primaryKey: true});
-        const layerUnid = 'lay-1';
+        const diagramUnid = 'lay-1';
         const db: JsonDataDB = {
             unid: 'db-1', name: 'mini', type: JsonDataDBType.database, entrys: [],
             tables: [{
                 unid: 't-user', name: 'user', pos: {x: 100, y: 100},
                 columns: [userPk],
                 indexes: [], foreignKeys: [],
-                layerUnid: layerUnid
+                diagramUnid: diagramUnid
             }],
             views: [], enums: [], routines: [],
-            layers: [{
-                unid: layerUnid,
+            diagrams: [{
+                unid: diagramUnid,
                 name: 'People',
                 pos: {x: 50, y: 50},
                 width: 400,
@@ -304,13 +304,13 @@ describe('writeMwb — synthetic build', () => {
         };
         const r = parseMwb(writeMwb([db]));
         expect(r.layerCount).toBe(1);
-        const reLayers = r.databases[0].layers ?? [];
+        const reLayers = r.databases[0].diagrams ?? [];
         expect(reLayers).toHaveLength(1);
         expect(reLayers[0].name).toBe('People');
         expect(reLayers[0].width).toBe(400);
         expect(reLayers[0].height).toBe(300);
         const reTable = r.databases[0].tables[0];
-        expect(reTable.layerUnid).toBe(reLayers[0].unid);
+        expect(reTable.diagramUnid).toBe(reLayers[0].unid);
     });
 
     it('write a positioned view and re-parse the pos via ViewFigure', () => {

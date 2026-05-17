@@ -26,7 +26,7 @@ const uDb = (db: string): string => `live:db:${db}`;
  * SQLite stores the "declared type" verbatim — `INTEGER`, `VARCHAR(255)`,
  * `BOOLEAN`, etc. We map declared types back to the editor's logical names
  * the same way the MySQL parser does. SQLite's type affinity rules apply
- * at the storage layer, but the diff is over the *declared* type.
+ * at the storage diagram, but the diff is over the *declared* type.
  * ---------------------------------------------------------------------------
  */
 const mapDeclaredType = (declared: string): { type: string; length?: string; } => {

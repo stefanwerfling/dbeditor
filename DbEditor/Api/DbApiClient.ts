@@ -22,7 +22,7 @@ export type SyncHistoryEntry = {
     dialect: string;
     databaseUnid: string;
     databaseName: string;
-    layerUnid?: string;
+    diagramUnid?: string;
     layerName?: string;
     selectedChangeIds: string[];
     changeSetSummary: Record<string, number>;
@@ -317,15 +317,15 @@ export class DbApiClient {
         return this._request('DELETE', `/api/projects/${pid}/views/${unid}`);
     }
 
-    public createLayer(pid: string, containerUnid: string, name: string, opts: {pos?: {x: number; y: number;}; width?: number; height?: number; color?: string;} = {}): Promise<any> {
+    public createDiagram(pid: string, containerUnid: string, name: string, opts: {pos?: {x: number; y: number;}; width?: number; height?: number; color?: string;} = {}): Promise<any> {
         return this._request('POST', `/api/projects/${pid}/layers`, {containerUnid: containerUnid, name: name, ...opts});
     }
 
-    public updateLayer(pid: string, unid: string, patch: {name?: string; pos?: {x: number; y: number;}; width?: number; height?: number; color?: string; description?: string;}): Promise<any> {
+    public updateDiagram(pid: string, unid: string, patch: {name?: string; pos?: {x: number; y: number;}; width?: number; height?: number; color?: string; description?: string;}): Promise<any> {
         return this._request('PATCH', `/api/projects/${pid}/layers/${unid}`, patch);
     }
 
-    public deleteLayer(pid: string, unid: string): Promise<any> {
+    public deleteDiagram(pid: string, unid: string): Promise<any> {
         return this._request('DELETE', `/api/projects/${pid}/layers/${unid}`);
     }
 
@@ -426,7 +426,7 @@ export class DbApiClient {
     public syncPreview(
         pid: string,
         databaseUnid: string,
-        layerUnid?: string,
+        diagramUnid?: string,
         renames?: RenameHints
     ): Promise<{
         success: boolean;
@@ -435,7 +435,7 @@ export class DbApiClient {
         modelDefaults: {engine: string; charset: string; collation: string;};
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid};
-        if (layerUnid) {body.layerUnid = layerUnid;}
+        if (diagramUnid) {body.diagramUnid = diagramUnid;}
         if (renames && hasAnyRename(renames)) {body.renames = renames;}
         return this._request('POST', `/api/projects/${pid}/sync/preview`, body);
     }
@@ -445,7 +445,7 @@ export class DbApiClient {
         databaseUnid: string,
         changeIds: string[],
         dryRun: boolean,
-        layerUnid?: string,
+        diagramUnid?: string,
         renames?: RenameHints
     ): Promise<{
         success: boolean;
@@ -454,7 +454,7 @@ export class DbApiClient {
         migrationFiles?: {up: string; down: string;};
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid, changeIds: changeIds, dryRun: dryRun};
-        if (layerUnid) {body.layerUnid = layerUnid;}
+        if (diagramUnid) {body.diagramUnid = diagramUnid;}
         if (renames && hasAnyRename(renames)) {body.renames = renames;}
         return this._request('POST', `/api/projects/${pid}/sync/apply`, body);
     }
@@ -463,7 +463,7 @@ export class DbApiClient {
         pid: string,
         databaseUnid: string,
         changeIds: string[],
-        layerUnid?: string,
+        diagramUnid?: string,
         renames?: RenameHints
     ): Promise<{
         success: boolean;
@@ -472,7 +472,7 @@ export class DbApiClient {
         requestedCount: number;
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid, changeIds: changeIds};
-        if (layerUnid) {body.layerUnid = layerUnid;}
+        if (diagramUnid) {body.diagramUnid = diagramUnid;}
         if (renames && hasAnyRename(renames)) {body.renames = renames;}
         return this._request('POST', `/api/projects/${pid}/sync/reverse-apply`, body);
     }
@@ -506,7 +506,7 @@ export class DbApiClient {
         pid: string,
         databaseUnid: string,
         changeIds: string[],
-        layerUnid?: string,
+        diagramUnid?: string,
         renames?: RenameHints,
         purgeOnSuccess?: boolean
     ): Promise<{
@@ -525,7 +525,7 @@ export class DbApiClient {
         error?: string;
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid, changeIds: changeIds};
-        if (layerUnid) {body.layerUnid = layerUnid;}
+        if (diagramUnid) {body.diagramUnid = diagramUnid;}
         if (renames && hasAnyRename(renames)) {body.renames = renames;}
         if (purgeOnSuccess === false) {body.purgeOnSuccess = false;}
         return this._request('POST', `/api/projects/${pid}/sync/test-run`, body);

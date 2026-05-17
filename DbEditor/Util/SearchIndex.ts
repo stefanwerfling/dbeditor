@@ -8,11 +8,11 @@ import {JsonDataDB, JsonDataDBType} from '../JsonData.js';
  * set so the controller can highlight the row inside the card.
  */
 export type SearchEntry = {
-    kind: 'table' | 'column' | 'layer';
+    kind: 'table' | 'column' | 'diagram';
     /** Set for `kind: 'table'|'column'`; the table the entry belongs to. */
     tableUnid?: string;
-    /** Set for `kind: 'layer'`; the layer's own unid. */
-    layerUnid?: string;
+    /** Set for `kind: 'diagram'`; the diagram's own unid. */
+    diagramUnid?: string;
     containerUnid: string;
     name: string;
     qualifiedName: string;
@@ -50,13 +50,13 @@ const walk = (
     }
     /*
      * Layers live alongside tables; index them so users can Ctrl+P
-     * to jump to a specific layer regardless of canvas overlap.
+     * to jump to a specific diagram regardless of canvas overlap.
      */
-    for (const l of node.layers ?? []) {
+    for (const l of node.diagrams ?? []) {
         const containerUnid = nextDbUnid ?? node.unid;
         out.push({
-            kind: 'layer',
-            layerUnid: l.unid,
+            kind: 'diagram',
+            diagramUnid: l.unid,
             containerUnid: containerUnid,
             name: l.name,
             qualifiedName: nextDbName ? `${nextDbName}.${l.name}` : l.name

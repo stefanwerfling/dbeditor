@@ -1,7 +1,7 @@
 /*
- * Tests for layer CRUD on DbFsRepository. Layers come from the .mwb
- * import flow (no `createLayer` route exists), so this file only covers
- * `updateLayer` + `deleteLayer` — the two operations the user can
+ * Tests for diagram CRUD on DbFsRepository. Layers come from the .mwb
+ * import flow (no `createDiagram` route exists), so this file only covers
+ * `updateDiagram` + `deleteDiagram` — the two operations the user can
  * trigger from the canvas.
  */
 import * as fs from 'fs';
@@ -53,7 +53,7 @@ const seed = (): void => {
                 tables: [],
                 views: [],
                 enums: [],
-                layers: [{
+                diagrams: [{
                     unid: LAYER_UNID,
                     name: 'EER Diagram 1',
                     pos: {x: 50, y: 60},
@@ -72,7 +72,7 @@ const seed = (): void => {
 };
 
 beforeEach(() => {
-    tmpFile = path.join(os.tmpdir(), `dbed-layer-${process.pid}-${Date.now()}-${Math.random()}.json`);
+    tmpFile = path.join(os.tmpdir(), `dbed-diagram-${process.pid}-${Date.now()}-${Math.random()}.json`);
 });
 
 afterEach(() => {
@@ -81,130 +81,130 @@ afterEach(() => {
 
 const dbNode = (repo: DbFsRepository): JsonDataDB => repo.data.fs.entrys[0] as JsonDataDB;
 
-describe('DbFsRepository.createLayer', () => {
+describe('DbFsRepository.createDiagram', () => {
 
-    it('appends a layer to the container with the given name + bounds', () => {
+    it('appends a diagram to the container with the given name + bounds', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        const result = repo.createLayer(DB_UNID, 'Customers', {x: 100, y: 200}, 500, 350, 'rgba(0, 0, 0, 0.05)', null);
-        expect(result.layer.name).toBe('Customers');
-        expect(result.layer.pos).toEqual({x: 100, y: 200});
-        expect(result.layer.width).toBe(500);
-        expect(result.layer.height).toBe(350);
-        expect(result.layer.color).toBe('rgba(0, 0, 0, 0.05)');
-        const layers = dbNode(repo).layers ?? [];
+        const result = repo.createDiagram(DB_UNID, 'Customers', {x: 100, y: 200}, 500, 350, 'rgba(0, 0, 0, 0.05)', null);
+        expect(result.diagram.name).toBe('Customers');
+        expect(result.diagram.pos).toEqual({x: 100, y: 200});
+        expect(result.diagram.width).toBe(500);
+        expect(result.diagram.height).toBe(350);
+        expect(result.diagram.color).toBe('rgba(0, 0, 0, 0.05)');
+        const layers = dbNode(repo).diagrams ?? [];
         expect(layers).toHaveLength(2);
-        expect(layers[1].unid).toBe(result.layer.unid);
+        expect(layers[1].unid).toBe(result.diagram.unid);
     });
 
     it('uses sensible defaults when pos/size/color omitted', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        const result = repo.createLayer(DB_UNID, 'X', null, null, null, null, null);
-        expect(result.layer.pos).toEqual({x: 80, y: 80});
-        expect(result.layer.width).toBe(400);
-        expect(result.layer.height).toBe(300);
-        expect(result.layer.color).toBeUndefined();
+        const result = repo.createDiagram(DB_UNID, 'X', null, null, null, null, null);
+        expect(result.diagram.pos).toEqual({x: 80, y: 80});
+        expect(result.diagram.width).toBe(400);
+        expect(result.diagram.height).toBe(300);
+        expect(result.diagram.color).toBeUndefined();
     });
 
     it('trims whitespace from the name', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        const result = repo.createLayer(DB_UNID, '  Padded  ', null, null, null, null, null);
-        expect(result.layer.name).toBe('Padded');
+        const result = repo.createDiagram(DB_UNID, '  Padded  ', null, null, null, null, null);
+        expect(result.diagram.name).toBe('Padded');
     });
 
     it('throws on missing container', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        expect(() => repo.createLayer('no-such-db', 'X', null, null, null, null, null)).toThrow(RepoNotFoundError);
+        expect(() => repo.createDiagram('no-such-db', 'X', null, null, null, null, null)).toThrow(RepoNotFoundError);
     });
 
     it('throws on empty name', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        expect(() => repo.createLayer(DB_UNID, '   ', null, null, null, null, null)).toThrow();
+        expect(() => repo.createDiagram(DB_UNID, '   ', null, null, null, null, null)).toThrow();
     });
 
-    it('publishes a layer.create event and is undoable', () => {
+    it('publishes a diagram.create event and is undoable', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
         const events: string[] = [];
         repo.bus.subscribe(ev => events.push(ev.op));
-        repo.createLayer(DB_UNID, 'NewOne', null, null, null, null, null);
-        expect(events).toContain('layer.create');
+        repo.createDiagram(DB_UNID, 'NewOne', null, null, null, null, null);
+        expect(events).toContain('diagram.create');
         repo.undo(null);
-        expect((dbNode(repo).layers ?? []).map(l => l.name)).toEqual(['EER Diagram 1']);
+        expect((dbNode(repo).diagrams ?? []).map(l => l.name)).toEqual(['EER Diagram 1']);
     });
 
 });
 
-describe('DbFsRepository.updateLayer', () => {
+describe('DbFsRepository.updateDiagram', () => {
 
-    it('renames a layer in place', () => {
+    it('renames a diagram in place', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateLayer(LAYER_UNID, {name: 'People'}, null);
-        const layer = (dbNode(repo).layers ?? [])[0];
-        expect(layer.name).toBe('People');
+        repo.updateDiagram(LAYER_UNID, {name: 'People'}, null);
+        const diagram = (dbNode(repo).diagrams ?? [])[0];
+        expect(diagram.name).toBe('People');
     });
 
     it('partial patch leaves other fields untouched', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateLayer(LAYER_UNID, {name: 'X'}, null);
-        const layer = (dbNode(repo).layers ?? [])[0];
-        expect(layer.pos).toEqual({x: 50, y: 60});
-        expect(layer.width).toBe(400);
-        expect(layer.height).toBe(300);
-        expect(layer.color).toBe('rgba(64, 145, 220, 0.10)');
+        repo.updateDiagram(LAYER_UNID, {name: 'X'}, null);
+        const diagram = (dbNode(repo).diagrams ?? [])[0];
+        expect(diagram.pos).toEqual({x: 50, y: 60});
+        expect(diagram.width).toBe(400);
+        expect(diagram.height).toBe(300);
+        expect(diagram.color).toBe('rgba(64, 145, 220, 0.10)');
     });
 
     it('updates pos / size / color when provided', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateLayer(LAYER_UNID, {
+        repo.updateDiagram(LAYER_UNID, {
             pos: {x: 100, y: 200},
             width: 500,
             height: 350,
             color: 'rgba(0, 0, 0, 0.05)',
             description: 'note'
         }, null);
-        const layer = (dbNode(repo).layers ?? [])[0];
-        expect(layer.pos).toEqual({x: 100, y: 200});
-        expect(layer.width).toBe(500);
-        expect(layer.height).toBe(350);
-        expect(layer.color).toBe('rgba(0, 0, 0, 0.05)');
-        expect(layer.description).toBe('note');
+        const diagram = (dbNode(repo).diagrams ?? [])[0];
+        expect(diagram.pos).toEqual({x: 100, y: 200});
+        expect(diagram.width).toBe(500);
+        expect(diagram.height).toBe(350);
+        expect(diagram.color).toBe('rgba(0, 0, 0, 0.05)');
+        expect(diagram.description).toBe('note');
     });
 
     it('throws RepoNotFoundError on unknown unid', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        expect(() => repo.updateLayer('does-not-exist', {name: 'X'}, null)).toThrow(RepoNotFoundError);
+        expect(() => repo.updateDiagram('does-not-exist', {name: 'X'}, null)).toThrow(RepoNotFoundError);
     });
 
-    it('publishes a layer.update event', () => {
+    it('publishes a diagram.update event', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
         const events: string[] = [];
         repo.bus.subscribe(ev => events.push(ev.op));
-        repo.updateLayer(LAYER_UNID, {name: 'X'}, null);
-        expect(events).toContain('layer.update');
+        repo.updateDiagram(LAYER_UNID, {name: 'X'}, null);
+        expect(events).toContain('diagram.update');
     });
 
     it('is undoable', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateLayer(LAYER_UNID, {name: 'NewName'}, null);
+        repo.updateDiagram(LAYER_UNID, {name: 'NewName'}, null);
         repo.undo(null);
-        const layer = (dbNode(repo).layers ?? [])[0];
-        expect(layer.name).toBe('EER Diagram 1');
+        const diagram = (dbNode(repo).diagrams ?? [])[0];
+        expect(diagram.name).toBe('EER Diagram 1');
     });
 
 });
 
-describe('DbFsRepository.updateTable layerUnid semantics', () => {
+describe('DbFsRepository.updateTable diagramUnid semantics', () => {
 
     const seedWithTable = (): void => {
         const data = {
@@ -228,7 +228,7 @@ describe('DbFsRepository.updateTable layerUnid semantics', () => {
                     }],
                     views: [],
                     enums: [],
-                    layers: [{
+                    diagrams: [{
                         unid: LAYER_UNID,
                         name: 'L1',
                         pos: {x: 0, y: 0},
@@ -245,47 +245,47 @@ describe('DbFsRepository.updateTable layerUnid semantics', () => {
         fs.writeFileSync(tmpFile, JSON.stringify(data));
     };
 
-    it('assigns layerUnid via updateTable', () => {
+    it('assigns diagramUnid via updateTable', () => {
         seedWithTable();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateTable('t-1', {layerUnid: LAYER_UNID}, null);
+        repo.updateTable('t-1', {diagramUnid: LAYER_UNID}, null);
         const t = dbNode(repo).tables[0];
-        expect(t.layerUnid).toBe(LAYER_UNID);
+        expect(t.diagramUnid).toBe(LAYER_UNID);
     });
 
     it('empty string unassigns (deletes the field entirely)', () => {
         seedWithTable();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.updateTable('t-1', {layerUnid: LAYER_UNID}, null);
-        repo.updateTable('t-1', {layerUnid: ''}, null);
+        repo.updateTable('t-1', {diagramUnid: LAYER_UNID}, null);
+        repo.updateTable('t-1', {diagramUnid: ''}, null);
         const t = dbNode(repo).tables[0];
-        expect(t.layerUnid).toBeUndefined();
+        expect(t.diagramUnid).toBeUndefined();
     });
 
 });
 
-describe('DbFsRepository.deleteLayer', () => {
+describe('DbFsRepository.deleteDiagram', () => {
 
-    it('removes the layer from its container', () => {
+    it('removes the diagram from its container', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.deleteLayer(LAYER_UNID, null);
-        expect(dbNode(repo).layers ?? []).toHaveLength(0);
+        repo.deleteDiagram(LAYER_UNID, null);
+        expect(dbNode(repo).diagrams ?? []).toHaveLength(0);
     });
 
     it('throws RepoNotFoundError on unknown unid', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        expect(() => repo.deleteLayer('nope', null)).toThrow(RepoNotFoundError);
+        expect(() => repo.deleteDiagram('nope', null)).toThrow(RepoNotFoundError);
     });
 
-    it('does NOT clear layerUnid on tables that referenced it (leaves dangling for validator)', () => {
+    it('does NOT clear diagramUnid on tables that referenced it (leaves dangling for validator)', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
         /*
-         * Add a table that references this layer, then delete the
-         * layer — table.layerUnid should still point at the deleted
-         * unid (the user might re-create the layer with the same unid
+         * Add a table that references this diagram, then delete the
+         * diagram — table.diagramUnid should still point at the deleted
+         * unid (the user might re-create the diagram with the same unid
          * via undo). The validator surfaces dangling refs separately.
          */
         const db = dbNode(repo);
@@ -296,28 +296,28 @@ describe('DbFsRepository.deleteLayer', () => {
             columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
             indexes: [],
             foreignKeys: [],
-            layerUnid: LAYER_UNID
+            diagramUnid: LAYER_UNID
         });
-        repo.deleteLayer(LAYER_UNID, null);
-        expect(dbNode(repo).tables[0].layerUnid).toBe(LAYER_UNID);
+        repo.deleteDiagram(LAYER_UNID, null);
+        expect(dbNode(repo).tables[0].diagramUnid).toBe(LAYER_UNID);
     });
 
-    it('publishes a layer.delete event', () => {
+    it('publishes a diagram.delete event', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
         const events: string[] = [];
         repo.bus.subscribe(ev => events.push(ev.op));
-        repo.deleteLayer(LAYER_UNID, null);
-        expect(events).toContain('layer.delete');
+        repo.deleteDiagram(LAYER_UNID, null);
+        expect(events).toContain('diagram.delete');
     });
 
     it('is undoable', () => {
         seed();
         const repo = new DbFsRepository(projectFor(tmpFile));
-        repo.deleteLayer(LAYER_UNID, null);
-        expect(dbNode(repo).layers ?? []).toHaveLength(0);
+        repo.deleteDiagram(LAYER_UNID, null);
+        expect(dbNode(repo).diagrams ?? []).toHaveLength(0);
         repo.undo(null);
-        const layers = dbNode(repo).layers ?? [];
+        const layers = dbNode(repo).diagrams ?? [];
         expect(layers).toHaveLength(1);
         expect(layers[0].unid).toBe(LAYER_UNID);
         expect(layers[0].name).toBe('EER Diagram 1');

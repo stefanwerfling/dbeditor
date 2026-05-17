@@ -12,7 +12,7 @@ import {
     JsonForeignKey,
     JsonEnum,
     JsonEnumValue,
-    JsonLayer,
+    JsonDiagram,
     JsonView,
     JsonEditorSettings,
     JsonOutputSettings,
@@ -203,6 +203,7 @@ export class DbFsRepository {
         if (!fs.existsSync(file)) {return emptyData(this._project.name);}
         try {
             const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+            DbFsRepository._migrateLegacyLayerSchema(raw);
             const errors: any[] = [];
             if (!SchemaJsonData.validate(raw, errors)) {
                 console.error(`[DbFsRepository] schema in ${file} failed validation, using empty:`, errors);
@@ -213,6 +214,47 @@ export class DbFsRepository {
             console.error(`[DbFsRepository] failed to read ${file}:`, err);
             return emptyData(this._project.name);
         }
+    }
+
+    /*
+     * Phase 1 layer→diagram refactor: legacy schemas have layerUnid /
+     * layerPlacements on tables/views, `layers` on db nodes, and
+     * `type: 'layer'` on the diagram-row nodes. Migrate in-place
+     * before Vts validation.
+     */
+    private static _migrateLegacyLayerSchema(raw: any): void {
+        if (!raw || typeof raw !== 'object' || !raw.fs) {return;}
+        const renamePlacements = (entity: any): void => {
+            if (entity.layerUnid !== undefined && entity.diagramUnid === undefined) {
+                entity.diagramUnid = entity.layerUnid;
+                delete entity.layerUnid;
+            }
+            if (Array.isArray(entity.layerPlacements) && !Array.isArray(entity.diagramPlacements)) {
+                entity.diagramPlacements = entity.layerPlacements.map((p: any) => ({
+                    diagramUnid: p.layerUnid ?? p.diagramUnid,
+                    pos: p.pos
+                }));
+                delete entity.layerPlacements;
+            }
+        };
+        const walk = (node: any): void => {
+            if (!node || typeof node !== 'object') {return;}
+            if (node.type === 'layer') {node.type = 'diagram';}
+            if (Array.isArray(node.layers) && !Array.isArray(node.diagrams)) {
+                node.diagrams = node.layers;
+                delete node.layers;
+            }
+            if (Array.isArray(node.tables)) {
+                for (const t of node.tables) {renamePlacements(t);}
+            }
+            if (Array.isArray(node.views)) {
+                for (const v of node.views) {renamePlacements(v);}
+            }
+            if (Array.isArray(node.entrys)) {
+                for (const c of node.entrys) {walk(c);}
+            }
+        };
+        walk(raw.fs);
     }
 
     private _writeToDisk(): void {
@@ -411,22 +453,22 @@ export class DbFsRepository {
         return { rev: rev, table: table };
     }
 
-    public updateTable(unid: string, patch: Partial<Pick<JsonTable, 'name' | 'pos' | 'options' | 'description' | 'layerUnid' | 'layerPlacements'>>, clientId: string | null): number {
+    public updateTable(unid: string, patch: Partial<Pick<JsonTable, 'name' | 'pos' | 'options' | 'description' | 'diagramUnid' | 'diagramPlacements'>>, clientId: string | null): number {
         const hit = DbFsTreeWalker.findTable(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`table ${unid} not found`);}
         if (patch.name !== undefined) {hit.table.name = patch.name;}
         if (patch.pos !== undefined) {hit.table.pos = patch.pos;}
         if (patch.options !== undefined) {hit.table.options = patch.options;}
         if (patch.description !== undefined) {hit.table.description = patch.description;}
-        if (patch.layerUnid !== undefined) {
+        if (patch.diagramUnid !== undefined) {
             /*
              * Empty string = unassign (clear the property).
-             * Non-empty = set to that layer unid.
+             * Non-empty = set to that diagram unid.
              */
-            if (patch.layerUnid === '') {delete hit.table.layerUnid;}
-            else {hit.table.layerUnid = patch.layerUnid;}
+            if (patch.diagramUnid === '') {delete hit.table.diagramUnid;}
+            else {hit.table.diagramUnid = patch.diagramUnid;}
         }
-        if (patch.layerPlacements !== undefined) {
+        if (patch.diagramPlacements !== undefined) {
             /*
              * Full-replace semantics. Pass `[]` to clear every
              * non-primary diagram membership. Pass a list to set the
@@ -434,57 +476,57 @@ export class DbFsRepository {
              * per-diagram position). Drop the key entirely from
              * disk when empty so absent-list ≡ no-placements.
              */
-            if (patch.layerPlacements.length === 0) {delete hit.table.layerPlacements;}
-            else {hit.table.layerPlacements = patch.layerPlacements;}
+            if (patch.diagramPlacements.length === 0) {delete hit.table.diagramPlacements;}
+            else {hit.table.diagramPlacements = patch.diagramPlacements;}
         }
         return this._commit('table.update', { unid: unid, patch: patch }, clientId);
     }
 
     /**
      * Add or update one placement of a table inside a diagram. If the
-     * table is not yet in this diagram (no primary `layerUnid` match,
+     * table is not yet in this diagram (no primary `diagramUnid` match,
      * no existing placement), a new placement is appended at `pos`.
      * Otherwise the existing placement's position is updated in place.
      * No-ops cleanly when the diagram is the table's primary one — we
      * update `pos` (the legacy/implicit-placement field) so render
      * code that falls back to `pos` continues to see the new position.
      */
-    public setTablePlacement(tableUnid: string, layerUnid: string, pos: JsonPosition, clientId: string | null): number {
+    public setTablePlacement(tableUnid: string, diagramUnid: string, pos: JsonPosition, clientId: string | null): number {
         const hit = DbFsTreeWalker.findTable(this._data.fs, tableUnid);
         if (!hit) {throw new RepoNotFoundError(`table ${tableUnid} not found`);}
         const t = hit.table;
-        if (t.layerUnid === layerUnid) {
+        if (t.diagramUnid === diagramUnid) {
             /* primary diagram — top-level pos is the canonical placement */
             t.pos = pos;
         } else {
-            const placements = t.layerPlacements ?? [];
-            const existingIdx = placements.findIndex(p => p.layerUnid === layerUnid);
+            const placements = t.diagramPlacements ?? [];
+            const existingIdx = placements.findIndex(p => p.diagramUnid === diagramUnid);
             if (existingIdx >= 0) {
-                placements[existingIdx] = {layerUnid: layerUnid, pos: pos};
+                placements[existingIdx] = {diagramUnid: diagramUnid, pos: pos};
             } else {
-                placements.push({layerUnid: layerUnid, pos: pos});
+                placements.push({diagramUnid: diagramUnid, pos: pos});
             }
-            t.layerPlacements = placements;
+            t.diagramPlacements = placements;
         }
-        return this._commit('table.placement.set', {tableUnid: tableUnid, layerUnid: layerUnid, pos: pos}, clientId);
+        return this._commit('table.placement.set', {tableUnid: tableUnid, diagramUnid: diagramUnid, pos: pos}, clientId);
     }
 
     /**
      * Remove a table from one diagram. Strips a matching placement
-     * if present; clears the primary `layerUnid` if it equals the
+     * if present; clears the primary `diagramUnid` if it equals the
      * supplied diagram. Idempotent — removing a non-membership is a
      * no-op commit so SSE listeners still get a refresh tick.
      */
-    public removeTablePlacement(tableUnid: string, layerUnid: string, clientId: string | null): number {
+    public removeTablePlacement(tableUnid: string, diagramUnid: string, clientId: string | null): number {
         const hit = DbFsTreeWalker.findTable(this._data.fs, tableUnid);
         if (!hit) {throw new RepoNotFoundError(`table ${tableUnid} not found`);}
         const t = hit.table;
-        if (t.layerUnid === layerUnid) {delete t.layerUnid;}
-        if (t.layerPlacements) {
-            t.layerPlacements = t.layerPlacements.filter(p => p.layerUnid !== layerUnid);
-            if (t.layerPlacements.length === 0) {delete t.layerPlacements;}
+        if (t.diagramUnid === diagramUnid) {delete t.diagramUnid;}
+        if (t.diagramPlacements) {
+            t.diagramPlacements = t.diagramPlacements.filter(p => p.diagramUnid !== diagramUnid);
+            if (t.diagramPlacements.length === 0) {delete t.diagramPlacements;}
         }
-        return this._commit('table.placement.remove', {tableUnid: tableUnid, layerUnid: layerUnid}, clientId);
+        return this._commit('table.placement.remove', {tableUnid: tableUnid, diagramUnid: diagramUnid}, clientId);
     }
 
     public deleteTable(unid: string, clientId: string | null): number {
@@ -773,7 +815,7 @@ export class DbFsRepository {
         return { rev: rev, view: view };
     }
 
-    public updateView(unid: string, patch: Partial<Pick<JsonView, 'name' | 'pos' | 'select' | 'materialized' | 'description' | 'layerUnid' | 'layerPlacements'>>, clientId: string | null): number {
+    public updateView(unid: string, patch: Partial<Pick<JsonView, 'name' | 'pos' | 'select' | 'materialized' | 'description' | 'diagramUnid' | 'diagramPlacements'>>, clientId: string | null): number {
         this._mwbOriginalViewXml.delete(unid);
         const hit = DbFsTreeWalker.findView(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`view ${unid} not found`);}
@@ -782,14 +824,14 @@ export class DbFsRepository {
         if (patch.select !== undefined) {hit.view.select = patch.select;}
         if (patch.materialized !== undefined) {hit.view.materialized = patch.materialized;}
         if (patch.description !== undefined) {hit.view.description = patch.description;}
-        if (patch.layerUnid !== undefined) {
-            /* Empty string is the "clear assignment" sentinel — matches updateTable's layerUnid handling. */
-            if (patch.layerUnid === '') {delete hit.view.layerUnid;}
-            else {hit.view.layerUnid = patch.layerUnid;}
+        if (patch.diagramUnid !== undefined) {
+            /* Empty string is the "clear assignment" sentinel — matches updateTable's diagramUnid handling. */
+            if (patch.diagramUnid === '') {delete hit.view.diagramUnid;}
+            else {hit.view.diagramUnid = patch.diagramUnid;}
         }
-        if (patch.layerPlacements !== undefined) {
-            if (patch.layerPlacements.length === 0) {delete hit.view.layerPlacements;}
-            else {hit.view.layerPlacements = patch.layerPlacements;}
+        if (patch.diagramPlacements !== undefined) {
+            if (patch.diagramPlacements.length === 0) {delete hit.view.diagramPlacements;}
+            else {hit.view.diagramPlacements = patch.diagramPlacements;}
         }
         return this._commit('view.update', { unid: unid, patch: patch }, clientId);
     }
@@ -808,12 +850,12 @@ export class DbFsRepository {
      *
      * Layers are imported from `.mwb` files via `MwbReader` and rendered
      * as backdrops behind the table cards. The user can rename or
-     * delete them from the canvas. Adding a new layer from scratch is
+     * delete them from the canvas. Adding a new diagram from scratch is
      * not yet a feature — the import flow is the only producer.
      * ---------------------------------------------------------------------
      */
 
-    public createLayer(
+    public createDiagram(
         containerUnid: string,
         name: string,
         pos: JsonPosition | null,
@@ -821,51 +863,51 @@ export class DbFsRepository {
         height: number | null,
         color: string | null,
         clientId: string | null
-    ): { rev: number; layer: JsonLayer; } {
+    ): { rev: number; diagram: JsonDiagram; } {
         const container = DbFsTreeWalker.findContainer(this._data.fs, containerUnid);
         if (!container) {throw new RepoNotFoundError(`container ${containerUnid} not found`);}
         const trimmed = name.trim();
-        if (!trimmed) {throw new RepoInvalidError('layer name must not be empty');}
-        const layer: JsonLayer = {
+        if (!trimmed) {throw new RepoInvalidError('diagram name must not be empty');}
+        const diagram: JsonDiagram = {
             unid: randomUUID(),
             name: trimmed,
             pos: pos || {x: 80, y: 80},
             width: width && width > 0 ? width : 400,
             height: height && height > 0 ? height : 300
         };
-        if (color) {layer.color = color;}
-        container.layers = [...container.layers ?? [], layer];
-        const rev = this._commit('layer.create', { containerUnid: containerUnid, layer: layer }, clientId);
-        return { rev: rev, layer: layer };
+        if (color) {diagram.color = color;}
+        container.diagrams = [...container.diagrams ?? [], diagram];
+        const rev = this._commit('diagram.create', { containerUnid: containerUnid, diagram: diagram }, clientId);
+        return { rev: rev, diagram: diagram };
     }
 
-    public updateLayer(
+    public updateDiagram(
         unid: string,
-        patch: Partial<Pick<JsonLayer, 'name' | 'pos' | 'width' | 'height' | 'color' | 'description'>>,
+        patch: Partial<Pick<JsonDiagram, 'name' | 'pos' | 'width' | 'height' | 'color' | 'description'>>,
         clientId: string | null
     ): number {
-        const hit = DbFsTreeWalker.findLayer(this._data.fs, unid);
-        if (!hit) {throw new RepoNotFoundError(`layer ${unid} not found`);}
-        if (patch.name !== undefined) {hit.layer.name = patch.name;}
-        if (patch.pos !== undefined) {hit.layer.pos = patch.pos;}
-        if (patch.width !== undefined) {hit.layer.width = patch.width;}
-        if (patch.height !== undefined) {hit.layer.height = patch.height;}
-        if (patch.color !== undefined) {hit.layer.color = patch.color;}
-        if (patch.description !== undefined) {hit.layer.description = patch.description;}
-        return this._commit('layer.update', { unid: unid, patch: patch }, clientId);
+        const hit = DbFsTreeWalker.findDiagram(this._data.fs, unid);
+        if (!hit) {throw new RepoNotFoundError(`diagram ${unid} not found`);}
+        if (patch.name !== undefined) {hit.diagram.name = patch.name;}
+        if (patch.pos !== undefined) {hit.diagram.pos = patch.pos;}
+        if (patch.width !== undefined) {hit.diagram.width = patch.width;}
+        if (patch.height !== undefined) {hit.diagram.height = patch.height;}
+        if (patch.color !== undefined) {hit.diagram.color = patch.color;}
+        if (patch.description !== undefined) {hit.diagram.description = patch.description;}
+        return this._commit('diagram.update', { unid: unid, patch: patch }, clientId);
     }
 
     /**
-     * Remove a layer. Tables that referenced it via `layerUnid` keep
+     * Remove a diagram. Tables that referenced it via `diagramUnid` keep
      * their reference (now dangling); the validator surfaces this if
-     * the user wants to clean up. We don't auto-clear `layerUnid` on
-     * tables because the user might just be re-creating the layer.
+     * the user wants to clean up. We don't auto-clear `diagramUnid` on
+     * tables because the user might just be re-creating the diagram.
      */
-    public deleteLayer(unid: string, clientId: string | null): number {
-        const hit = DbFsTreeWalker.findLayer(this._data.fs, unid);
-        if (!hit) {throw new RepoNotFoundError(`layer ${unid} not found`);}
-        hit.container.layers = (hit.container.layers ?? []).filter(l => l.unid !== unid);
-        return this._commit('layer.delete', { unid: unid }, clientId);
+    public deleteDiagram(unid: string, clientId: string | null): number {
+        const hit = DbFsTreeWalker.findDiagram(this._data.fs, unid);
+        if (!hit) {throw new RepoNotFoundError(`diagram ${unid} not found`);}
+        hit.container.diagrams = (hit.container.diagrams ?? []).filter(l => l.unid !== unid);
+        return this._commit('diagram.delete', { unid: unid }, clientId);
     }
 
     /*

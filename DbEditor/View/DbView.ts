@@ -4,7 +4,7 @@ import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
 import {openContextMenu} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
 import {iconEllipsis} from '../Util/Icons.js';
-import {ActiveLayerContext} from '../Layer/ActiveLayerContext.js';
+import {ActiveDiagramContext} from '../Layer/ActiveDiagramContext.js';
 
 /**
  * Draggable view card on the canvas. Mirrors `DbTable` but much simpler:
@@ -22,12 +22,12 @@ export class DbView {
     private _el: HTMLDivElement;
     private _data: JsonView;
     private readonly _jsp: BrowserJsPlumbInstance;
-    private readonly _activeLayer: ActiveLayerContext | null;
+    private readonly _activeLayer: ActiveDiagramContext | null;
 
     public constructor(
         view: JsonView,
         jsp: BrowserJsPlumbInstance,
-        activeLayer: ActiveLayerContext | null = null
+        activeLayer: ActiveDiagramContext | null = null
     ) {
         this._data = view;
         this._jsp = jsp;
@@ -111,13 +111,13 @@ export class DbView {
             e.stopPropagation();
             const items: Parameters<typeof openContextMenu>[1] = [
                 {label: 'Edit body…',  onClick: (): void => dispatch(EditorEvents.editView, {unid: this._data.unid})},
-                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickLayerForView, {viewUnid: this._data.unid})}
+                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickDiagramForView, {viewUnid: this._data.unid})}
             ];
             if (this._activeLayer) {
-                const layer = this._activeLayer;
-                items.push({label: `Remove from "${layer.name}"`, onClick: (): void => dispatch(EditorEvents.removeViewFromLayer, {
+                const diagram = this._activeLayer;
+                items.push({label: `Remove from "${diagram.name}"`, onClick: (): void => dispatch(EditorEvents.removeViewFromDiagram, {
                     viewUnid: this._data.unid,
-                    layerUnid: layer.unid
+                    diagramUnid: diagram.unid
                 })});
             }
             items.push(

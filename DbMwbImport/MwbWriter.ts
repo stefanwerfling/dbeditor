@@ -9,7 +9,7 @@ import {
     JsonForeignKey,
     JsonIndex,
     JsonIndexType,
-    JsonLayer,
+    JsonDiagram,
     JsonRoutine,
     JsonRoutineKind,
     JsonTable,
@@ -112,7 +112,7 @@ type IdMaps = {
     columnId: Map<string, string>;
     indexId: Map<string, string>;
     fkId: Map<string, string>;
-    /** Model layer unid → minted GRT layer ID. Populated up-front from collected layers so figure→layer links can resolve. */
+    /** Model diagram unid → minted GRT diagram ID. Populated up-front from collected layers so figure→diagram links can resolve. */
     layerId: Map<string, string>;
     /** Model view unid → minted GRT view ID. Populated up-front so ViewFigure can point at its view. */
     viewId: Map<string, string>;
@@ -618,8 +618,8 @@ const writeDiagramFigures = (
         s += `${I(depth + 2)}<value type="real" key="left">${tbl.pos.x}</value>\n`;
         s += `${I(depth + 2)}<value type="real" key="top">${tbl.pos.y}</value>\n`;
         s += lStr('table', 'db.Table', tableId, depth + 2);
-        if (tbl.layerUnid) {
-            const layerGrtId = ids.layerId.get(tbl.layerUnid);
+        if (tbl.diagramUnid) {
+            const layerGrtId = ids.layerId.get(tbl.diagramUnid);
             if (layerGrtId) {s += lStr('layer', 'model.Layer', layerGrtId, depth + 2);}
         }
         s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
@@ -646,32 +646,32 @@ const writeDiagramFigures = (
 };
 
 /**
- * Emit one `workbench.physical.Layer` per JsonLayer inside the
+ * Emit one `workbench.physical.Layer` per JsonDiagram inside the
  * diagram's `layers` list. We deliberately do NOT key these as
  * `rootLayer` — Workbench autocreates the rootLayer per diagram;
- * what we want here are user-visible child layers. Each layer has
+ * what we want here are user-visible child layers. Each diagram has
  * its bounds (top/left/width/height), name, color, and an `owner`
  * link back to the diagram.
  */
 const writeLayersForDiagram = (
-    layers: JsonLayer[],
+    diagrams: JsonDiagram[],
     ids: IdMaps,
     diagramId: string,
     depth: number
 ): string => {
-    if (layers.length === 0) {return '';}
+    if (diagrams.length === 0) {return '';}
     let s = `${I(depth)}<value type="list" content-type="object" content-struct-name="workbench.physical.Layer" key="layers">\n`;
-    for (const layer of layers) {
-        const layerGrtId = ids.layerId.get(layer.unid);
+    for (const diagram of diagrams) {
+        const layerGrtId = ids.layerId.get(diagram.unid);
         if (!layerGrtId) {continue;}
         s += `${I(depth + 1)}<value type="object" struct-name="workbench.physical.Layer" id="${layerGrtId}">\n`;
-        s += `${I(depth + 2)}<value type="real" key="left">${layer.pos.x}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="top">${layer.pos.y}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="width">${layer.width}</value>\n`;
-        s += `${I(depth + 2)}<value type="real" key="height">${layer.height}</value>\n`;
-        s += vStr('color', layer.color ?? '', depth + 2);
-        s += vStr('description', layer.description ?? '', depth + 2);
-        s += vStr('name', layer.name, depth + 2);
+        s += `${I(depth + 2)}<value type="real" key="left">${diagram.pos.x}</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="top">${diagram.pos.y}</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="width">${diagram.width}</value>\n`;
+        s += `${I(depth + 2)}<value type="real" key="height">${diagram.height}</value>\n`;
+        s += vStr('color', diagram.color ?? '', depth + 2);
+        s += vStr('description', diagram.description ?? '', depth + 2);
+        s += vStr('name', diagram.name, depth + 2);
         s += lStr('owner', 'model.Diagram', diagramId, depth + 2);
         s += `${I(depth + 1)}</value>\n`;
     }
@@ -680,10 +680,10 @@ const writeLayersForDiagram = (
 };
 
 /** Walk every database (recursing through folders) and collect all layers. */
-const collectLayers = (databases: JsonDataDB[]): JsonLayer[] => {
-    const out: JsonLayer[] = [];
+const collectLayers = (databases: JsonDataDB[]): JsonDiagram[] => {
+    const out: JsonDiagram[] = [];
     const walk = (n: JsonDataDB): void => {
-        if (n.layers) {out.push(...n.layers);}
+        if (n.diagrams) {out.push(...n.diagrams);}
         for (const child of n.entrys as JsonDataDB[]) {walk(child);}
     };
     for (const db of databases) {walk(db);}
@@ -739,10 +739,10 @@ export const writeMwb = (input: JsonDataDB[] | JsonDataDB, opts: WriteMwbOptions
             ids.viewId.set(v.unid, id);
         }
     }
-    /* Layers are minted before figures so figure→layer links resolve. */
+    /* Layers are minted before figures so figure→diagram links resolve. */
     const allLayers = collectLayers(databases);
-    for (const layer of allLayers) {
-        ids.layerId.set(layer.unid, randomUUID());
+    for (const diagram of allLayers) {
+        ids.layerId.set(diagram.unid, randomUUID());
     }
     const diagramId = randomUUID();
 

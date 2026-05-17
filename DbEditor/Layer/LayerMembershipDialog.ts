@@ -1,11 +1,11 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonLayer} from '../JsonData.js';
+import {JsonDiagram} from '../JsonData.js';
 
 /**
  * Result shape — `null` on cancel, a list of selected diagram unids
  * on apply. The list represents the FULL desired set of memberships
  * for the target table; the caller decides which becomes the primary
- * (`layerUnid`) and which become additional placements.
+ * (`diagramUnid`) and which become additional placements.
  */
 export type LayerMembershipResult = string[] | null;
 
@@ -14,18 +14,18 @@ export type LayerMembershipResult = string[] | null;
  * Each row is a checkbox; the user toggles every diagram the table
  * should appear in. Empty result = unassign from every diagram.
  *
- * Counterpart to `LayerPickerDialog`, which is single-select and
+ * Counterpart to `DiagramPickerDialog`, which is single-select and
  * used for batch (2+ tables → one shared diagram). For single
  * tables, this dialog gives MWB-style "this table is in diagram A,
  * B, and C with different positions in each" management.
  */
-export class LayerMembershipDialog extends BaseDialog<LayerMembershipResult> {
+export class DiagramMembershipDialog extends BaseDialog<LayerMembershipResult> {
 
     private readonly _checkboxes: Map<string, HTMLInputElement> = new Map();
 
-    public constructor(layers: JsonLayer[], currentMemberships: string[]) {
+    public constructor(layers: JsonDiagram[], currentMemberships: string[]) {
         super('EER diagram memberships');
-        this._dialog.classList.add('layer-picker-dialog');
+        this._dialog.classList.add('diagram-picker-dialog');
 
         if (layers.length === 0) {
             const empty = document.createElement('p');
@@ -42,21 +42,21 @@ export class LayerMembershipDialog extends BaseDialog<LayerMembershipResult> {
         this._body.append(intro);
 
         const list = document.createElement('div');
-        list.className = 'layer-picker-list';
+        list.className = 'diagram-picker-list';
         const current = new Set(currentMemberships);
         for (const l of layers) {
             const row = document.createElement('label');
-            row.className = 'layer-picker-row';
+            row.className = 'diagram-picker-row';
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.value = l.unid;
             cb.checked = current.has(l.unid);
             this._checkboxes.set(l.unid, cb);
             const swatch = document.createElement('span');
-            swatch.className = 'layer-picker-swatch';
+            swatch.className = 'diagram-picker-swatch';
             if (l.color) {swatch.style.background = l.color;}
             const name = document.createElement('span');
-            name.className = 'layer-picker-name';
+            name.className = 'diagram-picker-name';
             name.textContent = l.name;
             row.append(cb, swatch, name);
             list.append(row);

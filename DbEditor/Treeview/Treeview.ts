@@ -32,7 +32,7 @@ export class Treeview {
 
     private _el: HTMLElement;
     private _activeUnid: string | null = null;
-    private _activeLayerUnid: string | null = null;
+    private _activeDiagramUnid: string | null = null;
     private _filter = '';
     private _mode: TreeviewMode = 'model';
     private _connectableDatabaseUnids = new Set<string>();
@@ -183,10 +183,10 @@ export class Treeview {
 
     public setActive(unid: string): void {
         this._activeUnid = unid;
-        this._activeLayerUnid = null;
+        this._activeDiagramUnid = null;
         this._el.querySelectorAll('.treeview-entry-row').forEach(el => {
             el.classList.remove('active');
-            el.classList.remove('layer-scope-active');
+            el.classList.remove('diagram-scope-active');
         });
         const row = this._el.querySelector(`.treeview-entry-row[data-unid="${unid}"]`);
         if (row) {row.classList.add('active');}
@@ -194,24 +194,24 @@ export class Treeview {
     }
 
     /**
-     * Scope the canvas to one EER-diagram (layer): activates the
-     * layer's parent database AND filters tables to those whose
-     * `layerUnid` matches. Re-paints the row markers so the layer
-     * row gets `.layer-scope-active` and the database row gets the
+     * Scope the canvas to one EER-diagram (diagram): activates the
+     * diagram's parent database AND filters tables to those whose
+     * `diagramUnid` matches. Re-paints the row markers so the diagram
+     * row gets `.diagram-scope-active` and the database row gets the
      * normal `.active` marker.
      */
-    public setActiveLayer(layerUnid: string, parentDbUnid: string): void {
+    public setActiveDiagram(diagramUnid: string, parentDbUnid: string): void {
         this._activeUnid = parentDbUnid;
-        this._activeLayerUnid = layerUnid;
+        this._activeDiagramUnid = diagramUnid;
         this._el.querySelectorAll('.treeview-entry-row').forEach(el => {
             el.classList.remove('active');
-            el.classList.remove('layer-scope-active');
+            el.classList.remove('diagram-scope-active');
         });
         const dbRow = this._el.querySelector(`.treeview-entry-row[data-unid="${parentDbUnid}"]`);
         if (dbRow) {dbRow.classList.add('active');}
-        const layerRow = this._el.querySelector(`.treeview-entry-row[data-unid="${layerUnid}"]`);
-        if (layerRow) {layerRow.classList.add('layer-scope-active');}
-        dispatch(EditorEvents.scopeToLayer, { layerUnid: layerUnid, containerUnid: parentDbUnid });
+        const layerRow = this._el.querySelector(`.treeview-entry-row[data-unid="${diagramUnid}"]`);
+        if (layerRow) {layerRow.classList.add('diagram-scope-active');}
+        dispatch(EditorEvents.scopeToDiagram, { diagramUnid: diagramUnid, containerUnid: parentDbUnid });
     }
 
     private _renderProjectNode(p: { unid: string; name: string; data: JsonDataDB; }): HTMLElement {
@@ -244,7 +244,7 @@ export class Treeview {
         const hasChildren = (node.entrys && node.entrys.length)
             || node.tables.length || node.enums.length || node.views.length
             || (node.routines && node.routines.length)
-            || (node.layers && node.layers.length);
+            || (node.diagrams && node.diagrams.length);
         /*
          * Containers always render their bucket structure so the
          * empty-state "+ Add X" hints are reachable on a fresh
@@ -264,7 +264,7 @@ export class Treeview {
                  * persists in localStorage per (parentUnid, kind).
                  * Empty buckets are skipped — no "Views (0)" noise.
                  */
-                const layers = node.layers ?? [];
+                const layers = node.diagrams ?? [];
                 const routines = node.routines ?? [];
                 /*
                  * Render all buckets unconditionally so empty ones can
@@ -272,16 +272,16 @@ export class Treeview {
                  * click to populate the database. Each bucket carries
                  * an `addHint` config the bucket renderer falls back to
                  * when `items.length === 0`. EER diagrams are
-                 * database-scoped, so the layer bucket only renders on
+                 * database-scoped, so the diagram bucket only renders on
                  * a database, never on a folder.
                  */
                 if (node.type === JsonDataDBType.database) {
                     children.append(this._renderBucket(
-                        node.unid, 'layers', 'EER diagrams', JsonDataDBType.layer,
+                        node.unid, 'layers', 'EER diagrams', JsonDataDBType.diagram,
                         layers.map(l => ({unid: l.unid, name: l.name, parentDbUnid: node.unid})),
                         {
                             label: '+ Add EER diagram',
-                            event: EditorEvents.createLayerIn,
+                            event: EditorEvents.createDiagramIn,
                             promptLabel: 'New EER diagram name?',
                             suggested: 'New diagram'
                         }
@@ -334,7 +334,7 @@ export class Treeview {
                 for (const e of node.enums) {children.append(this._renderLeaf(e.unid, e.name, JsonDataDBType.enum));}
                 for (const v of node.views) {children.append(this._renderLeaf(v.unid, v.name, JsonDataDBType.view));}
                 for (const r of node.routines ?? []) {children.append(this._renderLeaf(r.unid, r.name, JsonDataDBType.routine));}
-                for (const l of node.layers ?? []) {children.append(this._renderLeaf(l.unid, l.name, JsonDataDBType.layer));}
+                for (const l of node.diagrams ?? []) {children.append(this._renderLeaf(l.unid, l.name, JsonDataDBType.diagram));}
             }
             wrap.append(children);
         }
@@ -444,7 +444,7 @@ export class Treeview {
             case JsonDataDBType.enum:     return iconDiamondHollow();
             case JsonDataDBType.view:     return iconEye();
             case JsonDataDBType.routine:  return 'ƒ';
-            case JsonDataDBType.layer:    return iconRect();
+            case JsonDataDBType.diagram:    return iconRect();
             case JsonDataDBType.project:  return iconProject();
             default:                      return iconDot();
         }
@@ -494,26 +494,26 @@ export class Treeview {
             });
         }
         /*
-         * Click an EER-diagram (layer) row to scope the canvas to its
+         * Click an EER-diagram (diagram) row to scope the canvas to its
          * member tables only. The controller activates the parent
-         * database, then filters by `layerUnid`. Re-clicking the
+         * database, then filters by `diagramUnid`. Re-clicking the
          * database (or another container) clears the scope.
          */
-        if (type === JsonDataDBType.layer && parentDbUnid) {
+        if (type === JsonDataDBType.diagram && parentDbUnid) {
             row.addEventListener('click', (e) => {
                 if ((e.target as HTMLElement).closest('.treeview-row-more')) {return;}
-                this.setActiveLayer(unid, parentDbUnid);
+                this.setActiveDiagram(unid, parentDbUnid);
             });
         }
 
         /*
-         * HTML5 DnD: table rows are draggable, layer rows are valid
-         * drop targets. Drop sets the table's `layerUnid` to the
-         * target layer's unid. The actual mutation lives in the
-         * controller via the `pickLayerForTables` flow — we cheat
+         * HTML5 DnD: table rows are draggable, diagram rows are valid
+         * drop targets. Drop sets the table's `diagramUnid` to the
+         * target diagram's unid. The actual mutation lives in the
+         * controller via the `pickDiagramForTables` flow — we cheat
          * here and dispatch a custom event that the controller
          * already knows how to handle (passing a single tableUnid +
-         * layerUnid skips the picker dialog).
+         * diagramUnid skips the picker dialog).
          */
         if (type === JsonDataDBType.table) {
             row.draggable = true;
@@ -525,7 +525,7 @@ export class Treeview {
                 e.dataTransfer.setData('text/plain', name);
             });
         }
-        if (type === JsonDataDBType.layer) {
+        if (type === JsonDataDBType.diagram) {
             row.addEventListener('dragover', (e) => {
                 if (!e.dataTransfer?.types.includes('application/x-dbeditor-table-unid')) {return;}
                 e.preventDefault();
@@ -540,7 +540,7 @@ export class Treeview {
                 const tableUnid = e.dataTransfer?.getData('application/x-dbeditor-table-unid');
                 if (!tableUnid) {return;}
                 e.preventDefault();
-                dispatch(EditorEvents.assignTableToLayer, {tableUnid: tableUnid, layerUnid: unid});
+                dispatch(EditorEvents.assignTableToDiagram, {tableUnid: tableUnid, diagramUnid: unid});
             });
         }
 
@@ -668,7 +668,7 @@ export class Treeview {
             if (type === JsonDataDBType.database) {
                 items.push({ label: 'Add EER diagram', onClick: () => {
                     const n = promptName('New EER diagram name?', 'New diagram');
-                    if (n) {dispatch(EditorEvents.createLayerIn, { containerUnid: unid, name: n });}
+                    if (n) {dispatch(EditorEvents.createDiagramIn, { containerUnid: unid, name: n });}
                 }});
             }
             if (type === JsonDataDBType.database && this._connectableDatabaseUnids.has(unid)) {
@@ -712,10 +712,10 @@ export class Treeview {
              * lets the user manage diagram membership without first
              * opening the database canvas + finding the card. The
              * picker takes one or more tableUnids and the existing
-             * `pickLayerForTables` event handles it identically.
+             * `pickDiagramForTables` event handles it identically.
              */
             items.push({ label: 'Assign to EER diagram…', onClick: () => {
-                dispatch(EditorEvents.pickLayerForTables, { tableUnids: [unid] });
+                dispatch(EditorEvents.pickDiagramForTables, { tableUnids: [unid] });
             }});
             items.push({ label: 'Duplicate', onClick: () => {
                 dispatch(EditorEvents.duplicateTable, { tableUnid: unid });
@@ -771,9 +771,9 @@ export class Treeview {
                     `Delete view "${name}"?`, 'danger');
                 if (ok) {dispatch(EditorEvents.deleteView, { unid: unid });}
             }});
-        } else if (type === JsonDataDBType.layer) {
+        } else if (type === JsonDataDBType.diagram) {
             items.push({ label: 'Generate SQL (this diagram)…', onClick: () => {
-                dispatch(EditorEvents.generateScoped, { layerUnid: unid, layerName: name });
+                dispatch(EditorEvents.generateScoped, { diagramUnid: unid, layerName: name });
             }});
             /*
              * Diagram-scoped sync: only fires if the diagram's parent
@@ -784,17 +784,17 @@ export class Treeview {
              * (discoverability > hiding-when-unconfigured).
              */
             items.push({ label: 'Sync this diagram with DB…', onClick: () => {
-                dispatch(EditorEvents.openSyncDialog, { layerUnid: unid, layerName: name });
+                dispatch(EditorEvents.openSyncDialog, { diagramUnid: unid, layerName: name });
             }});
             items.push({ kind: 'separator' });
             items.push({ label: 'Rename', onClick: () => {
                 this._startInlineRename(nameEl, name, (n) =>
-                    dispatch(EditorEvents.renameLayer, { unid: unid, name: n }));
+                    dispatch(EditorEvents.renameDiagram, { unid: unid, name: n }));
             }});
             items.push({ label: 'Delete', danger: true, onClick: async() => {
                 const ok = await ConfirmDialog.showConfirm('Delete EER diagram',
                     `Delete diagram "${name}"? Tables inside are not deleted; their diagram reference becomes empty.`, 'danger');
-                if (ok) {dispatch(EditorEvents.deleteLayer, { unid: unid });}
+                if (ok) {dispatch(EditorEvents.deleteDiagram, { unid: unid });}
             }});
         }
         return items;

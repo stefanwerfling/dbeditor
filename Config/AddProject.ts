@@ -28,7 +28,7 @@ export type AddProjectInput = ExtractSchemaResultType<typeof SchemaAddProjectInp
  * is patched at sub-field granularity (you can change just the `mode`
  * without re-supplying `destinationPath`).
  *
- * NB: this only edits the dbeditor.json layer. Output overrides written
+ * NB: this only edits the dbeditor.json diagram. Output overrides written
  * to the schema file by `ProjectSettingsDialog` continue to take
  * precedence at runtime via `repo.effectiveOutput()`.
  */

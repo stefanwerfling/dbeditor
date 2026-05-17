@@ -38,7 +38,7 @@ export type SyncHistoryEntry = {
     dialect: string;
     databaseUnid: string;
     databaseName: string;
-    layerUnid?: string;
+    diagramUnid?: string;
     layerName?: string;
     selectedChangeIds: string[];
     changeSetSummary: SyncHistoryChangeSummary;
@@ -80,7 +80,7 @@ export const historyPathFor = (schemaPath: string): string => {
 /**
  * Read the history from disk. Returns `{entries: []}` when the file
  * is missing or unparseable — the history feature is a convenience
- * layer; an unreadable file should never block a sync operation.
+ * diagram; an unreadable file should never block a sync operation.
  *
  * Malformed-file recovery: if the JSON parses but doesn't match the
  * shape (e.g. `entries` missing), we still return an empty list and

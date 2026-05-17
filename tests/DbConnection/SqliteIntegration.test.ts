@@ -1,7 +1,7 @@
 /*
  * Integration test for the SQLite driver + introspector + executor pipeline.
  * Touches the filesystem (creates an actual SQLite DB in os.tmpdir()) and
- * exercises every layer end-to-end, including the rebuild pattern for
+ * exercises every diagram end-to-end, including the rebuild pattern for
  * column type changes. The other test files are pure-logic unit tests; this
  * one is the smoke that proves the pieces actually fit together.
  */

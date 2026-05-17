@@ -28,7 +28,7 @@ const db = (name: string, opts: {tables?: JsonTable[]; enums?: JsonDataDB['enums
         views: [],
         enums: opts.enums ?? []
     };
-    if (opts.layers) {node.layers = opts.layers;}
+    if (opts.diagrams) {node.diagrams = opts.diagrams;}
     return node;
 };
 
@@ -146,77 +146,77 @@ describe('SchemaValidator — enum-typed column refs', () => {
 
 });
 
-describe('SchemaValidator — dangling layerUnid', () => {
+describe('SchemaValidator — dangling diagramUnid', () => {
 
-    it('flags a table whose layerUnid does not resolve', () => {
+    it('flags a table whose diagramUnid does not resolve', () => {
         const w = validateSchema(root([db('mydb', {
             tables: [{
                 unid: 't-1', name: 'user', pos: {x: 0, y: 0},
                 columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
                 indexes: [], foreignKeys: [],
-                layerUnid: 'gone'
+                diagramUnid: 'gone'
             }]
         })]));
-        expect(messages(w)).toContain('Table "user" references a deleted layer.');
+        expect(messages(w)).toContain('Table "user" references a deleted diagram.');
     });
 
-    it('does not flag a table whose layerUnid resolves to a sibling layer', () => {
+    it('does not flag a table whose diagramUnid resolves to a sibling diagram', () => {
         const w = validateSchema(root([db('mydb', {
             tables: [{
                 unid: 't-1', name: 'user', pos: {x: 0, y: 0},
                 columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
                 indexes: [], foreignKeys: [],
-                layerUnid: 'L1'
+                diagramUnid: 'L1'
             }],
-            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
         })]));
-        expect(w.find(x => x.message.includes('deleted layer'))).toBeUndefined();
+        expect(w.find(x => x.message.includes('deleted diagram'))).toBeUndefined();
     });
 
-    it('flags a layerPlacements entry pointing at a deleted layer', () => {
+    it('flags a diagramPlacements entry pointing at a deleted diagram', () => {
         const w = validateSchema(root([db('mydb', {
             tables: [{
                 unid: 't-1', name: 'user', pos: {x: 0, y: 0},
                 columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
                 indexes: [], foreignKeys: [],
-                layerUnid: 'L1',
-                layerPlacements: [
-                    {layerUnid: 'L1', pos: {x: 0, y: 0}},
-                    {layerUnid: 'gone', pos: {x: 100, y: 100}}
+                diagramUnid: 'L1',
+                diagramPlacements: [
+                    {diagramUnid: 'L1', pos: {x: 0, y: 0}},
+                    {diagramUnid: 'gone', pos: {x: 100, y: 100}}
                 ]
             }],
-            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
         })]));
-        expect(messages(w)).toContain('Table "user" placement references a deleted layer.');
+        expect(messages(w)).toContain('Table "user" placement references a deleted diagram.');
     });
 
-    it('flags a view whose layerUnid does not resolve', () => {
+    it('flags a view whose diagramUnid does not resolve', () => {
         const dbNode = db('mydb', {});
-        dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', layerUnid: 'gone'}];
+        dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', diagramUnid: 'gone'}];
         const w = validateSchema(root([dbNode]));
-        expect(messages(w)).toContain('View "active_users" references a deleted layer.');
+        expect(messages(w)).toContain('View "active_users" references a deleted diagram.');
     });
 
-    it('does not flag a view whose layerUnid resolves', () => {
+    it('does not flag a view whose diagramUnid resolves', () => {
         const dbNode = db('mydb', {
-            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
         });
-        dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', layerUnid: 'L1'}];
+        dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', diagramUnid: 'L1'}];
         const w = validateSchema(root([dbNode]));
-        expect(w.find(x => x.message.includes('deleted layer'))).toBeUndefined();
+        expect(w.find(x => x.message.includes('deleted diagram'))).toBeUndefined();
     });
 
-    it('flags a view layerPlacements entry pointing at a deleted layer', () => {
+    it('flags a view diagramPlacements entry pointing at a deleted diagram', () => {
         const dbNode = db('mydb', {
-            layers: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
+            diagrams: [{unid: 'L1', name: 'People', pos: {x: 0, y: 0}, width: 200, height: 200}]
         });
         dbNode.views = [{
             unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1',
-            layerUnid: 'L1',
-            layerPlacements: [{layerUnid: 'gone', pos: {x: 1, y: 1}}]
+            diagramUnid: 'L1',
+            diagramPlacements: [{diagramUnid: 'gone', pos: {x: 1, y: 1}}]
         }];
         const w = validateSchema(root([dbNode]));
-        expect(messages(w)).toContain('View "active_users" placement references a deleted layer.');
+        expect(messages(w)).toContain('View "active_users" placement references a deleted diagram.');
     });
 
 });

@@ -2,7 +2,7 @@
  * End-to-end test of the .mwb import against the sample/example.mwb
  * file shipped with the repo. The sample is a small synthetic demo
  * schema (`demo` — users / posts / comments / categories with one FK
- * chain and one EER layer) — small enough to assert exact counts
+ * chain and one EER diagram) — small enough to assert exact counts
  * against, large enough to exercise the same code paths that real
  * Workbench output traverses.
  *
@@ -147,9 +147,9 @@ describe('parseMwb — example.mwb integration', () => {
         expect(collisions).toEqual([]);
     });
 
-    it('imports the authored EER layer ("Authoring") with its bounds', () => {
+    it('imports the authored EER diagram ("Authoring") with its bounds', () => {
         const r = parseMwb(fs.readFileSync(SAMPLE));
-        const layers = r.databases[0].layers ?? [];
+        const layers = r.databases[0].diagrams ?? [];
         expect(layers.length).toBeGreaterThanOrEqual(1);
         const authoring = layers.find(l => l.name === 'Authoring');
         expect(authoring).toBeDefined();
@@ -157,12 +157,12 @@ describe('parseMwb — example.mwb integration', () => {
         expect(authoring!.height).toBeGreaterThan(0);
     });
 
-    it('tables tagged with a layer get a layerUnid pointing at that layer', () => {
+    it('tables tagged with a diagram get a diagramUnid pointing at that diagram', () => {
         const r = parseMwb(fs.readFileSync(SAMPLE));
-        const layerByName = new Map((r.databases[0].layers ?? []).map(l => [l.name, l]));
+        const layerByName = new Map((r.databases[0].diagrams ?? []).map(l => [l.name, l]));
         const authoring = layerByName.get('Authoring');
         expect(authoring).toBeDefined();
-        const members = r.databases[0].tables.filter(t => t.layerUnid === authoring!.unid);
+        const members = r.databases[0].tables.filter(t => t.diagramUnid === authoring!.unid);
         expect(members.map(t => t.name).sort()).toEqual(['posts', 'users']);
     });
 
@@ -599,13 +599,13 @@ describe('parseMwb — multi-diagram table membership (synthetic)', () => {
     /*
      * Sample: one table appears as a TableFigure in two diagrams. The
      * first figure's coords become the table's primary `pos` and
-     * `layerUnid` (pointing at the first synthesised diagram-layer);
-     * the second figure becomes a `layerPlacements` entry referencing
-     * the second diagram-layer. Position records its own coords
+     * `diagramUnid` (pointing at the first synthesised diagram-diagram);
+     * the second figure becomes a `diagramPlacements` entry referencing
+     * the second diagram-diagram. Position records its own coords
      * (post-tiling) so the table sits at the right spot on each
      * diagram.
      */
-    it('records the second figure as a layerPlacements entry', () => {
+    it('records the second figure as a diagramPlacements entry', () => {
         const r = parseMwb(wrapWithDiagrams(
             `<value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
                 <value type="object" struct-name="db.mysql.Table" id="t1">
@@ -638,22 +638,22 @@ describe('parseMwb — multi-diagram table membership (synthetic)', () => {
         ));
         expect(r.multiDiagramTableCount).toBe(1);
         const table = r.databases[0].tables[0];
-        const layers = r.databases[0].layers ?? [];
+        const layers = r.databases[0].diagrams ?? [];
         expect(layers.length).toBe(2);
-        const primaryLayer = layers.find(l => l.unid === table.layerUnid);
+        const primaryLayer = layers.find(l => l.unid === table.diagramUnid);
         expect(primaryLayer?.name).toBe('Schema A');
         expect(table.pos).toEqual({x: 100, y: 100});
 
-        const placements = table.layerPlacements ?? [];
+        const placements = table.diagramPlacements ?? [];
         expect(placements).toHaveLength(1);
-        const secondaryLayer = layers.find(l => l.unid === placements[0].layerUnid);
+        const secondaryLayer = layers.find(l => l.unid === placements[0].diagramUnid);
         expect(secondaryLayer?.name).toBe('Schema B');
         /* Second diagram's coords are shifted past the first diagram's bbox + GAP. */
         expect(placements[0].pos.x).toBeGreaterThan(100);
         expect(placements[0].pos.y).toBe(200);
     });
 
-    it('leaves single-diagram tables with no layerPlacements', () => {
+    it('leaves single-diagram tables with no diagramPlacements', () => {
         const r = parseMwb(wrapWithDiagrams(
             `<value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
                 <value type="object" struct-name="db.mysql.Table" id="t1">
@@ -673,7 +673,7 @@ describe('parseMwb — multi-diagram table membership (synthetic)', () => {
             </value>`
         ));
         expect(r.multiDiagramTableCount).toBe(0);
-        expect(r.databases[0].tables[0].layerPlacements).toBeUndefined();
+        expect(r.databases[0].tables[0].diagramPlacements).toBeUndefined();
     });
 
 });

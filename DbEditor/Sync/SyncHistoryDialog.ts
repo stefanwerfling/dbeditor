@@ -138,7 +138,7 @@ export class SyncHistoryDialog extends BaseDialog<void> {
             ['Changes', SyncHistoryDialog._formatSummary(e)],
             ['Statements', String(e.statementResults.length)]
         ];
-        if (e.layerUnid) {metaRows.push(['EER diagram', e.layerName ?? e.layerUnid]);}
+        if (e.diagramUnid) {metaRows.push(['EER diagram', e.layerName ?? e.diagramUnid]);}
         if (e.migrationFiles) {
             metaRows.push(['Migration up', e.migrationFiles.up]);
             metaRows.push(['Migration down', e.migrationFiles.down]);

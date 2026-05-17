@@ -276,14 +276,14 @@ describe('SchemaDiff.diff', () => {
     });
 
     /*
-     * --------------------- layer-scoping ---------------------
+     * --------------------- diagram-scoping ---------------------
      */
-    it('layer scope: includes only tables tagged with the given layerUnid (model)', () => {
-        const inLayer = table('users', [col('id')], {layerUnid: 'lyr-1'});
-        /* `audits` left without a layerUnid so it falls outside the scope */
+    it('diagram scope: includes only tables tagged with the given diagramUnid (model)', () => {
+        const inLayer = table('users', [col('id')], {diagramUnid: 'lyr-1'});
+        /* `audits` left without a diagramUnid so it falls outside the scope */
         const outOfLayer = table('audits', [col('id')]);
         const model = db('app', [inLayer, outOfLayer]);
-        /* live has both — only the in-layer table should drive a change */
+        /* live has both — only the in-diagram table should drive a change */
         const liveInLayer = table('users', [col('id'), col('email', {type: 'varchar', length: '64', notNull: true})]);
         const liveOutOfLayer = table('audits', [col('id'), col('action', {type: 'varchar', length: '32'})]);
         const live = db('app', [liveInLayer, liveOutOfLayer]);
@@ -293,10 +293,10 @@ describe('SchemaDiff.diff', () => {
         expect(tableNames.has('audits')).toBe(false);
     });
 
-    it('layer scope: live tables NOT in the layer are not reported as dropped', () => {
-        const inLayer = table('users', [col('id')], {layerUnid: 'lyr-1'});
+    it('diagram scope: live tables NOT in the diagram are not reported as dropped', () => {
+        const inLayer = table('users', [col('id')], {diagramUnid: 'lyr-1'});
         const model = db('app', [inLayer]);
-        /* `audits` is live-only — would normally be tableDropped, but it's outside the layer scope */
+        /* `audits` is live-only — would normally be tableDropped, but it's outside the diagram scope */
         const live = db('app', [
             table('users', [col('id')]),
             table('audits', [col('id')])
@@ -306,8 +306,8 @@ describe('SchemaDiff.diff', () => {
         expect(dropped).toBeUndefined();
     });
 
-    it('layer scope: skips views entirely (layer-scope is table-only)', () => {
-        const inLayer = table('users', [col('id')], {layerUnid: 'lyr-1'});
+    it('diagram scope: skips views entirely (diagram-scope is table-only)', () => {
+        const inLayer = table('users', [col('id')], {diagramUnid: 'lyr-1'});
         const model = db('app', [inLayer], [view('user_summary', 'SELECT * FROM users')]);
         const live = db('app', [], []);
         const result = SchemaDiff.diff(model, live, sync(), undefined, 'lyr-1');
@@ -315,8 +315,8 @@ describe('SchemaDiff.diff', () => {
         expect(viewChange).toBeUndefined();
     });
 
-    it('layer scope: unknown layerUnid yields an empty change set', () => {
-        const model = db('app', [table('users', [col('id')], {layerUnid: 'lyr-1'})]);
+    it('diagram scope: unknown diagramUnid yields an empty change set', () => {
+        const model = db('app', [table('users', [col('id')], {diagramUnid: 'lyr-1'})]);
         const live = db('app', [table('users', [col('id'), col('extra')])]);
         const result = SchemaDiff.diff(model, live, sync(), undefined, 'lyr-bogus');
         expect(result.changes).toHaveLength(0);

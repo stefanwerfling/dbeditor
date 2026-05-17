@@ -357,7 +357,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         if (!validate(Bodies.SchemaCreateLayerBody, req.body, res)) {return;}
         try {
             const {containerUnid, name, pos, width, height, color} = req.body;
-            const result = repo.createLayer(
+            const result = repo.createDiagram(
                 containerUnid,
                 name,
                 pos ?? null,
@@ -366,7 +366,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 typeof color === 'string' ? color : null,
                 clientId(req)
             );
-            res.json({ success: true, rev: result.rev, layer: result.layer });
+            res.json({ success: true, rev: result.rev, diagram: result.diagram });
         } catch (err) { handleRepoError(err, res); }
     });
 
@@ -374,7 +374,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}
         if (!validate(Bodies.SchemaUpdateLayerBody, req.body, res)) {return;}
         try {
-            const rev = repo.updateLayer(req.params.unid, req.body, clientId(req));
+            const rev = repo.updateDiagram(req.params.unid, req.body, clientId(req));
             res.json({ success: true, rev: rev });
         } catch (err) { handleRepoError(err, res); }
     });
@@ -382,7 +382,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
     app.delete('/api/projects/:pid/layers/:unid', (req, res) => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}
         try {
-            const rev = repo.deleteLayer(req.params.unid, clientId(req));
+            const rev = repo.deleteDiagram(req.params.unid, clientId(req));
             res.json({ success: true, rev: rev });
         } catch (err) { handleRepoError(err, res); }
     });
@@ -1159,9 +1159,9 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 res.status(404).json({error: `model database "${databaseUnid}" not found`});
                 return;
             }
-            const layerUnid = typeof req.body.layerUnid === 'string' && req.body.layerUnid !== '' ? req.body.layerUnid : undefined;
+            const diagramUnid = typeof req.body.diagramUnid === 'string' && req.body.diagramUnid !== '' ? req.body.diagramUnid : undefined;
             const renames = req.body.renames as SchemaRenameHints | undefined;
-            const changeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, layerUnid, renames);
+            const changeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, diagramUnid, renames);
             const dialect = pickDialect(repo.project.dialect);
             const ctx = buildDialectContextFromModel(modelRoot, repo.effectiveProject.output.sqlIndent, repo.effectiveProject.output.statementTerminator, repo.effectiveProject.output.sqlComment);
             const statements = SyncGenerator.generate(changeSet, modelDb as JsonDataDB, dialect, ctx);
@@ -1221,9 +1221,9 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 res.status(404).json({error: `model database "${databaseUnid}" not found`});
                 return;
             }
-            const layerUnid = typeof req.body.layerUnid === 'string' && req.body.layerUnid !== '' ? req.body.layerUnid : undefined;
+            const diagramUnid = typeof req.body.diagramUnid === 'string' && req.body.diagramUnid !== '' ? req.body.diagramUnid : undefined;
             const renames = req.body.renames as SchemaRenameHints | undefined;
-            const fullChangeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, layerUnid, renames);
+            const fullChangeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, diagramUnid, renames);
             const selectedChanges = fullChangeSet.changes.filter(c => changeIds.has(c.id));
             if (selectedChanges.length === 0) {
                 /*
@@ -1284,7 +1284,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                     dialect: repo.project.dialect,
                     databaseUnid: databaseUnid,
                     databaseName: (modelDb as JsonDataDB).name,
-                    layerUnid: layerUnid,
+                    diagramUnid: diagramUnid,
                     selectedChangeIds: selectedChanges.map(c => c.id),
                     changeSetSummary: summariseChanges(selectedChanges),
                     statementResults: statementResults,
@@ -1334,9 +1334,9 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 res.status(404).json({error: `model database "${databaseUnid}" not found`});
                 return;
             }
-            const layerUnid = typeof req.body.layerUnid === 'string' && req.body.layerUnid !== '' ? req.body.layerUnid : undefined;
+            const diagramUnid = typeof req.body.diagramUnid === 'string' && req.body.diagramUnid !== '' ? req.body.diagramUnid : undefined;
             const renames = req.body.renames as SchemaRenameHints | undefined;
-            const fullChangeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, layerUnid, renames);
+            const fullChangeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, diagramUnid, renames);
             const selectedChanges = fullChangeSet.changes.filter(c => changeIds.has(c.id));
             if (selectedChanges.length === 0) {
                 res.status(409).json({error: 'no matching changes — re-run preview and try again'});
@@ -1355,7 +1355,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 dialect: repo.project.dialect,
                 databaseUnid: databaseUnid,
                 databaseName: (modelDb as JsonDataDB).name,
-                layerUnid: layerUnid,
+                diagramUnid: diagramUnid,
                 selectedChangeIds: selectedChanges.map(c => c.id),
                 changeSetSummary: summariseChanges(selectedChanges),
                 statementResults: [],
@@ -1423,9 +1423,9 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 res.status(404).json({error: `model database "${databaseUnid}" not found`});
                 return;
             }
-            const layerUnid = typeof req.body.layerUnid === 'string' && req.body.layerUnid !== '' ? req.body.layerUnid : undefined;
+            const diagramUnid = typeof req.body.diagramUnid === 'string' && req.body.diagramUnid !== '' ? req.body.diagramUnid : undefined;
             const renames = req.body.renames as SchemaRenameHints | undefined;
-            const fullChangeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, layerUnid, renames);
+            const fullChangeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, diagramUnid, renames);
             const selectedChanges = fullChangeSet.changes.filter(c => changeIds.has(c.id));
             if (selectedChanges.length === 0) {
                 res.status(409).json({error: 'no matching changes — re-run preview and try again'});
@@ -1475,7 +1475,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 dialect: repo.project.dialect,
                 databaseUnid: databaseUnid,
                 databaseName: (modelDb as JsonDataDB).name,
-                layerUnid: layerUnid,
+                diagramUnid: diagramUnid,
                 selectedChangeIds: selectedChanges.map(c => c.id),
                 changeSetSummary: summariseChanges(selectedChanges),
                 statementResults: result.statementResults,

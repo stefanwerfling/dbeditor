@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonLayer} from '../JsonData.js';
+import {JsonDiagram} from '../JsonData.js';
 
 /**
  * Dialog return values:
@@ -7,8 +7,8 @@ import {JsonLayer} from '../JsonData.js';
  *   `''` (empty)   — user picked "(no diagram)" → unassign the table(s).
  *   any other str  — the chosen diagram's unid.
  *
- * Note: internal identifiers still say "layer" (the data model field
- * is `JsonTable.layerUnid` — renaming the data model would break
+ * Note: internal identifiers still say "diagram" (the data model field
+ * is `JsonTable.diagramUnid` — renaming the data model would break
  * .mwb round-trip + every persisted schema). UI-facing strings say
  * "EER diagram" because that's what users know from Workbench.
  */
@@ -21,13 +21,13 @@ export type LayerPickerResult = string | null;
  * current `selectedLayerUnid` (if homogeneous across the targets)
  * pre-selects its row; mixed selections start with no row selected.
  */
-export class LayerPickerDialog extends BaseDialog<LayerPickerResult> {
+export class DiagramPickerDialog extends BaseDialog<LayerPickerResult> {
 
     private _picked: string | null = null;
 
-    public constructor(layers: JsonLayer[], targetCount: number, currentLayerUnid: string | null) {
+    public constructor(layers: JsonDiagram[], targetCount: number, currentLayerUnid: string | null) {
         super(targetCount === 1 ? 'Assign to EER diagram' : `Assign ${targetCount} tables to EER diagram`);
-        this._dialog.classList.add('layer-picker-dialog');
+        this._dialog.classList.add('diagram-picker-dialog');
 
         if (layers.length === 0) {
             const empty = document.createElement('p');
@@ -46,7 +46,7 @@ export class LayerPickerDialog extends BaseDialog<LayerPickerResult> {
         this._body.append(intro);
 
         const list = document.createElement('div');
-        list.className = 'layer-picker-list';
+        list.className = 'diagram-picker-list';
 
         const noneRow = this._buildOption('', '(no diagram)', currentLayerUnid === '');
         list.append(noneRow);
@@ -63,10 +63,10 @@ export class LayerPickerDialog extends BaseDialog<LayerPickerResult> {
 
     private _buildOption(value: string, label: string, isCurrent: boolean, color?: string): HTMLLabelElement {
         const row = document.createElement('label');
-        row.className = 'layer-picker-row';
+        row.className = 'diagram-picker-row';
         const radio = document.createElement('input');
         radio.type = 'radio';
-        radio.name = 'layer-picker';
+        radio.name = 'diagram-picker';
         radio.value = value;
         if (isCurrent) {
             radio.checked = true;
@@ -74,10 +74,10 @@ export class LayerPickerDialog extends BaseDialog<LayerPickerResult> {
         }
         radio.addEventListener('change', () => {this._picked = value;});
         const swatch = document.createElement('span');
-        swatch.className = 'layer-picker-swatch';
+        swatch.className = 'diagram-picker-swatch';
         if (color) {swatch.style.background = color;}
         const name = document.createElement('span');
-        name.className = 'layer-picker-name';
+        name.className = 'diagram-picker-name';
         name.textContent = label;
         row.append(radio, swatch, name);
         return row;

@@ -19,7 +19,7 @@ import {
     JsonIndex,
     JsonIndexColumn,
     JsonIndexType,
-    JsonLayer,
+    JsonDiagram,
     JsonRoutine,
     JsonRoutineKind,
     JsonTable,
@@ -618,7 +618,7 @@ const parseTable = (
     columnByWbId: Map<string, ColumnRecord>,
     figurePos: Map<string, {x: number; y: number;}>,
     tableToLayer: Map<string, string>,
-    tablePlacements: Map<string, {layerUnid: string; pos: {x: number; y: number;};}[]>
+    tablePlacements: Map<string, {diagramUnid: string; pos: {x: number; y: number;};}[]>
 ): TableRecord => {
     const wbId = tbl['@_id'] ?? '';
     const name = childStr(tbl, 'name');
@@ -645,7 +645,7 @@ const parseTable = (
     if (comment) {options.comment = comment;}
 
     const pos = figurePos.get(wbId) ?? {x: 80, y: 80};
-    const layerUnid = tableToLayer.get(wbId);
+    const diagramUnid = tableToLayer.get(wbId);
 
     const table: JsonTable = {
         unid: randomUUID(),
@@ -656,9 +656,9 @@ const parseTable = (
         foreignKeys: [],
         options: Object.keys(options).length ? options : undefined
     };
-    if (layerUnid) {table.layerUnid = layerUnid;}
+    if (diagramUnid) {table.diagramUnid = diagramUnid;}
     const placements = tablePlacements.get(wbId);
-    if (placements && placements.length > 0) {table.layerPlacements = placements;}
+    if (placements && placements.length > 0) {table.diagramPlacements = placements;}
     /*
      * Indexes / foreignKeys / triggers are populated in a second pass
      * by the caller after parseColumn fills columnByWbId — those keys
@@ -687,7 +687,7 @@ const parseTable = (
 
 /**
  * Output of `buildFigureData`: per-table effective canvas position
- * (after diagram tiling), per-table backing-layer reference (direct),
+ * (after diagram tiling), per-table backing-diagram reference (direct),
  * and the layers themselves (either authored from the .mwb or
  * synthesised one-per-diagram when none authored). Views get the same
  * tiling treatment via a parallel `viewPositions` map.
@@ -697,22 +697,22 @@ type FigureData = {
     positions: Map<string, {x: number; y: number;}>;
     /** `wbViewId → {x, y}` effective canvas coords. */
     viewPositions: Map<string, {x: number; y: number;}>;
-    /** `wbTableId → JsonLayer.unid` — primary diagram membership. */
+    /** `wbTableId → JsonDiagram.unid` — primary diagram membership. */
     tableToLayer: Map<string, string>;
     /**
      * Secondary placements: every additional diagram a table appears
-     * in (beyond its primary). Mirrors `JsonTable.layerPlacements`
+     * in (beyond its primary). Mirrors `JsonTable.diagramPlacements`
      * shape so `parseTable` can drop the value straight onto the
      * model. Empty / missing entries mean the table is only on its
      * primary diagram.
      */
-    tablePlacements: Map<string, {layerUnid: string; pos: {x: number; y: number;};}[]>;
+    tablePlacements: Map<string, {diagramUnid: string; pos: {x: number; y: number;};}[]>;
     /**
      * Layers — when the .mwb has user-authored layers, those (with
      * their original bounds/name/color); otherwise one synthesised
-     * layer per Workbench diagram so the user sees the same grouping.
+     * diagram per Workbench diagram so the user sees the same grouping.
      */
-    layers: JsonLayer[];
+    diagrams: JsonDiagram[];
 };
 
 type FigureEntry = {fig: GrtNode; kind: 'table' | 'view';};
@@ -731,7 +731,7 @@ export type MwbTableCacheEntry = {
 /**
  * Walk every `workbench.physical.TableFigure` and produce both the
  * effective `(x, y)` for each Workbench table UUID AND a synthesised
- * `JsonLayer` per Workbench diagram (so the user sees the same
+ * `JsonDiagram` per Workbench diagram (so the user sees the same
  * grouping after import).
  *
  * **Diagram tiling**: Workbench EER diagrams each have their own
@@ -741,13 +741,13 @@ export type MwbTableCacheEntry = {
  * diagram round-trip preserves exact positions), each subsequent
  * diagram is shifted past the running max-right of all previous
  * diagrams plus a `GAP`. When a table appears on multiple diagrams,
- * the first figure becomes its primary `pos` + `layerUnid`; each
- * additional figure becomes a `layerPlacements` entry so the table
+ * the first figure becomes its primary `pos` + `diagramUnid`; each
+ * additional figure becomes a `diagramPlacements` entry so the table
  * keeps its per-diagram position in every diagram it lives in.
  *
  * **Layers**: when a `.mwb` carries no user-authored EER Layers —
  * i.e. every `workbench.physical.Layer` struct is `key="rootLayer"`
- * (one per diagram) — we model each Workbench DIAGRAM as a JsonLayer
+ * (one per diagram) — we model each Workbench DIAGRAM as a JsonDiagram
  * so the user sees each diagram as a labeled grouping rectangle.
  * Layer bounds are the bbox of the diagram's figures (after
  * tiling), padded slightly so cards don't sit flush against the
@@ -815,8 +815,8 @@ const buildFigureData = (root: GrtNode): FigureData => {
     const positions = new Map<string, {x: number; y: number;}>();
     const viewPositions = new Map<string, {x: number; y: number;}>();
     const tableToLayer = new Map<string, string>();
-    const tablePlacements = new Map<string, {layerUnid: string; pos: {x: number; y: number;};}[]>();
-    const layers: JsonLayer[] = [];
+    const tablePlacements = new Map<string, {diagramUnid: string; pos: {x: number; y: number;};}[]>();
+    const layers: JsonDiagram[] = [];
     let isFirst = true;
     let runningRight = 0;
     let diagramIndex = 0;
@@ -855,10 +855,10 @@ const buildFigureData = (root: GrtNode): FigureData => {
                 if (l['@_key'] === 'rootLayer') {continue;}
                 const wbLayerId = l['@_id'] ?? '';
                 if (!wbLayerId) {continue;}
-                const layerUnid = randomUUID();
-                wbLayerToUnid.set(wbLayerId, layerUnid);
+                const diagramUnid = randomUUID();
+                wbLayerToUnid.set(wbLayerId, diagramUnid);
                 layers.push({
-                    unid: layerUnid,
+                    unid: diagramUnid,
                     name: childStr(l, 'name') || `Layer ${layers.length + 1}`,
                     pos: {
                         x: childIntRound(l, 'left') + xShift,
@@ -875,7 +875,7 @@ const buildFigureData = (root: GrtNode): FigureData => {
          * If no authored layers, synthesise one covering the full
          * diagram bbox so the user still sees Workbench's grouping.
          * Padded by PAD on each side so cards don't sit flush
-         * against the layer border.
+         * against the diagram border.
          */
         let synthLayerUnid: string | null = null;
         if (wbLayerToUnid.size === 0) {
@@ -896,18 +896,18 @@ const buildFigureData = (root: GrtNode): FigureData => {
 
         /*
          * Per-figure: record the canvas position and (if applicable)
-         * the layer link. With authored layers, each figure carries
-         * its own `layer` link → use that. Without, every table figure
-         * falls under the synthesised diagram layer. Views currently
-         * have no layer membership (JsonView has no `layerUnid`), so
+         * the diagram link. With authored layers, each figure carries
+         * its own `diagram` link → use that. Without, every table figure
+         * falls under the synthesised diagram diagram. Views currently
+         * have no diagram membership (JsonView has no `diagramUnid`), so
          * we only record their position.
          *
          * Multi-membership: when a table figure for `tableWbId` has
          * already been seen (in a prior diagram), the second figure
-         * becomes a `layerPlacements` entry instead of being dropped.
-         * The placement records this diagram's coords + the layer the
-         * figure belongs to (authored fig.layer link, or the
-         * synthesised diagram-layer if no authored layers exist).
+         * becomes a `diagramPlacements` entry instead of being dropped.
+         * The placement records this diagram's coords + the diagram the
+         * figure belongs to (authored fig.diagram link, or the
+         * synthesised diagram-diagram if no authored layers exist).
          */
         const resolveFigLayer = (fig: GrtNode): string | undefined => {
             if (wbLayerToUnid.size > 0) {
@@ -932,13 +932,13 @@ const buildFigureData = (root: GrtNode): FigureData => {
                 } else if (figLayerUnid && figLayerUnid !== tableToLayer.get(tableWbId)) {
                     /*
                      * Secondary diagram membership. Skip when the
-                     * figure resolved to no layer (defensive — the
-                     * primary loop also gates on layer presence) and
-                     * when it would duplicate the primary's layer.
+                     * figure resolved to no diagram (defensive — the
+                     * primary loop also gates on diagram presence) and
+                     * when it would duplicate the primary's diagram.
                      */
                     const list = tablePlacements.get(tableWbId) ?? [];
-                    if (!list.some(p => p.layerUnid === figLayerUnid)) {
-                        list.push({layerUnid: figLayerUnid, pos: figPos});
+                    if (!list.some(p => p.diagramUnid === figLayerUnid)) {
+                        list.push({diagramUnid: figLayerUnid, pos: figPos});
                         tablePlacements.set(tableWbId, list);
                     }
                 }
@@ -961,7 +961,7 @@ const buildFigureData = (root: GrtNode): FigureData => {
         viewPositions: viewPositions,
         tableToLayer: tableToLayer,
         tablePlacements: tablePlacements,
-        layers: layers
+        diagrams: layers
     };
 };
 
@@ -975,7 +975,7 @@ export type MwbImportResult = {
     positionedTableCount: number;
     /** Views that received a non-default canvas position from a ViewFigure. */
     positionedViewCount: number;
-    /** Tables that ended up belonging to more than one EER diagram (extra figures became layerPlacements). */
+    /** Tables that ended up belonging to more than one EER diagram (extra figures became diagramPlacements). */
     multiDiagramTableCount: number;
     viewCount: number;
     /** Stored procedures + functions (schema-level routines). Triggers are counted separately. */
@@ -1091,7 +1091,7 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
             records.push(rec);
             columnCount += rec.table.columns.length;
             if (figurePos.has(rec.wbId)) {positionedTableCount++;}
-            if (rec.table.layerPlacements && rec.table.layerPlacements.length > 0) {multiDiagramTableCount++;}
+            if (rec.table.diagramPlacements && rec.table.diagramPlacements.length > 0) {multiDiagramTableCount++;}
             const rawT = tableXmlByWbId.get(rec.wbId);
             if (rawT) {
                 tableOriginalXml.set(rec.table.unid, {
@@ -1169,11 +1169,11 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
          * Attach all synthesised layers to the first schema. Workbench
          * diagrams aren't scoped per-schema, but realistic models
          * exported by Workbench so far always carry a single schema;
-         * if a future multi-schema model needs per-schema layer
+         * if a future multi-schema model needs per-schema diagram
          * scoping we'd partition layers by which schema's tables
          * they cover.
          */
-        const dbLayers = databases.length === 0 ? figureData.layers : [];
+        const dbLayers = databases.length === 0 ? figureData.diagrams : [];
 
         const dbNode: JsonDataDB = {
             unid: randomUUID(),
@@ -1186,7 +1186,7 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
             enums: [],
             routines: routines
         };
-        if (dbLayers.length > 0) {dbNode.layers = dbLayers;}
+        if (dbLayers.length > 0) {dbNode.diagrams = dbLayers;}
         /*
          * Surface Workbench's schema-level inheritance defaults on the
          * `JsonDataDB`. Workbench stores `defaultCharacterSetName` and
@@ -1236,7 +1236,7 @@ export const parseMwb = (buffer: Buffer): MwbImportResult => {
         viewCount: viewCount,
         routineCount: routineCount,
         triggerCount: triggerCount,
-        layerCount: figureData.layers.length,
+        layerCount: figureData.diagrams.length,
         databases: databases,
         routineOriginalXml: routineOriginalXml,
         viewOriginalXml: viewOriginalXml,

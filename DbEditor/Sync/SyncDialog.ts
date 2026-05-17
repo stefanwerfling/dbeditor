@@ -129,13 +129,13 @@ export class SyncDialog extends BaseDialog<void> {
         ignoreColumnAttributes: []
     };
 
-    public constructor(api: DbApiClient, projectUnid: string, databaseUnid: string, databaseLabel: string, layerUnid?: string, layerName?: string) {
-        const titleSuffix = layerUnid ? ` · layer "${layerName ?? layerUnid}"` : '';
+    public constructor(api: DbApiClient, projectUnid: string, databaseUnid: string, databaseLabel: string, diagramUnid?: string, layerName?: string) {
+        const titleSuffix = diagramUnid ? ` · diagram "${layerName ?? diagramUnid}"` : '';
         super(`Sync with database · ${databaseLabel}${titleSuffix}`);
         this._api = api;
         this._projectUnid = projectUnid;
         this._databaseUnid = databaseUnid;
-        this._layerUnid = layerUnid;
+        this._layerUnid = diagramUnid;
         this._dialog.classList.add('sync-dialog');
         this._buildBody();
         this._initialLoad().catch((err: unknown): void => console.error('[SyncDialog] initial load failed:', err));

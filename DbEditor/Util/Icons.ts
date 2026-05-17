@@ -57,7 +57,7 @@ export const iconChevronRight = (): SVGSVGElement => makeSvg(
     '<path d="M6 3l5 5-5 5z" fill="currentColor"/>'
 );
 
-/** Rectangle outline — replaces `▭` (used as the "layer" icon). */
+/** Rectangle outline — replaces `▭` (used as the "diagram" icon). */
 export const iconRect = (): SVGSVGElement => makeSvg(
     '0 0 16 16',
     '<rect x="2" y="4" width="12" height="8" stroke="currentColor" stroke-width="1.5" fill="none" rx="1"/>'

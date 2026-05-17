@@ -20,7 +20,7 @@ export enum JsonDataDBType {
     view = 'view',
     enum = 'enum',
     routine = 'routine',
-    layer = 'layer'
+    diagram = 'diagram'
 }
 
 export enum JsonRoutineKind {
@@ -216,22 +216,21 @@ export type JsonTableOptions = ExtractSchemaResultType<typeof SchemaJsonTableOpt
  */
 
 /**
- * One placement of a table inside a specific EER diagram (layer).
+ * One placement of a table inside a specific EER diagram.
  * Multi-diagram membership: a table can carry zero, one, or many of
  * these. Each entry says "in diagram X, render this card at this
  * position". The position is independent across diagrams — moving the
  * card while a diagram is active updates only the matching placement.
  *
- * Backward compat: `layerUnid` + `pos` together act as an implicit
+ * Backward compat: `diagramUnid` + `pos` together act as an implicit
  * single placement. Code reading positions should consult
- * `layerPlacements` first, then fall back to `pos` (with
- * `layerUnid` indicating the implicit-placement diagram).
+ * `diagramPlacements` first, then fall back to `pos`.
  */
-export const SchemaJsonLayerPlacement = Vts.object({
-    layerUnid: Vts.string(),
+export const SchemaJsonDiagramPlacement = Vts.object({
+    diagramUnid: Vts.string(),
     pos: SchemaJsonPosition
 });
-export type JsonLayerPlacement = ExtractSchemaResultType<typeof SchemaJsonLayerPlacement>;
+export type JsonDiagramPlacement = ExtractSchemaResultType<typeof SchemaJsonDiagramPlacement>;
 
 export const SchemaJsonTable = Vts.object({
     unid: Vts.string(),
@@ -243,50 +242,52 @@ export const SchemaJsonTable = Vts.object({
     options: Vts.optional(SchemaJsonTableOptions),
     description: Vts.optional(Vts.string()),
     /**
-     * Primary EER diagram (legacy single-membership). Optional. If
-     * `layerPlacements` is empty and `layerUnid` is set, the table
-     * is in exactly that one diagram, rendered at the top-level
-     * `pos`. New code should treat this as "implicit placement #0"
-     * and write any additional memberships into `layerPlacements`.
+     * Primary EER diagram (single-membership). Optional. If
+     * `diagramPlacements` is empty and `diagramUnid` is set, the
+     * table is in exactly that one diagram, rendered at the top-
+     * level `pos`.
      */
-    layerUnid: Vts.optional(Vts.string()),
+    diagramUnid: Vts.optional(Vts.string()),
     /**
      * Per-diagram placements for multi-membership. A table is "in"
-     * an EER diagram if `layerUnid === diagram` OR a placement
-     * exists with the matching `layerUnid`. Positions are
-     * per-diagram; the top-level `pos` is the home position used
-     * outside diagram scope.
+     * an EER diagram if `diagramUnid` matches OR a placement
+     * exists with that diagramUnid. Positions are per-diagram; the
+     * top-level `pos` is the home position used outside diagram
+     * scope.
      */
-    layerPlacements: Vts.optional(Vts.array(SchemaJsonLayerPlacement)),
+    diagramPlacements: Vts.optional(Vts.array(SchemaJsonDiagramPlacement)),
     wbPassthrough: Vts.optional(SchemaWbPassthrough)
 });
 export type JsonTable = ExtractSchemaResultType<typeof SchemaJsonTable>;
 
 /*
  * ---------------------------------------------------------------------------
- * Layer — visual grouping rectangle on the canvas
+ * Diagram — logical EER diagram (Workbench's `workbench.physical.Diagram`)
  *
- * Mirrors Workbench's "EER Layer" concept: a labeled, coloured
- * rectangle drawn behind the table cards as a backdrop. Layers don't
- * own their tables (the relationship is the inverse — `JsonTable.
- * layerUnid` points UP at a layer); a layer is a pure visual hint.
- * Imported via `MwbReader` — one synthesised layer per Workbench
- * diagram so the user sees the same grouping they drew in Workbench.
+ * Pure logical container: a named "EER tab" that holds a set of
+ * tables (and views) at per-diagram positions. NOT a drawable
+ * rectangle — when the diagram is the active scope, the canvas
+ * just shows its member cards. Visual grouping rectangles within
+ * a diagram are a separate concept (the Workbench "Group" —
+ * not modelled in this iteration).
+ *
+ * (Phase 1 of the diagram→diagram refactor keeps `pos`/`width`/
+ * `height`/`color` here for backward compat with persisted data;
+ * Phase 2 drops them once migration is complete.)
  * ---------------------------------------------------------------------------
  */
 
-export const SchemaJsonLayer = Vts.object({
+export const SchemaJsonDiagram = Vts.object({
     unid: Vts.string(),
     name: Vts.string(),
+    /* Legacy visual fields retained while the canvas-rectangle render path is in flight. */
     pos: SchemaJsonPosition,
-    /** width / height in pixels (canvas coords, like `pos`). */
     width: Vts.number(),
     height: Vts.number(),
-    /** Optional CSS-compatible colour for the backdrop fill (semi-transparent). */
     color: Vts.optional(Vts.string()),
     description: Vts.optional(Vts.string())
 });
-export type JsonLayer = ExtractSchemaResultType<typeof SchemaJsonLayer>;
+export type JsonDiagram = ExtractSchemaResultType<typeof SchemaJsonDiagram>;
 
 /*
  * ---------------------------------------------------------------------------
@@ -304,12 +305,12 @@ export const SchemaJsonView = Vts.object({
     description: Vts.optional(Vts.string()),
     /**
      * Primary EER-diagram membership. Same semantics as
-     * `JsonTable.layerUnid` — the home diagram whose `pos` the view
-     * inherits. Additional diagrams go in `layerPlacements`, each
-     * with their own per-diagram position.
+     * `JsonTable.diagramUnid` — the home diagram whose `pos` the
+     * view inherits. Additional diagrams go in `diagramPlacements`,
+     * each with their own per-diagram position.
      */
-    layerUnid: Vts.optional(Vts.string()),
-    layerPlacements: Vts.optional(Vts.array(SchemaJsonLayerPlacement)),
+    diagramUnid: Vts.optional(Vts.string()),
+    diagramPlacements: Vts.optional(Vts.array(SchemaJsonDiagramPlacement)),
     wbPassthrough: Vts.optional(SchemaWbPassthrough)
 });
 export type JsonView = ExtractSchemaResultType<typeof SchemaJsonView>;
@@ -390,11 +391,13 @@ export const SchemaJsonDataDB = Vts.object({
      */
     routines: Vts.optional(Vts.array(SchemaJsonRoutine)),
     /*
-     * Visual grouping rectangles. Synthesised on `.mwb` import (one per
-     * Workbench diagram so the user sees the same grouping). Optional
-     * for backward compat — pre-layer schema files are still valid.
+     * EER diagrams (Workbench `workbench.physical.Diagram`). One
+     * per "tab/view" the user works in. Tables/views opt into a
+     * diagram via `diagramUnid` / `diagramPlacements`. Optional
+     * for backward compat — older schema files lacked any
+     * diagrams.
      */
-    layers: Vts.optional(Vts.array(SchemaJsonLayer)),
+    diagrams: Vts.optional(Vts.array(SchemaJsonDiagram)),
     /*
      * Database-level defaults inherited by every contained table.
      * Mirrors MySQL's DB → table → column inheritance. When a table's

@@ -1,5 +1,5 @@
 import {Vts} from 'vts';
-import {SchemaJsonPosition, SchemaJsonIndexColumn, SchemaJsonForeignKeyColumn, SchemaJsonTableOptions, SchemaJsonDataDB, SchemaJsonLayerPlacement} from '../DbEditor/JsonData.js';
+import {SchemaJsonPosition, SchemaJsonIndexColumn, SchemaJsonForeignKeyColumn, SchemaJsonTableOptions, SchemaJsonDataDB, SchemaJsonDiagramPlacement} from '../DbEditor/JsonData.js';
 
 export const SchemaCreateContainerBody = Vts.object({
     parentUnid: Vts.string(),
@@ -36,16 +36,16 @@ export const SchemaUpdateTableBody = Vts.object({
     options: Vts.optional(SchemaJsonTableOptions),
     description: Vts.optional(Vts.string()),
     /**
-     * Reassign the table to a layer. Empty string = unassign (clear
-     * the property entirely). Non-empty = set to that JsonLayer unid.
+     * Reassign the table to a diagram. Empty string = unassign (clear
+     * the property entirely). Non-empty = set to that JsonDiagram unid.
      */
-    layerUnid: Vts.optional(Vts.string()),
+    diagramUnid: Vts.optional(Vts.string()),
     /**
      * Full replacement of the placements list (used by the multi-
      * diagram picker UI). Passing `[]` clears every non-primary
-     * membership while leaving `layerUnid` alone.
+     * membership while leaving `diagramUnid` alone.
      */
-    layerPlacements: Vts.optional(Vts.array(SchemaJsonLayerPlacement))
+    diagramPlacements: Vts.optional(Vts.array(SchemaJsonDiagramPlacement))
 });
 
 const ColumnFields = {
@@ -157,8 +157,8 @@ export const SchemaUpdateViewBody = Vts.object({
     materialized: Vts.optional(Vts.boolean()),
     description: Vts.optional(Vts.string()),
     /** Primary EER-diagram membership. Empty string clears the assignment. */
-    layerUnid: Vts.optional(Vts.string()),
-    layerPlacements: Vts.optional(Vts.array(SchemaJsonLayerPlacement))
+    diagramUnid: Vts.optional(Vts.string()),
+    diagramPlacements: Vts.optional(Vts.array(SchemaJsonDiagramPlacement))
 });
 
 export const SchemaCreateRoutineBody = Vts.object({
@@ -221,8 +221,8 @@ export const SchemaRenameHintsBody = Vts.object({
 
 export const SchemaSyncPreviewBody = Vts.object({
     databaseUnid: Vts.string(),
-    /** Optional: scope the diff to tables tagged with this layer unid. */
-    layerUnid: Vts.optional(Vts.string()),
+    /** Optional: scope the diff to tables tagged with this diagram unid. */
+    diagramUnid: Vts.optional(Vts.string()),
     renames: Vts.optional(SchemaRenameHintsBody)
 });
 
@@ -230,14 +230,14 @@ export const SchemaSyncApplyBody = Vts.object({
     databaseUnid: Vts.string(),
     changeIds: Vts.array(Vts.string()),
     dryRun: Vts.optional(Vts.boolean()),
-    layerUnid: Vts.optional(Vts.string()),
+    diagramUnid: Vts.optional(Vts.string()),
     renames: Vts.optional(SchemaRenameHintsBody)
 });
 
 export const SchemaSyncReverseApplyBody = Vts.object({
     databaseUnid: Vts.string(),
     changeIds: Vts.array(Vts.string()),
-    layerUnid: Vts.optional(Vts.string()),
+    diagramUnid: Vts.optional(Vts.string()),
     renames: Vts.optional(SchemaRenameHintsBody)
 });
 
@@ -254,7 +254,7 @@ export const SchemaSyncReverseApplyBody = Vts.object({
 export const SchemaSyncTestRunBody = Vts.object({
     databaseUnid: Vts.string(),
     changeIds: Vts.array(Vts.string()),
-    layerUnid: Vts.optional(Vts.string()),
+    diagramUnid: Vts.optional(Vts.string()),
     renames: Vts.optional(SchemaRenameHintsBody),
     purgeOnSuccess: Vts.optional(Vts.boolean())
 });
