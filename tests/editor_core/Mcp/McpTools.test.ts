@@ -125,6 +125,137 @@ describe('McpTools — read-only surface', () => {
 
 });
 
+describe('McpTools — db_create_table mutation', () => {
+
+    it('creates an empty table when no columns are supplied', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const revBefore = repo.rev;
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_table', {
+            projectUnid: 'pid-1',
+            containerUnid: db.unid,
+            name: 'users'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(typeof body.tableUnid).toBe('string');
+        expect(body.tableUnid.length).toBeGreaterThan(0);
+        expect(body.columns).toEqual([]);
+        expect(body.rev).toBeGreaterThan(revBefore);
+
+        // table is actually in the repo
+        expect(db.tables.map(t => t.name)).toEqual(['users']);
+        expect(db.tables[0].unid).toBe(body.tableUnid);
+        expect(db.tables[0].columns).toEqual([]);
+    });
+
+    it('creates a table with columns in one call and returns each column unid', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_table', {
+            projectUnid: 'pid-1',
+            containerUnid: db.unid,
+            name: 'orders',
+            columns: [
+                {name: 'id', type: 'int', primaryKey: true, autoIncrement: true, notNull: true},
+                {name: 'total', type: 'decimal', length: '10,2', notNull: true},
+                {name: 'created_at', type: 'timestamp', defaultValue: 'CURRENT_TIMESTAMP'}
+            ]
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.columns.map((c: {name: string;}) => c.name)).toEqual(['id', 'total', 'created_at']);
+        for (const c of body.columns as {name: string; unid: string;}[]) {
+            expect(c.unid).toMatch(/^[0-9a-f-]{36}$/u);
+        }
+
+        const stored = db.tables[0];
+        expect(stored.name).toBe('orders');
+        expect(stored.columns).toHaveLength(3);
+        expect(stored.columns[0]).toMatchObject({name: 'id', type: 'int', primaryKey: true, autoIncrement: true, notNull: true});
+        expect(stored.columns[1]).toMatchObject({name: 'total', type: 'decimal', length: '10,2'});
+        expect(stored.columns[2]).toMatchObject({name: 'created_at', type: 'timestamp', defaultValue: 'CURRENT_TIMESTAMP'});
+    });
+
+    it('writes the description when supplied', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        await reg.call('db_create_table', {
+            projectUnid: 'pid-1',
+            containerUnid: db.unid,
+            name: 'audit_log',
+            description: 'Append-only audit trail for sensitive ops.'
+        });
+
+        expect(db.tables[0].description).toBe('Append-only audit trail for sensitive ops.');
+    });
+
+    it('returns an error result for an unknown projectUnid (no repo mutation)', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_table', {
+            projectUnid: 'pid-missing',
+            containerUnid: 'whatever',
+            name: 'x'
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('unknown project pid-missing');
+    });
+
+    it('returns an error result for an unknown containerUnid', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_table', {
+            projectUnid: 'pid-1',
+            containerUnid: 'cid-missing',
+            name: 'x'
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('cid-missing');
+        // repo state unchanged — original empty database with no tables
+        expect(repo.data.fs.entrys[0].tables).toEqual([]);
+    });
+
+    it('honours the policy gate — ask without approval handler blocks the call', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        repositories.register('pid-1', repo);
+        const decide = McpPolicy.compile({
+            enabled: true,
+            policy: {default: ConfigMcpPolicyAction.allow, rules: [{match: 'db_create_*', action: ConfigMcpPolicyAction.ask}]}
+        });
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}), {decide: decide});
+
+        const result = await reg.call('db_create_table', {projectUnid: 'pid-1', containerUnid: db.unid, name: 'users'});
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('requires user approval');
+        // repo state unchanged
+        expect(db.tables).toEqual([]);
+    });
+
+});
+
 describe('McpToolRegistry — validation + error handling', () => {
 
     it('returns isError=true when the tool name is unknown', async() => {

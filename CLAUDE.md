@@ -88,7 +88,7 @@ External plugins ship as npm packages. The loader uses `createRequire` rooted at
 
 ## MCP server
 
-`editor_core/Mcp/` implements a Model Context Protocol server that lets MCP clients (Claude Code, Cursor, …) read the dbeditor schema through the same repository the web editor uses. Opt in via `mcp.enabled = true` in `dbeditor.json`. Read-only this iteration (`db_list_projects` / `db_get_tree` / `db_list_tables` / `db_get_table`); mutation tools are planned.
+`editor_core/Mcp/` implements a Model Context Protocol server that lets MCP clients (Claude Code, Cursor, …) read and (with policy opt-in) mutate the dbeditor schema through the same repository the web editor uses. Opt in via `mcp.enabled = true` in `dbeditor.json`. Read tools: `db_list_projects` / `db_get_tree` / `db_list_tables` / `db_get_table`. Mutation tools: `db_create_table` (creates a table + optional columns + optional description in one call). Mutation tools are gated by the policy — default `ask` (rejected without approval handler), so users must explicitly `allow` them via `mcp.policy.rules`.
 
 - `McpToolRegistry.ts` — transport-agnostic dispatcher. Validates args against the tool's VTS schema before dispatch, catches handler exceptions, never throws.
 - `McpPolicy.ts` — `compile(mcp)` → `(toolName) → allow|ask|deny`. Wildcard patterns (`*` only); rules evaluated in declared order, first match wins; no policy → allow; policy block present without `default` → ask; no rule matches → policy default. Denied tools are hidden from `list()`; ask-tool descriptions get a "⚠ Requires user approval" prefix; ask calls without an approval handler are rejected.
