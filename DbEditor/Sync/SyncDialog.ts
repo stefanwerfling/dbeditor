@@ -3,8 +3,8 @@ import {ConfirmDialog} from '../Base/ConfirmDialog.js';
 import {DbApiClient, RenameHints} from '../Api/DbApiClient.js';
 import {SyncSettingsDialog} from './SyncSettingsDialog.js';
 import {SyncHistoryDialog} from './SyncHistoryDialog.js';
-import {openContextMenu, ContextMenuItem} from '../Base/ContextMenu.js';
-import {iconCheck, iconCross, iconEllipsis} from '../Util/Icons.js';
+import {ContextMenu, ContextMenuItem} from '../Base/ContextMenu.js';
+import {Icons} from '../Util/Icons.js';
 
 /*
  * Local mirror of SchemaChangeKind values from DbDiff/ChangeTypes.ts.
@@ -421,10 +421,10 @@ export class SyncDialog extends BaseDialog<void> {
         more.type = 'button';
         more.className = 'sync-dialog-row-more';
         more.title = 'Rename actions';
-        more.replaceChildren(iconEllipsis());
+        more.replaceChildren(Icons.ellipsis());
         more.addEventListener('click', (e) => {
             e.stopPropagation();
-            openContextMenu(more, items);
+            ContextMenu.open(more, items);
         });
         return more;
     }
@@ -1166,7 +1166,7 @@ export class SyncDialog extends BaseDialog<void> {
 
             const mark = document.createElement('span');
             mark.className = 'sync-dialog-log-mark';
-            mark.replaceChildren(r.ok ? iconCheck() : iconCross());
+            mark.replaceChildren(r.ok ? Icons.check() : Icons.cross());
 
             const sql = document.createElement('code');
             sql.className = 'sync-dialog-log-sql';

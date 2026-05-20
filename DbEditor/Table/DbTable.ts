@@ -1,11 +1,11 @@
 import {BrowserJsPlumbInstance} from '@jsplumb/browser-ui';
 import {JsonTable, JsonColumn, JsonEnum, JsonIndex} from '../JsonData.js';
-import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
+import {EditorEventBus, EditorEvents} from '../Base/EditorEvents.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
-import {openContextMenu} from '../Base/ContextMenu.js';
+import {ContextMenu} from '../Base/ContextMenu.js';
 import {DbColumnDialog} from './DbColumnDialog.js';
 import {DbIndexDialog} from './DbIndexDialog.js';
-import {iconDiamondFilled, iconDiamondHollow, iconEllipsis} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 
 /**
  * One draggable table card on the canvas. Owns the DOM, registers the
@@ -101,7 +101,7 @@ export class DbTable {
         this._el.addEventListener('mousedown', (e: MouseEvent) => {
             downX = parseFloat(this._el.style.left || '0');
             downY = parseFloat(this._el.style.top || '0');
-            dispatch(EditorEvents.selectTable, {
+            EditorEventBus.dispatch(EditorEvents.selectTable, {
                 tableUnid: this._data.unid,
                 additive: e.shiftKey,
                 toggle: e.ctrlKey || e.metaKey
@@ -111,7 +111,7 @@ export class DbTable {
             const left = parseFloat(this._el.style.left || '0');
             const top = parseFloat(this._el.style.top || '0');
             if (left === downX && top === downY) {return;}
-            dispatch(EditorEvents.tableMoved, { tableUnid: this._data.unid, x: left, y: top });
+            EditorEventBus.dispatch(EditorEvents.tableMoved, { tableUnid: this._data.unid, x: left, y: top });
         });
     }
 
@@ -165,15 +165,15 @@ export class DbTable {
         const actions = document.createElement('span');
         actions.className = 'db-table-header-actions';
         const more = document.createElement('button');
-        more.replaceChildren(iconEllipsis());
+        more.replaceChildren(Icons.ellipsis());
         more.className = 'db-table-header-action';
         more.title = 'More actions';
         more.addEventListener('click', (e) => {
             e.stopPropagation();
-            const items: Parameters<typeof openContextMenu>[1] = [
+            const items: Parameters<typeof ContextMenu.open>[1] = [
                 {label: 'Rename table', onClick: (): void => this._renameInline(title)},
-                {label: 'Table options…', onClick: (): void => dispatch(EditorEvents.editTableOptions, {tableUnid: this._data.unid})},
-                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickDiagramForTables, {tableUnids: [this._data.unid]})}
+                {label: 'Table options…', onClick: (): void => EditorEventBus.dispatch(EditorEvents.editTableOptions, {tableUnid: this._data.unid})},
+                {label: 'Assign to EER diagram…', onClick: (): void => EditorEventBus.dispatch(EditorEvents.pickDiagramForTables, {tableUnids: [this._data.unid]})}
             ];
             /*
              * Symmetric "remove from this diagram" only when the canvas
@@ -186,17 +186,17 @@ export class DbTable {
              */
             if (this._activeLayer) {
                 const diagram = this._activeLayer;
-                items.push({label: `Remove from "${diagram.name}"`, onClick: (): void => dispatch(EditorEvents.removeTableFromDiagram, {
+                items.push({label: `Remove from "${diagram.name}"`, onClick: (): void => EditorEventBus.dispatch(EditorEvents.removeTableFromDiagram, {
                     tableUnid: this._data.unid,
                     diagramUnid: diagram.unid
                 })});
             }
             items.push(
-                {label: 'Duplicate', onClick: (): void => dispatch(EditorEvents.duplicateTable, {tableUnid: this._data.unid})},
+                {label: 'Duplicate', onClick: (): void => EditorEventBus.dispatch(EditorEvents.duplicateTable, {tableUnid: this._data.unid})},
                 {kind: 'separator'},
                 {label: 'Delete table', danger: true, onClick: (): void => { this._confirmDeleteTable(); }}
             );
-            openContextMenu(more, items);
+            ContextMenu.open(more, items);
         });
         actions.append(more);
         h.append(actions);
@@ -206,7 +206,7 @@ export class DbTable {
     private async _confirmDeleteTable(): Promise<void> {
         const ok = await ConfirmDialog.showConfirm('Delete table',
             `Delete table "${this._data.name}" and all its columns?`, 'danger');
-        if (ok) {dispatch(EditorEvents.deleteTable, { tableUnid: this._data.unid });}
+        if (ok) {EditorEventBus.dispatch(EditorEvents.deleteTable, { tableUnid: this._data.unid });}
     }
 
     private _renderColumns(): HTMLDivElement {
@@ -270,7 +270,7 @@ export class DbTable {
 
         const more = document.createElement('button');
         more.className = 'db-table-column-more';
-        more.replaceChildren(iconEllipsis());
+        more.replaceChildren(Icons.ellipsis());
         more.title = 'More actions';
         /*
          * Block mousedown so the card's drag manager doesn't grab the
@@ -279,7 +279,7 @@ export class DbTable {
         more.addEventListener('mousedown', (e) => e.stopPropagation());
         more.addEventListener('click', (e) => {
             e.stopPropagation();
-            openContextMenu(more, [
+            ContextMenu.open(more, [
                 {label: 'Rename column', onClick: (): void => this._startColumnInlineRename(name, col)},
                 {label: 'Edit column…', onClick: (): void => { this._editColumn(col); }},
                 {kind: 'separator'},
@@ -412,7 +412,7 @@ export class DbTable {
             : cols.findIndex(c => c.unid === s.targetBefore);
         if (currentIdx === targetIdx || currentIdx + 1 === targetIdx) {return;}
 
-        dispatch(EditorEvents.reorderColumn, {
+        EditorEventBus.dispatch(EditorEvents.reorderColumn, {
             tableUnid: this._data.unid,
             columnUnid: s.columnUnid,
             beforeColumnUnid: s.targetBefore
@@ -463,7 +463,7 @@ export class DbTable {
         row.className = 'db-table-index';
         const labelText = document.createElement('span');
         labelText.className = 'db-table-index-name';
-        const marker = ix.type === 'unique' ? iconDiamondFilled() : iconDiamondHollow();
+        const marker = ix.type === 'unique' ? Icons.diamondFilled() : Icons.diamondHollow();
         const nameSpan = document.createElement('span');
         nameSpan.textContent = ` ${ix.name}`;
         labelText.append(marker, nameSpan);
@@ -476,12 +476,12 @@ export class DbTable {
 
         const more = document.createElement('button');
         more.className = 'db-table-index-more';
-        more.replaceChildren(iconEllipsis());
+        more.replaceChildren(Icons.ellipsis());
         more.title = 'More actions';
         more.addEventListener('mousedown', (e) => e.stopPropagation());
         more.addEventListener('click', (e) => {
             e.stopPropagation();
-            openContextMenu(more, [
+            ContextMenu.open(more, [
                 {label: 'Edit index', onClick: (): void => { this._editIndex(ix); }},
                 {kind: 'separator'},
                 {label: 'Remove index', danger: true, onClick: (): void => { this._removeIndex(ix); }}
@@ -518,7 +518,7 @@ export class DbTable {
             const next = input.value.trim();
             input.replaceWith(nameEl);
             if (next && next !== col.name) {
-                dispatch(EditorEvents.updateColumn, {
+                EditorEventBus.dispatch(EditorEvents.updateColumn, {
                     tableUnid: this._data.unid,
                     columnUnid: col.unid,
                     patch: { name: next }
@@ -548,19 +548,19 @@ export class DbTable {
         if (!this._data.columns.length) {return;}
         const result = await new DbIndexDialog(null, this._data.columns).show();
         if (!result) {return;}
-        dispatch(EditorEvents.addIndex, { tableUnid: this._data.unid, index: result });
+        EditorEventBus.dispatch(EditorEvents.addIndex, { tableUnid: this._data.unid, index: result });
     }
 
     private async _editIndex(ix: JsonIndex): Promise<void> {
         const result = await new DbIndexDialog(ix, this._data.columns).show();
         if (!result) {return;}
-        dispatch(EditorEvents.updateIndex, { tableUnid: this._data.unid, indexUnid: ix.unid, patch: result });
+        EditorEventBus.dispatch(EditorEvents.updateIndex, { tableUnid: this._data.unid, indexUnid: ix.unid, patch: result });
     }
 
     private async _removeIndex(ix: JsonIndex): Promise<void> {
         const ok = await ConfirmDialog.showConfirm('Remove index',
             `Remove index "${ix.name}"?`, 'danger');
-        if (ok) {dispatch(EditorEvents.removeIndex, { tableUnid: this._data.unid, indexUnid: ix.unid });}
+        if (ok) {EditorEventBus.dispatch(EditorEvents.removeIndex, { tableUnid: this._data.unid, indexUnid: ix.unid });}
     }
 
     private _renderForeignKeysSection(): HTMLDivElement | null {
@@ -605,7 +605,7 @@ export class DbTable {
         const commit = (): void => {
             const next = input.value.trim();
             if (next && next !== this._data.name) {
-                dispatch(EditorEvents.renameTable, {tableUnid: this._data.unid, name: next});
+                EditorEventBus.dispatch(EditorEvents.renameTable, {tableUnid: this._data.unid, name: next});
             } else {
                 this._render();
             }
@@ -620,20 +620,20 @@ export class DbTable {
     private async _addColumn(): Promise<void> {
         const result = await new DbColumnDialog(null, this._enums).show();
         if (!result) {return;}
-        dispatch(EditorEvents.addColumn, { tableUnid: this._data.unid, column: result });
+        EditorEventBus.dispatch(EditorEvents.addColumn, { tableUnid: this._data.unid, column: result });
     }
 
     private async _editColumn(col: JsonColumn): Promise<void> {
         const result = await new DbColumnDialog(col, this._enums).show();
         if (!result) {return;}
-        dispatch(EditorEvents.updateColumn, { tableUnid: this._data.unid, columnUnid: col.unid, patch: result });
+        EditorEventBus.dispatch(EditorEvents.updateColumn, { tableUnid: this._data.unid, columnUnid: col.unid, patch: result });
     }
 
     private async _removeColumn(col: JsonColumn): Promise<void> {
         const ok = await ConfirmDialog.showConfirm('Remove column',
             `Remove column "${col.name}" from "${this._data.name}"?`, 'danger');
         if (ok) {
-            dispatch(EditorEvents.removeColumn, {tableUnid: this._data.unid, columnUnid: col.unid});
+            EditorEventBus.dispatch(EditorEvents.removeColumn, {tableUnid: this._data.unid, columnUnid: col.unid});
         }
     }
 

@@ -1,9 +1,9 @@
 import {BrowserJsPlumbInstance} from '@jsplumb/browser-ui';
 import {JsonView} from '../JsonData.js';
-import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
-import {openContextMenu} from '../Base/ContextMenu.js';
+import {EditorEventBus, EditorEvents} from '../Base/EditorEvents.js';
+import {ContextMenu} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
-import {iconEllipsis} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 import {ActiveDiagramContext} from '../Diagram/ActiveDiagramContext.js';
 
 /**
@@ -68,7 +68,7 @@ export class DbView {
             const left = parseFloat(this._el.style.left || '0');
             const top = parseFloat(this._el.style.top || '0');
             if (left === downX && top === downY) {return;}
-            dispatch(EditorEvents.viewMoved, { viewUnid: this._data.unid, x: left, y: top });
+            EditorEventBus.dispatch(EditorEvents.viewMoved, { viewUnid: this._data.unid, x: left, y: top });
         });
     }
 
@@ -98,24 +98,24 @@ export class DbView {
         title.title = 'Click to edit body';
         title.addEventListener('click', (e) => {
             e.stopPropagation();
-            dispatch(EditorEvents.editView, {unid: this._data.unid});
+            EditorEventBus.dispatch(EditorEvents.editView, {unid: this._data.unid});
         });
 
         const actions = document.createElement('span');
         actions.className = 'db-view-header-actions';
         const more = document.createElement('button');
-        more.replaceChildren(iconEllipsis());
+        more.replaceChildren(Icons.ellipsis());
         more.className = 'db-view-header-action';
         more.title = 'More actions';
         more.addEventListener('click', (e) => {
             e.stopPropagation();
-            const items: Parameters<typeof openContextMenu>[1] = [
-                {label: 'Edit body…',  onClick: (): void => dispatch(EditorEvents.editView, {unid: this._data.unid})},
-                {label: 'Assign to EER diagram…', onClick: (): void => dispatch(EditorEvents.pickDiagramForView, {viewUnid: this._data.unid})}
+            const items: Parameters<typeof ContextMenu.open>[1] = [
+                {label: 'Edit body…',  onClick: (): void => EditorEventBus.dispatch(EditorEvents.editView, {unid: this._data.unid})},
+                {label: 'Assign to EER diagram…', onClick: (): void => EditorEventBus.dispatch(EditorEvents.pickDiagramForView, {viewUnid: this._data.unid})}
             ];
             if (this._activeLayer) {
                 const diagram = this._activeLayer;
-                items.push({label: `Remove from "${diagram.name}"`, onClick: (): void => dispatch(EditorEvents.removeViewFromDiagram, {
+                items.push({label: `Remove from "${diagram.name}"`, onClick: (): void => EditorEventBus.dispatch(EditorEvents.removeViewFromDiagram, {
                     viewUnid: this._data.unid,
                     diagramUnid: diagram.unid
                 })});
@@ -124,7 +124,7 @@ export class DbView {
                 {kind: 'separator'},
                 {label: 'Delete view', danger: true, onClick: (): void => { this._confirmDelete(); }}
             );
-            openContextMenu(more, items);
+            ContextMenu.open(more, items);
         });
         actions.append(more);
 
@@ -154,7 +154,7 @@ export class DbView {
             'danger'
         );
         if (!ok) {return;}
-        dispatch(EditorEvents.deleteView, {unid: this._data.unid});
+        EditorEventBus.dispatch(EditorEvents.deleteView, {unid: this._data.unid});
     }
 
 }

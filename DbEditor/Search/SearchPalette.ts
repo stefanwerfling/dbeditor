@@ -1,4 +1,4 @@
-import {SearchEntry, topMatches} from '../Util/SearchIndex.js';
+import {SearchEntry, SearchIndex} from '../Util/SearchIndex.js';
 
 /**
  * Lightweight command-palette-style overlay for jumping to a table by
@@ -68,7 +68,7 @@ export class SearchPalette {
 
     private _refilter(): void {
         const q = this._input.value.trim();
-        this._matches = topMatches(this._index, q, 50);
+        this._matches = SearchIndex.top(this._index, q, 50);
         this._activeIdx = 0;
         this._renderList();
     }

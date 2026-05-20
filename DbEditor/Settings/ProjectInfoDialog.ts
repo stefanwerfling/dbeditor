@@ -1,6 +1,6 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
 import {OutputSettings, ProjectInfo} from '../Api/DbApiClient.js';
-import {iconCheck, iconCross} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 
 export type ProjectInfoActions = {
     testConnection: (databaseUnid: string) => Promise<{success: boolean;}>;
@@ -476,7 +476,7 @@ export class ProjectInfoDialog extends BaseDialog<void> {
                 cell.innerHTML = '';
                 const ok = document.createElement('span');
                 ok.className = 'project-info-test-ok';
-                ok.append(iconCheck(), document.createTextNode(' OK'));
+                ok.append(Icons.check(), document.createTextNode(' OK'));
                 ok.title = 'Click to test again';
                 ok.addEventListener('click', () => this._buildTestControl(cell, databaseUnid, true));
                 cell.append(ok);
@@ -484,7 +484,7 @@ export class ProjectInfoDialog extends BaseDialog<void> {
                 cell.innerHTML = '';
                 const fail = document.createElement('span');
                 fail.className = 'project-info-test-fail';
-                fail.append(iconCross(), document.createTextNode(' Fail'));
+                fail.append(Icons.cross(), document.createTextNode(' Fail'));
                 fail.title = String((err as {message?: string;}).message ?? err);
                 fail.addEventListener('click', () => this._buildTestControl(cell, databaseUnid, enabled));
                 cell.append(fail);

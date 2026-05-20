@@ -28,18 +28,18 @@ import {AddConnectionDialog, AddConnectionDatabaseChoice} from './Settings/AddCo
 import {EditConnectionDialog} from './Settings/EditConnectionDialog.js';
 import {RebindConnectionDialog} from './Settings/RebindConnectionDialog.js';
 import {DatabasePropertiesDialog} from './Database/DatabasePropertiesDialog.js';
-import {iconEllipsis} from './Util/Icons.js';
+import {Icons} from './Util/Icons.js';
 import {DbRoutineDialog} from './Routine/DbRoutineDialog.js';
 import {SearchPalette} from './Search/SearchPalette.js';
-import {buildSearchIndex} from './Util/SearchIndex.js';
+import {SearchIndex} from './Util/SearchIndex.js';
 import {ShortcutHelpDialog} from './Help/ShortcutHelpDialog.js';
 import {EditorEvents} from './Base/EditorEvents.js';
-import {openContextMenu, ContextMenuItem} from './Base/ContextMenu.js';
-import {getJsPlumbInstance} from './jsPlumbInstance.js';
-import {crowsFoot, oneBar} from './Util/CrowsFoot.js';
-import {isOneToOneFk} from './Util/FkCardinality.js';
-import {ZOOM_DEFAULT, clampZoom, formatZoom, isAtDefault, snapToStep, stepZoom, zoomFocalScroll} from './Util/Zoom.js';
-import {rectFromCorners, rectsIntersect} from './Util/Rect.js';
+import {ContextMenu, ContextMenuItem} from './Base/ContextMenu.js';
+import {JsPlumbHost} from './jsPlumbInstance.js';
+import {FkMarkers} from './Util/CrowsFoot.js';
+import {FkCardinality} from './Util/FkCardinality.js';
+import {Zoom} from './Util/Zoom.js';
+import {Rects} from './Util/Rect.js';
 import {JsonColumn, JsonDataDB, JsonDataDBType, JsonEnum, JsonForeignKey, JsonDiagram, JsonLayer, JsonRoutine, JsonTable, JsonView} from './JsonData.js';
 
 type LoadedProject = {
@@ -620,7 +620,7 @@ export class DbEditor {
 
     private _renderCanvas(): void {
         if (!this._grid) {return;}
-        const jsp = getJsPlumbInstance();
+        const jsp = JsPlumbHost.getInstance();
         if (!this._jsPlumbBound) { this._bindJsPlumb(jsp); this._jsPlumbBound = true; }
         jsp.deleteEveryConnection();
         this._fkConnections.length = 0;
@@ -820,12 +820,12 @@ export class DbEditor {
         const menuBtn = document.createElement('button');
         menuBtn.type = 'button';
         menuBtn.className = 'db-layer-label-menu';
-        menuBtn.replaceChildren(iconEllipsis());
+        menuBtn.replaceChildren(Icons.ellipsis());
         menuBtn.title = 'Layer actions';
         menuBtn.addEventListener('mousedown', e => e.stopPropagation());
         menuBtn.addEventListener('click', e => {
             e.stopPropagation();
-            openContextMenu(menuBtn, [
+            ContextMenu.open(menuBtn, [
                 {label: 'Rename…', onSelect: (): void => this._startLayerRectRename(nameSpan, layer)},
                 {
                     label: 'Delete layer',
@@ -1093,12 +1093,12 @@ export class DbEditor {
 
         const STROKE = 'var(--c-uk, #8a3e9c)';
         const overlays: any[] = [
-            { type: 'Custom', options: { create: () => crowsFoot(aProngs, STROKE), location: 0 } },
-            { type: 'Custom', options: { create: () => crowsFoot(bProngs, STROKE), location: 1 } },
+            { type: 'Custom', options: { create: () => FkMarkers.crowsFoot(aProngs, STROKE), location: 0 } },
+            { type: 'Custom', options: { create: () => FkMarkers.crowsFoot(bProngs, STROKE), location: 1 } },
             { type: 'Label', options: { label: `N:N via ${junction.name}`, location: 0.5, cssClass: 'jtk-overlay jtk-overlay-nn' } }
         ];
 
-        const conn = getJsPlumbInstance().connect({
+        const conn = JsPlumbHost.getInstance().connect({
             source: aCard.element,
             target: bCard.element,
             anchors: [aAnchor, bAnchor],
@@ -1163,7 +1163,7 @@ export class DbEditor {
          * covered by a UNIQUE index with the same column set. See
          * `Util/FkCardinality.ts` for the full case analysis.
          */
-        const oneToOne = isOneToOneFk(srcTable, resolved.map(r => r.srcCol.unid));
+        const oneToOne = FkCardinality.isOneToOne(srcTable, resolved.map(r => r.srcCol.unid));
         const nullable = resolved.some(r => !r.srcCol.notNull);
 
         /*
@@ -1175,21 +1175,21 @@ export class DbEditor {
 
         const labelIdx = Math.floor(resolved.length / 2);
         const labelText = resolved.length > 1 ? `${fk.name} (×${resolved.length})` : fk.name;
-        const jsp = getJsPlumbInstance();
+        const jsp = JsPlumbHost.getInstance();
 
         resolved.forEach(({ srcCol, dstCol }, idx) => {
             const overlays: any[] = [
                 {
                     type: 'Custom',
                     options: {
-                        create: () => oneToOne ? oneBar(srcSide) : crowsFoot(srcProngs),
+                        create: () => oneToOne ? FkMarkers.oneBar(srcSide) : FkMarkers.crowsFoot(srcProngs),
                         location: 0
                     }
                 },
                 {
                     type: 'Custom',
                     options: {
-                        create: () => oneBar(dstSide),
+                        create: () => FkMarkers.oneBar(dstSide),
                         location: 1
                     }
                 }
@@ -1338,7 +1338,7 @@ export class DbEditor {
         const container = this._findContainer(this._activeProject.data, this._activeContainerUnid);
         if (!container) {return;}
         const tables = this._collectTables(container);
-        const jsp = getJsPlumbInstance();
+        const jsp = JsPlumbHost.getInstance();
 
         const affectedFk = this._fkConnections.filter(e => {
             if (e.srcTableUnid === tableUnid) {return true;}
@@ -1409,7 +1409,7 @@ export class DbEditor {
      *  2. click-to-edit: clicking a persisted connection opens the FK
      *     edit dialog (which also offers Delete).
      */
-    private _bindJsPlumb(jsp: ReturnType<typeof getJsPlumbInstance>): void {
+    private _bindJsPlumb(jsp: ReturnType<typeof JsPlumbHost.getInstance>): void {
         jsp.bind('connection', (info: any, originalEvent: any) => {
             // programmatic — that's our render path
             if (!originalEvent) {return;}
@@ -1684,7 +1684,7 @@ export class DbEditor {
                 e.stopPropagation();
                 btn.classList.add('menubar-item--open');
                 const menu = this._buildMenu(name);
-                openContextMenu(btn, menu);
+                ContextMenu.open(btn, menu);
                 /*
                  * Strip the open-state class once the menu closes.
                  * `openContextMenu` doesn't expose a close callback,
@@ -2255,7 +2255,7 @@ export class DbEditor {
         this._zoomLabel = reset;
         out.addEventListener('click', () => this._stepZoom(-1));
         inn.addEventListener('click', () => this._stepZoom(1));
-        reset.addEventListener('click', () => this._setZoom(ZOOM_DEFAULT, true));
+        reset.addEventListener('click', () => this._setZoom(Zoom.DEFAULT, true));
         fit?.addEventListener('click', () => this._fitToView());
         this._wireWheelZoom();
         this._wireMiddleMousePan();
@@ -2295,7 +2295,7 @@ export class DbEditor {
         const viewW = this._grid.clientWidth;
         const viewH = this._grid.clientHeight;
         const scale = Math.min(viewW / bboxW, viewH / bboxH);
-        const next = clampZoom(snapToStep(scale));
+        const next = Zoom.clamp(Zoom.snapToStep(scale));
         this._setZoom(next, true);
 
         /*
@@ -2322,12 +2322,12 @@ export class DbEditor {
             if (!this._grid) {return;}
             e.preventDefault();
             const direction: 1 | -1 = e.deltaY < 0 ? 1 : -1;
-            const next = snapToStep(stepZoom(this._zoomLevel, direction));
+            const next = Zoom.snapToStep(Zoom.step(this._zoomLevel, direction));
             if (next === this._zoomLevel) {return;}
             const rect = this._grid.getBoundingClientRect();
             const cursorX = e.clientX - rect.left;
             const cursorY = e.clientY - rect.top;
-            const target = zoomFocalScroll(
+            const target = Zoom.focalScroll(
                 this._zoomLevel, next,
                 cursorX, cursorY,
                 this._grid.scrollLeft, this._grid.scrollTop
@@ -2409,7 +2409,7 @@ export class DbEditor {
                 active = true;
             }
             if (!active) {return;}
-            const rect = rectFromCorners({x: startX, y: startY}, {x: e.clientX, y: e.clientY});
+            const rect = Rects.fromCorners({x: startX, y: startY}, {x: e.clientX, y: e.clientY});
             const el = ensureBand();
             el.style.left = `${rect.left}px`;
             el.style.top = `${rect.top}px`;
@@ -2438,7 +2438,7 @@ export class DbEditor {
                 }
                 return;
             }
-            const bandRect = rectFromCorners({x: startX, y: startY}, {x: e.clientX, y: e.clientY});
+            const bandRect = Rects.fromCorners({x: startX, y: startY}, {x: e.clientX, y: e.clientY});
             removeBand();
             startX = 0;
             startY = 0;
@@ -2452,7 +2452,7 @@ export class DbEditor {
 
             for (const card of this._tables.values()) {
                 const cardRect = card.element.getBoundingClientRect();
-                if (!rectsIntersect(bandRect, cardRect)) {continue;}
+                if (!Rects.intersect(bandRect, cardRect)) {continue;}
                 this._setSelection(card.unid, mode === 'replace' ? 'add' : mode);
             }
         });
@@ -2499,24 +2499,24 @@ export class DbEditor {
     }
 
     private _stepZoom(direction: 1 | -1): void {
-        this._setZoom(stepZoom(this._zoomLevel, direction), true);
+        this._setZoom(Zoom.step(this._zoomLevel, direction), true);
     }
 
     private _setZoom(level: number, persist: boolean): void {
-        const next = clampZoom(level);
+        const next = Zoom.clamp(level);
         this._zoomLevel = next;
         if (this._zoomLayer) {
-            this._zoomLayer.style.transform = isAtDefault(next) ? '' : `scale(${next})`;
+            this._zoomLayer.style.transform = Zoom.isAtDefault(next) ? '' : `scale(${next})`;
         }
         this._applyCanvasExtent();
         try {
-            getJsPlumbInstance().setZoom(next);
+            JsPlumbHost.getInstance().setZoom(next);
         } catch (err) {
             console.error('[DbEditor] jsPlumb setZoom failed:', err);
         }
         if (this._zoomLabel) {
-            this._zoomLabel.textContent = formatZoom(next);
-            this._zoomLabel.classList.toggle('btn-active', !isAtDefault(next));
+            this._zoomLabel.textContent = Zoom.format(next);
+            this._zoomLabel.classList.toggle('btn-active', !Zoom.isAtDefault(next));
         }
         if (persist) {
             this._mutate(p => this._api.updateEditorSettings(p.unid, {zoom: next}))
@@ -2555,7 +2555,7 @@ export class DbEditor {
 
     private _loadZoomFromActiveProject(): void {
         const persisted = this._activeProject?.data.editor?.zoom;
-        const level = typeof persisted === 'number' ? clampZoom(persisted) : ZOOM_DEFAULT;
+        const level = typeof persisted === 'number' ? Zoom.clamp(persisted) : Zoom.DEFAULT;
         this._setZoom(level, false);
     }
 
@@ -3367,7 +3367,7 @@ export class DbEditor {
      */
     private async _openSearchPalette(): Promise<void> {
         if (!this._activeProject) {return;}
-        const index = buildSearchIndex(this._activeProject.data);
+        const index = SearchIndex.build(this._activeProject.data);
         const pick = await new SearchPalette(index).show();
         if (!pick) {return;}
         /*

@@ -7,7 +7,7 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
 import {UpdateConnectionInput} from '../Api/DbApiClient.js';
 import {AdHocConnectionTester} from './AddConnectionDialog.js';
-import {iconCheck, iconCross} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 
 /**
  * Patch-test hook: ping the saved connection on disk with `patch`
@@ -211,11 +211,11 @@ export class EditConnectionDialog extends BaseDialog<UpdateConnectionInput | nul
                 await tester(input);
             }
             status.className = 'connection-test-status connection-test-status--ok';
-            status.replaceChildren(iconCheck(), document.createTextNode(' OK'));
+            status.replaceChildren(Icons.check(), document.createTextNode(' OK'));
             status.title = usePatchPath ? 'Tested with stored password.' : '';
         } catch (err) {
             status.className = 'connection-test-status connection-test-status--fail';
-            status.replaceChildren(iconCross(), document.createTextNode(' Fail'));
+            status.replaceChildren(Icons.cross(), document.createTextNode(' Fail'));
             status.title = String((err as Error).message ?? err);
         }
     }

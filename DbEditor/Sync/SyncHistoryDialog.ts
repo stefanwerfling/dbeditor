@@ -1,6 +1,6 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
 import {DbApiClient, SyncHistoryEntry} from '../Api/DbApiClient.js';
-import {iconCheck, iconCross} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 
 /**
  * Newest-first list of every sync operation that ran against the
@@ -99,10 +99,10 @@ export class SyncHistoryDialog extends BaseDialog<void> {
                 status.textContent = 'CRITICAL';
             } else if (e.success) {
                 status.classList.add('sync-history-status--ok');
-                status.replaceChildren(iconCheck());
+                status.replaceChildren(Icons.check());
             } else {
                 status.classList.add('sync-history-status--fail');
-                status.replaceChildren(iconCross());
+                status.replaceChildren(Icons.cross());
             }
 
             row.append(mode, ts, summary, status);
@@ -209,7 +209,7 @@ export class SyncHistoryDialog extends BaseDialog<void> {
                 row.className = `sync-dialog-log-row sync-dialog-log-row--${r.ok ? 'ok' : 'err'}`;
                 const mark = document.createElement('span');
                 mark.className = 'sync-dialog-log-mark';
-                mark.replaceChildren(r.ok ? iconCheck() : iconCross());
+                mark.replaceChildren(r.ok ? Icons.check() : Icons.cross());
                 const sql = document.createElement('code');
                 sql.className = 'sync-dialog-log-sql';
                 sql.textContent = r.sql;

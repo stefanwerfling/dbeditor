@@ -8,7 +8,7 @@
 /* eslint-disable no-template-curly-in-string */
 import {BaseDialog} from '../Base/BaseDialog.js';
 import {AddConnectionInput} from '../Api/DbApiClient.js';
-import {iconCheck, iconCross} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 
 export type AddConnectionDatabaseChoice = {
     unid: string;
@@ -180,11 +180,11 @@ export class AddConnectionDialog extends BaseDialog<AddConnectionInput | null> {
         try {
             await tester(input);
             status.className = 'connection-test-status connection-test-status--ok';
-            status.replaceChildren(iconCheck(), document.createTextNode(' OK'));
+            status.replaceChildren(Icons.check(), document.createTextNode(' OK'));
             status.title = '';
         } catch (err) {
             status.className = 'connection-test-status connection-test-status--fail';
-            status.replaceChildren(iconCross(), document.createTextNode(' Fail'));
+            status.replaceChildren(Icons.cross(), document.createTextNode(' Fail'));
             status.title = String((err as Error).message ?? err);
         }
     }

@@ -1,20 +1,8 @@
 import {JsonDataDB, JsonDataDBType, JsonRoutineKind, JsonTable, JsonView} from '../JsonData.js';
-import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
-import {openContextMenu, ContextMenuItem} from '../Base/ContextMenu.js';
+import {EditorEventBus, EditorEvents} from '../Base/EditorEvents.js';
+import {ContextMenu, ContextMenuItem} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
-import {
-    iconChevronDown,
-    iconChevronRight,
-    iconDatabase,
-    iconDiamondHollow,
-    iconDot,
-    iconEllipsis,
-    iconEye,
-    iconFolder,
-    iconProject,
-    iconRect,
-    iconTable
-} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 
 export type TreeviewMode = 'model' | 'live';
 
@@ -207,7 +195,7 @@ export class Treeview {
         });
         const row = this._el.querySelector(`.treeview-entry-row[data-unid="${unid}"]`);
         if (row) {row.classList.add('active');}
-        dispatch(EditorEvents.activateContainer, { unid: unid });
+        EditorEventBus.dispatch(EditorEvents.activateContainer, { unid: unid });
     }
 
     /**
@@ -228,7 +216,7 @@ export class Treeview {
         if (dbRow) {dbRow.classList.add('active');}
         const layerRow = this._el.querySelector(`.treeview-entry-row[data-unid="${diagramUnid}"]`);
         if (layerRow) {layerRow.classList.add('diagram-scope-active');}
-        dispatch(EditorEvents.scopeToDiagram, { diagramUnid: diagramUnid, containerUnid: parentDbUnid });
+        EditorEventBus.dispatch(EditorEvents.scopeToDiagram, { diagramUnid: diagramUnid, containerUnid: parentDbUnid });
     }
 
     private _renderProjectNode(p: { unid: string; name: string; data: JsonDataDB; }): HTMLElement {
@@ -240,7 +228,7 @@ export class Treeview {
          * The repo's `createContainer(parentUnid, …)` looks up parents in
          * the data tree, so passing the runtime UUID would 404.
          */
-        const row = this._buildRow(p.data.unid, p.name, iconProject(), JsonDataDBType.project);
+        const row = this._buildRow(p.data.unid, p.name, Icons.project(), JsonDataDBType.project);
         wrap.append(row);
         const children = document.createElement('div');
         children.className = 'treeview-entry-children';
@@ -407,7 +395,7 @@ export class Treeview {
         header.className = 'treeview-bucket-header';
         const toggle = document.createElement('span');
         toggle.className = 'treeview-bucket-toggle';
-        toggle.replaceChildren(collapsed ? iconChevronRight() : iconChevronDown());
+        toggle.replaceChildren(collapsed ? Icons.chevronRight() : Icons.chevronDown());
         const icon = document.createElement('span');
         icon.className = 'treeview-bucket-icon';
         const iconNode = this._iconFor(leafType);
@@ -439,7 +427,7 @@ export class Treeview {
                 const trimmed = v === null ? null : v.trim() || null;
                 if (!trimmed) {return;}
                 const extra = addHint.extraPayload ?? {};
-                dispatch(addHint.event, {
+                EditorEventBus.dispatch(addHint.event, {
                     containerUnid: parentUnid,
                     name: trimmed,
                     ...extra
@@ -451,7 +439,7 @@ export class Treeview {
         header.addEventListener('click', () => {
             const next = !list.classList.contains('treeview-bucket-list--collapsed');
             list.classList.toggle('treeview-bucket-list--collapsed', next);
-            toggle.replaceChildren(next ? iconChevronRight() : iconChevronDown());
+            toggle.replaceChildren(next ? Icons.chevronRight() : Icons.chevronDown());
             localStorage.setItem(storageKey, next ? '0' : '1');
         });
 
@@ -481,7 +469,7 @@ export class Treeview {
             const collapsed = localStorage.getItem(storageKey) !== '1';
             const toggle = document.createElement('span');
             toggle.className = 'treeview-diagram-toggle';
-            toggle.replaceChildren(collapsed ? iconChevronRight() : iconChevronDown());
+            toggle.replaceChildren(collapsed ? Icons.chevronRight() : Icons.chevronDown());
             row.prepend(toggle);
             const childList = document.createElement('div');
             childList.className = 'treeview-diagram-children';
@@ -497,7 +485,7 @@ export class Treeview {
                 e.stopPropagation();
                 const nowCollapsed = !childList.classList.contains('treeview-diagram-children--collapsed');
                 childList.classList.toggle('treeview-diagram-children--collapsed', nowCollapsed);
-                toggle.replaceChildren(nowCollapsed ? iconChevronRight() : iconChevronDown());
+                toggle.replaceChildren(nowCollapsed ? Icons.chevronRight() : Icons.chevronDown());
                 localStorage.setItem(storageKey, nowCollapsed ? '0' : '1');
             });
         }
@@ -513,15 +501,15 @@ export class Treeview {
      */
     private _iconFor(type: JsonDataDBType): string | SVGSVGElement {
         switch (type) {
-            case JsonDataDBType.database: return iconDatabase();
-            case JsonDataDBType.folder:   return iconFolder();
-            case JsonDataDBType.table:    return iconTable();
-            case JsonDataDBType.enum:     return iconDiamondHollow();
-            case JsonDataDBType.view:     return iconEye();
+            case JsonDataDBType.database: return Icons.database();
+            case JsonDataDBType.folder:   return Icons.folder();
+            case JsonDataDBType.table:    return Icons.table();
+            case JsonDataDBType.enum:     return Icons.diamondHollow();
+            case JsonDataDBType.view:     return Icons.eye();
             case JsonDataDBType.routine:  return 'ƒ';
-            case JsonDataDBType.diagram:    return iconRect();
-            case JsonDataDBType.project:  return iconProject();
-            default:                      return iconDot();
+            case JsonDataDBType.diagram:    return Icons.rect();
+            case JsonDataDBType.project:  return Icons.project();
+            default:                      return Icons.dot();
         }
     }
 
@@ -559,13 +547,13 @@ export class Treeview {
         if (type === JsonDataDBType.enum) {
             row.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
-                dispatch(EditorEvents.editEnum, { unid: unid });
+                EditorEventBus.dispatch(EditorEvents.editEnum, { unid: unid });
             });
         }
         if (type === JsonDataDBType.view) {
             row.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
-                dispatch(EditorEvents.editView, { unid: unid });
+                EditorEventBus.dispatch(EditorEvents.editView, { unid: unid });
             });
         }
         /*
@@ -615,18 +603,18 @@ export class Treeview {
                 const tableUnid = e.dataTransfer?.getData('application/x-dbeditor-table-unid');
                 if (!tableUnid) {return;}
                 e.preventDefault();
-                dispatch(EditorEvents.assignTableToDiagram, {tableUnid: tableUnid, diagramUnid: unid});
+                EditorEventBus.dispatch(EditorEvents.assignTableToDiagram, {tableUnid: tableUnid, diagramUnid: unid});
             });
         }
 
         const more = document.createElement('button');
         more.className = 'treeview-row-more';
-        more.replaceChildren(iconEllipsis());
+        more.replaceChildren(Icons.ellipsis());
         more.title = 'More actions';
         more.addEventListener('click', (e) => {
             e.stopPropagation();
             const items = this._menuItemsFor(type, unid, name, nameEl);
-            if (items.length) {openContextMenu(more, items);}
+            if (items.length) {ContextMenu.open(more, items);}
         });
         row.append(more);
         return row;
@@ -695,10 +683,10 @@ export class Treeview {
         if (isLive) {
             if (type === JsonDataDBType.database && this._connectableDatabaseUnids.has(unid)) {
                 items.push({ label: 'Refresh from DB', onClick: () => {
-                    dispatch(EditorEvents.refreshLive, { databaseUnid: unid });
+                    EditorEventBus.dispatch(EditorEvents.refreshLive, { databaseUnid: unid });
                 }});
                 items.push({ label: 'Sync with DB…', onClick: () => {
-                    dispatch(EditorEvents.openSyncDialog, { databaseUnid: unid });
+                    EditorEventBus.dispatch(EditorEvents.openSyncDialog, { databaseUnid: unid });
                 }});
             }
             return items;
@@ -707,32 +695,32 @@ export class Treeview {
         if (type === JsonDataDBType.project) {
             items.push({ label: 'Add database', onClick: () => {
                 const n = promptName('New database name?', 'new_db');
-                if (n) {dispatch(EditorEvents.createContainer, { parentUnid: unid, type: JsonDataDBType.database, name: n });}
+                if (n) {EditorEventBus.dispatch(EditorEvents.createContainer, { parentUnid: unid, type: JsonDataDBType.database, name: n });}
             }});
             items.push({ label: 'Add folder', onClick: () => {
                 const n = promptName('New folder name?', 'new_folder');
-                if (n) {dispatch(EditorEvents.createContainer, { parentUnid: unid, type: JsonDataDBType.folder, name: n });}
+                if (n) {EditorEventBus.dispatch(EditorEvents.createContainer, { parentUnid: unid, type: JsonDataDBType.folder, name: n });}
             }});
         } else if (type === JsonDataDBType.database || type === JsonDataDBType.folder) {
             items.push({ label: 'Add folder', onClick: () => {
                 const n = promptName('New folder name?', 'new_folder');
-                if (n) {dispatch(EditorEvents.createContainer, { parentUnid: unid, type: JsonDataDBType.folder, name: n });}
+                if (n) {EditorEventBus.dispatch(EditorEvents.createContainer, { parentUnid: unid, type: JsonDataDBType.folder, name: n });}
             }});
             items.push({ label: 'Add table', onClick: () => {
                 const n = promptName('New table name?', 'new_table');
-                if (n) {dispatch(EditorEvents.createTableIn, { containerUnid: unid, name: n });}
+                if (n) {EditorEventBus.dispatch(EditorEvents.createTableIn, { containerUnid: unid, name: n });}
             }});
             items.push({ label: 'Add enum', onClick: () => {
                 const n = promptName('New enum name?', 'new_enum');
-                if (n) {dispatch(EditorEvents.createEnumIn, { containerUnid: unid, name: n });}
+                if (n) {EditorEventBus.dispatch(EditorEvents.createEnumIn, { containerUnid: unid, name: n });}
             }});
             items.push({ label: 'Add view', onClick: () => {
                 const n = promptName('New view name?', 'new_view');
-                if (n) {dispatch(EditorEvents.createViewIn, { containerUnid: unid, name: n });}
+                if (n) {EditorEventBus.dispatch(EditorEvents.createViewIn, { containerUnid: unid, name: n });}
             }});
             items.push({ label: 'Add routine', onClick: () => {
                 const n = promptName('New routine name?', 'new_routine');
-                if (n) {dispatch(EditorEvents.createRoutineIn, { containerUnid: unid, name: n, kind: 'procedure' });}
+                if (n) {EditorEventBus.dispatch(EditorEvents.createRoutineIn, { containerUnid: unid, name: n, kind: 'procedure' });}
             }});
             /*
              * Add-EER-diagram only makes sense on a database (diagrams
@@ -743,19 +731,19 @@ export class Treeview {
             if (type === JsonDataDBType.database) {
                 items.push({ label: 'Add EER diagram', onClick: () => {
                     const n = promptName('New EER diagram name?', 'New diagram');
-                    if (n) {dispatch(EditorEvents.createDiagramIn, { containerUnid: unid, name: n });}
+                    if (n) {EditorEventBus.dispatch(EditorEvents.createDiagramIn, { containerUnid: unid, name: n });}
                 }});
             }
             if (type === JsonDataDBType.database && this._connectableDatabaseUnids.has(unid)) {
                 items.push({ kind: 'separator' });
                 items.push({ label: 'Sync with DB…', onClick: () => {
-                    dispatch(EditorEvents.openSyncDialog, { databaseUnid: unid });
+                    EditorEventBus.dispatch(EditorEvents.openSyncDialog, { databaseUnid: unid });
                 }});
             }
             if (type === JsonDataDBType.database) {
                 items.push({ kind: 'separator' });
                 items.push({ label: 'Generate SQL (this DB)…', onClick: () => {
-                    dispatch(EditorEvents.generateScoped, { databaseUnid: unid });
+                    EditorEventBus.dispatch(EditorEvents.generateScoped, { databaseUnid: unid });
                 }});
                 /*
                  * Database-level defaults (engine / charset /
@@ -764,22 +752,22 @@ export class Treeview {
                  * options on 50+ cards.
                  */
                 items.push({ label: 'Database properties…', onClick: () => {
-                    dispatch(EditorEvents.openDatabaseProperties, { unid: unid });
+                    EditorEventBus.dispatch(EditorEvents.openDatabaseProperties, { unid: unid });
                 }});
             }
             items.push({ kind: 'separator' });
             items.push({ label: 'Rename', onClick: () => {
                 this._startInlineRename(nameEl, name, (n) =>
-                    dispatch(EditorEvents.renameContainer, { unid: unid, name: n }));
+                    EditorEventBus.dispatch(EditorEvents.renameContainer, { unid: unid, name: n }));
             }});
             items.push({ label: 'Delete', danger: true, onClick: async() => {
                 const ok = await ConfirmDialog.showConfirm('Delete container',
                     `Delete "${name}" and everything inside it?`, 'danger');
-                if (ok) {dispatch(EditorEvents.deleteContainer, { unid: unid });}
+                if (ok) {EditorEventBus.dispatch(EditorEvents.deleteContainer, { unid: unid });}
             }});
         } else if (type === JsonDataDBType.table) {
             items.push({ label: 'Generate SQL (this table)…', onClick: () => {
-                dispatch(EditorEvents.generateScoped, { tableUnid: unid });
+                EditorEventBus.dispatch(EditorEvents.generateScoped, { tableUnid: unid });
             }});
             items.push({ kind: 'separator' });
             /*
@@ -790,65 +778,65 @@ export class Treeview {
              * `pickDiagramForTables` event handles it identically.
              */
             items.push({ label: 'Assign to EER diagram…', onClick: () => {
-                dispatch(EditorEvents.pickDiagramForTables, { tableUnids: [unid] });
+                EditorEventBus.dispatch(EditorEvents.pickDiagramForTables, { tableUnids: [unid] });
             }});
             items.push({ label: 'Duplicate', onClick: () => {
-                dispatch(EditorEvents.duplicateTable, { tableUnid: unid });
+                EditorEventBus.dispatch(EditorEvents.duplicateTable, { tableUnid: unid });
             }});
             items.push({ label: 'Rename', onClick: () => {
                 this._startInlineRename(nameEl, name, (n) =>
-                    dispatch(EditorEvents.renameTable, { tableUnid: unid, name: n }));
+                    EditorEventBus.dispatch(EditorEvents.renameTable, { tableUnid: unid, name: n }));
             }});
             items.push({ label: 'Delete', danger: true, onClick: async() => {
                 const ok = await ConfirmDialog.showConfirm('Delete table',
                     `Delete table "${name}" and all its columns?`, 'danger');
-                if (ok) {dispatch(EditorEvents.deleteTable, { tableUnid: unid });}
+                if (ok) {EditorEventBus.dispatch(EditorEvents.deleteTable, { tableUnid: unid });}
             }});
         } else if (type === JsonDataDBType.routine) {
             items.push({ label: 'Edit body…', onClick: () => {
-                dispatch(EditorEvents.editRoutine, { unid: unid });
+                EditorEventBus.dispatch(EditorEvents.editRoutine, { unid: unid });
             }});
             items.push({ kind: 'separator' });
             items.push({ label: 'Rename', onClick: () => {
                 this._startInlineRename(nameEl, name, (n) =>
-                    dispatch(EditorEvents.renameRoutine, { unid: unid, name: n }));
+                    EditorEventBus.dispatch(EditorEvents.renameRoutine, { unid: unid, name: n }));
             }});
             items.push({ label: 'Delete', danger: true, onClick: async() => {
                 const ok = await ConfirmDialog.showConfirm('Delete routine',
                     `Delete routine "${name}"?`, 'danger');
-                if (ok) {dispatch(EditorEvents.deleteRoutine, { unid: unid });}
+                if (ok) {EditorEventBus.dispatch(EditorEvents.deleteRoutine, { unid: unid });}
             }});
         } else if (type === JsonDataDBType.enum) {
             items.push({ label: 'Edit values', onClick: () => {
-                dispatch(EditorEvents.editEnum, { unid: unid });
+                EditorEventBus.dispatch(EditorEvents.editEnum, { unid: unid });
             }});
             items.push({ kind: 'separator' });
             items.push({ label: 'Rename', onClick: () => {
                 this._startInlineRename(nameEl, name, (n) =>
-                    dispatch(EditorEvents.renameEnum, { unid: unid, name: n }));
+                    EditorEventBus.dispatch(EditorEvents.renameEnum, { unid: unid, name: n }));
             }});
             items.push({ label: 'Delete', danger: true, onClick: async() => {
                 const ok = await ConfirmDialog.showConfirm('Delete enum',
                     `Delete enum "${name}"?`, 'danger');
-                if (ok) {dispatch(EditorEvents.deleteEnum, { unid: unid });}
+                if (ok) {EditorEventBus.dispatch(EditorEvents.deleteEnum, { unid: unid });}
             }});
         } else if (type === JsonDataDBType.view) {
             items.push({ label: 'Edit view…', onClick: () => {
-                dispatch(EditorEvents.editView, { unid: unid });
+                EditorEventBus.dispatch(EditorEvents.editView, { unid: unid });
             }});
             items.push({ kind: 'separator' });
             items.push({ label: 'Rename', onClick: () => {
                 this._startInlineRename(nameEl, name, (n) =>
-                    dispatch(EditorEvents.renameView, { unid: unid, name: n }));
+                    EditorEventBus.dispatch(EditorEvents.renameView, { unid: unid, name: n }));
             }});
             items.push({ label: 'Delete', danger: true, onClick: async() => {
                 const ok = await ConfirmDialog.showConfirm('Delete view',
                     `Delete view "${name}"?`, 'danger');
-                if (ok) {dispatch(EditorEvents.deleteView, { unid: unid });}
+                if (ok) {EditorEventBus.dispatch(EditorEvents.deleteView, { unid: unid });}
             }});
         } else if (type === JsonDataDBType.diagram) {
             items.push({ label: 'Generate SQL (this diagram)…', onClick: () => {
-                dispatch(EditorEvents.generateScoped, { diagramUnid: unid, layerName: name });
+                EditorEventBus.dispatch(EditorEvents.generateScoped, { diagramUnid: unid, layerName: name });
             }});
             /*
              * Diagram-scoped sync: only fires if the diagram's parent
@@ -859,17 +847,17 @@ export class Treeview {
              * (discoverability > hiding-when-unconfigured).
              */
             items.push({ label: 'Sync this diagram with DB…', onClick: () => {
-                dispatch(EditorEvents.openSyncDialog, { diagramUnid: unid, layerName: name });
+                EditorEventBus.dispatch(EditorEvents.openSyncDialog, { diagramUnid: unid, layerName: name });
             }});
             items.push({ kind: 'separator' });
             items.push({ label: 'Rename', onClick: () => {
                 this._startInlineRename(nameEl, name, (n) =>
-                    dispatch(EditorEvents.renameDiagram, { unid: unid, name: n }));
+                    EditorEventBus.dispatch(EditorEvents.renameDiagram, { unid: unid, name: n }));
             }});
             items.push({ label: 'Delete', danger: true, onClick: async() => {
                 const ok = await ConfirmDialog.showConfirm('Delete EER diagram',
                     `Delete diagram "${name}"? Tables inside are not deleted; their diagram reference becomes empty.`, 'danger');
-                if (ok) {dispatch(EditorEvents.deleteDiagram, { unid: unid });}
+                if (ok) {EditorEventBus.dispatch(EditorEvents.deleteDiagram, { unid: unid });}
             }});
         }
         return items;

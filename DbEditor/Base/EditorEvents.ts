@@ -184,6 +184,10 @@ export const EditorEvents = {
 
 export type EditorEventName = typeof EditorEvents[keyof typeof EditorEvents];
 
-export const dispatch = (name: EditorEventName, detail: unknown): void => {
-    window.dispatchEvent(new CustomEvent(name, {detail: detail}));
-};
+export class EditorEventBus {
+
+    public static dispatch(name: EditorEventName, detail: unknown): void {
+        window.dispatchEvent(new CustomEvent(name, {detail: detail}));
+    }
+
+}

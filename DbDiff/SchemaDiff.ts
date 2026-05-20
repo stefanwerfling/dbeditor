@@ -2,14 +2,7 @@ import {JsonDataDB, JsonTable, JsonView, JsonColumn} from '../DbEditor/JsonData.
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
 import {DbProjectSync} from '../DbProject/DbProject.js';
 import {SchemaChange, SchemaChangeKind, SchemaChangeSet, SchemaChangeSeverity, SchemaRenameHints} from './ChangeTypes.js';
-import {
-    diffColumn,
-    fksEquivalent,
-    indexColumnNamesEqual,
-    indexesEquivalent,
-    tableOptionsEquivalent,
-    viewsEquivalent
-} from './ColumnEquivalence.js';
+import {ColumnEquivalence} from './ColumnEquivalence.js';
 
 const severityFor = (kind: SchemaChangeKind): SchemaChangeSeverity => {
     switch (kind) {
@@ -164,7 +157,7 @@ export class SchemaDiff {
             const l = liveViews.get(name);
             if (m && !l) {changes.push(newChange(SchemaChangeKind.viewAdded, {viewName: name, after: m})); continue;}
             if (!m && l) {changes.push(newChange(SchemaChangeKind.viewDropped, {viewName: name, before: l})); continue;}
-            if (m && l && !viewsEquivalent(l, m)) {
+            if (m && l && !ColumnEquivalence.viewsEquivalent(l, m)) {
                 changes.push(newChange(SchemaChangeKind.viewChanged, {viewName: name, before: l, after: m}));
             }
         }
@@ -287,7 +280,7 @@ export class SchemaDiff {
                 continue;
             }
             if (m && l) {
-                const d = diffColumn(l, m, ignoreColAttrs);
+                const d = ColumnEquivalence.diffColumn(l, m, ignoreColAttrs);
                 if (d) {
                     changes.push(newChange(SchemaChangeKind.columnChanged, {
                         tableName: model.name, columnName: name, before: l, after: m
@@ -315,8 +308,8 @@ export class SchemaDiff {
             if (m && !l) {changes.push(newChange(SchemaChangeKind.indexAdded, {tableName: model.name, indexName: name, after: m})); continue;}
             if (!m && l) {changes.push(newChange(SchemaChangeKind.indexDropped, {tableName: model.name, indexName: name, before: l})); continue;}
             if (m && l) {
-                const sameShape = indexesEquivalent(l, m);
-                const sameCols = indexColumnNamesEqual(l, m, liveColName, modelColName);
+                const sameShape = ColumnEquivalence.indexesEquivalent(l, m);
+                const sameCols = ColumnEquivalence.indexColumnNamesEqual(l, m, liveColName, modelColName);
                 if (!sameShape || !sameCols) {
                     changes.push(newChange(SchemaChangeKind.indexChanged, {tableName: model.name, indexName: name, before: l, after: m}));
                 }
@@ -358,7 +351,7 @@ export class SchemaDiff {
                 const modelRefTableName = (unid: string): string => {
                     return modelTablesByUnid.get(unid)?.name ?? '';
                 };
-                if (!fksEquivalent(l, m, liveColName, modelColName, liveRefTableName, modelRefTableName)) {
+                if (!ColumnEquivalence.fksEquivalent(l, m, liveColName, modelColName, liveRefTableName, modelRefTableName)) {
                     changes.push(newChange(SchemaChangeKind.fkChanged, {tableName: model.name, fkName: name, before: l, after: m}));
                 }
             }
@@ -375,7 +368,7 @@ export class SchemaDiff {
             charset: modelDb.defaultCharset,
             collation: modelDb.defaultCollation
         };
-        if (!tableOptionsEquivalent(live.options, model.options, new Set(), modelDefaults)) {
+        if (!ColumnEquivalence.tableOptionsEquivalent(live.options, model.options, new Set(), modelDefaults)) {
             changes.push(newChange(SchemaChangeKind.tableOptionsChanged, {tableName: model.name, before: live.options, after: model.options}));
         }
     }

@@ -17,55 +17,59 @@
  * we still expose `barOn` to slightly offset the bar toward the table for
  * a tighter look.
  */
-const NS = 'http://www.w3.org/2000/svg';
-const DEFAULT_STROKE = 'var(--c-fk, #3e9c8a)';
+export class FkMarkers {
 
-const svgRoot = (): SVGSVGElement => {
-    const s = document.createElementNS(NS, 'svg');
-    s.setAttribute('width', '24');
-    s.setAttribute('height', '20');
-    s.setAttribute('viewBox', '-12 -10 24 20');
-    s.style.overflow = 'visible';
-    s.style.pointerEvents = 'none';
-    return s;
-};
+    private static readonly NS = 'http://www.w3.org/2000/svg';
+    private static readonly DEFAULT_STROKE = 'var(--c-fk, #3e9c8a)';
 
-/**
- * Three-pronged "many" marker. Apex at (0,0); prongs end at (±10, ±7) /
- * (±10, 0). Direction picks the sign of x.
- */
-export const crowsFoot = (prongsToward: 'left' | 'right', stroke = DEFAULT_STROKE): SVGSVGElement => {
-    const s = svgRoot();
-    const sign = prongsToward === 'right' ? +1 : -1;
-    const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d',
-        `M 0 0 L ${10 * sign} -7 ` +
-        `M 0 0 L ${10 * sign}  0 ` +
-        `M 0 0 L ${10 * sign}  7`);
-    path.setAttribute('stroke', stroke);
-    path.setAttribute('stroke-width', '1.5');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('fill', 'none');
-    s.append(path);
-    return s;
-};
+    protected static svgRoot(): SVGSVGElement {
+        const s = document.createElementNS(FkMarkers.NS, 'svg');
+        s.setAttribute('width', '24');
+        s.setAttribute('height', '20');
+        s.setAttribute('viewBox', '-12 -10 24 20');
+        s.style.overflow = 'visible';
+        s.style.pointerEvents = 'none';
+        return s;
+    }
 
-/**
- * Single perpendicular bar across the line for the "one" side. `barOn`
- * is the side of the table — bar sits a few pixels into the line on that
- * side so it visually hugs the table edge.
- */
-export const oneBar = (barOn: 'left' | 'right', stroke = DEFAULT_STROKE): SVGSVGElement => {
-    const s = svgRoot();
-    const sign = barOn === 'right' ? +1 : -1;
-    const line = document.createElementNS(NS, 'line');
-    line.setAttribute('x1', `${4 * sign}`);
-    line.setAttribute('x2', `${4 * sign}`);
-    line.setAttribute('y1', '-6');
-    line.setAttribute('y2', '6');
-    line.setAttribute('stroke', stroke);
-    line.setAttribute('stroke-width', '1.5');
-    line.setAttribute('stroke-linecap', 'round');
-    s.append(line);
-    return s;
-};
+    /**
+     * Three-pronged "many" marker. Apex at (0,0); prongs end at (±10, ±7) /
+     * (±10, 0). Direction picks the sign of x.
+     */
+    public static crowsFoot(prongsToward: 'left' | 'right', stroke = FkMarkers.DEFAULT_STROKE): SVGSVGElement {
+        const s = FkMarkers.svgRoot();
+        const sign = prongsToward === 'right' ? +1 : -1;
+        const path = document.createElementNS(FkMarkers.NS, 'path');
+        path.setAttribute('d',
+            `M 0 0 L ${10 * sign} -7 ` +
+            `M 0 0 L ${10 * sign}  0 ` +
+            `M 0 0 L ${10 * sign}  7`);
+        path.setAttribute('stroke', stroke);
+        path.setAttribute('stroke-width', '1.5');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('fill', 'none');
+        s.append(path);
+        return s;
+    }
+
+    /**
+     * Single perpendicular bar across the line for the "one" side. `barOn`
+     * is the side of the table — bar sits a few pixels into the line on
+     * that side so it visually hugs the table edge.
+     */
+    public static oneBar(barOn: 'left' | 'right', stroke = FkMarkers.DEFAULT_STROKE): SVGSVGElement {
+        const s = FkMarkers.svgRoot();
+        const sign = barOn === 'right' ? +1 : -1;
+        const line = document.createElementNS(FkMarkers.NS, 'line');
+        line.setAttribute('x1', `${4 * sign}`);
+        line.setAttribute('x2', `${4 * sign}`);
+        line.setAttribute('y1', '-6');
+        line.setAttribute('y2', '6');
+        line.setAttribute('stroke', stroke);
+        line.setAttribute('stroke-width', '1.5');
+        line.setAttribute('stroke-linecap', 'round');
+        s.append(line);
+        return s;
+    }
+
+}

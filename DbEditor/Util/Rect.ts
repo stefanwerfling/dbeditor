@@ -10,7 +10,6 @@
  * — overlap must be strict so a 0-pixel-wide rubber-band doesn't grab
  * everything it brushes past.
  */
-
 export type Rect = {
     left: number;
     right: number;
@@ -18,25 +17,31 @@ export type Rect = {
     bottom: number;
 };
 
-export const rectsIntersect = (a: Rect, b: Rect): boolean => {
-    return a.left < b.right
-        && a.right > b.left
-        && a.top < b.bottom
-        && a.bottom > b.top;
-};
+export class Rects {
 
-/**
- * Build a `Rect` from two arbitrary corner points. Used while a
- * rubber-band drag is in progress — `start` is the mousedown position,
- * `end` is the current mouse position; the resulting rect is the
- * axis-aligned bounding box of the two.
- */
-export const rectFromCorners = (
-    start: { x: number; y: number; },
-    end: { x: number; y: number; }
-): Rect => ({
-    left: Math.min(start.x, end.x),
-    right: Math.max(start.x, end.x),
-    top: Math.min(start.y, end.y),
-    bottom: Math.max(start.y, end.y)
-});
+    public static intersect(a: Rect, b: Rect): boolean {
+        return a.left < b.right
+            && a.right > b.left
+            && a.top < b.bottom
+            && a.bottom > b.top;
+    }
+
+    /**
+     * Build a `Rect` from two arbitrary corner points. Used while a
+     * rubber-band drag is in progress — `start` is the mousedown position,
+     * `end` is the current mouse position; the resulting rect is the
+     * axis-aligned bounding box of the two.
+     */
+    public static fromCorners(
+        start: { x: number; y: number; },
+        end: { x: number; y: number; }
+    ): Rect {
+        return {
+            left: Math.min(start.x, end.x),
+            right: Math.max(start.x, end.x),
+            top: Math.min(start.y, end.y),
+            bottom: Math.max(start.y, end.y)
+        };
+    }
+
+}

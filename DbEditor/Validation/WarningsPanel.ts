@@ -1,6 +1,6 @@
 import {SchemaWarning} from './SchemaValidator.js';
-import {dispatch, EditorEvents} from '../Base/EditorEvents.js';
-import {iconCheck} from '../Util/Icons.js';
+import {EditorEventBus, EditorEvents} from '../Base/EditorEvents.js';
+import {Icons} from '../Util/Icons.js';
 
 const SEV_ICON: Record<string, string> = {
     error:   '✕',
@@ -61,7 +61,7 @@ export class WarningsPanel {
             counts.append(this._badge('info', infos));
         }
         if (!total) {
-            counts.replaceChildren(iconCheck());
+            counts.replaceChildren(Icons.check());
         }
         this._header.append(title, counts);
 
@@ -98,7 +98,7 @@ export class WarningsPanel {
             if (w.tableUnid) {
                 row.title = 'Click to focus the table';
                 row.addEventListener('click', (): void => {
-                    dispatch(EditorEvents.focusTable, {
+                    EditorEventBus.dispatch(EditorEvents.focusTable, {
                         tableUnid: w.tableUnid,
                         containerUnid: w.containerUnid
                     });
@@ -106,7 +106,7 @@ export class WarningsPanel {
             } else if (w.containerUnid) {
                 row.title = 'Click to open the database';
                 row.addEventListener('click', (): void => {
-                    dispatch(EditorEvents.activateContainer, {unid: w.containerUnid});
+                    EditorEventBus.dispatch(EditorEvents.activateContainer, {unid: w.containerUnid});
                 });
             }
             this._list.append(row);

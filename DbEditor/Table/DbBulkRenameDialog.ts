@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {iconWarning} from '../Util/Icons.js';
+import {Icons} from '../Util/Icons.js';
 
 export type BulkRenameResult = Map<string, string> | null;
 
@@ -83,7 +83,7 @@ export class DbBulkRenameDialog extends BaseDialog<BulkRenameResult> {
         const collisions = [...targetCounts.entries()].filter(([, n]) => n > 1).map(([k]) => k);
         if (collisions.length) {
             const text = ` ${collisions.length} target name${collisions.length === 1 ? '' : 's'} collide: ${collisions.join(', ')}`;
-            this._warn.replaceChildren(iconWarning(), document.createTextNode(text));
+            this._warn.replaceChildren(Icons.warning(), document.createTextNode(text));
         } else {
             this._warn.replaceChildren();
         }
