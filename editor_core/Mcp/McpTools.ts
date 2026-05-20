@@ -1,4 +1,5 @@
 import {Vts} from 'vts';
+import {JsonDataDBType} from '../../DbEditor/JsonData.js';
 import {DbFsRepository} from '../../DbRepository/DbFsRepository.js';
 import {DbFsTreeWalker} from '../../DbRepository/DbFsTreeWalker.js';
 import {DbRepositoryRegistry} from '../../DbRepository/DbRepositoryRegistry.js';
@@ -464,6 +465,276 @@ export class McpTools {
                     try {
                         const rev = repo.removeForeignKey(tableUnid, fkUnid, null);
                         return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, deleted: fkUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_create_container',
+                description: 'Create a new database or folder node. Databases sit at the top level (parent = root); folders nest inside databases or other folders to group tables/views/enums/routines. The data-tree root is the literal string "root". **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    parentUnid: Vts.string({description: 'Parent container unid — "root" for top-level databases, otherwise a database or folder unid'}),
+                    name: Vts.string({description: 'New container name'}),
+                    type: Vts.string({description: '"database" or "folder"'})
+                }),
+                handler: async({projectUnid, parentUnid, name, type}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const {rev, entry} = repo.createContainer(parentUnid, name, type as JsonDataDBType, null);
+                        return McpToolBuilder.json({rev: rev, containerUnid: entry.unid, name: entry.name, type: entry.type});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_update_container',
+                description: 'Rename a database or folder. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    containerUnid: Vts.string({description: 'Container unid to update'}),
+                    name: Vts.optional(Vts.string({description: 'New name (omit to leave unchanged)'}))
+                }),
+                handler: async({projectUnid, containerUnid, name}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        if (name === undefined) {
+                            return McpToolBuilder.error('db_update_container: at least `name` must be supplied');
+                        }
+                        const rev = repo.updateContainer(containerUnid, {name: name}, null);
+                        return McpToolBuilder.json({rev: rev, containerUnid: containerUnid, patched: ['name']});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_delete_container',
+                description: 'Delete a database or folder and everything inside it (tables, views, enums, routines, nested folders). Irreversible — verify with db_get_tree first. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    containerUnid: Vts.string({description: 'Container unid to delete'})
+                }),
+                handler: async({projectUnid, containerUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.deleteContainer(containerUnid, null);
+                        return McpToolBuilder.json({rev: rev, deleted: containerUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_create_enum',
+                description: 'Create an enum type inside a database or folder, optionally with an initial set of string values. Postgres emits CREATE TYPE … AS ENUM; MySQL inlines values into the column type at use sites; SQLite falls back to TEXT CHECK (col IN (…)). Returns the new enumUnid plus per-value unids. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    containerUnid: Vts.string({description: 'Parent database or folder unid'}),
+                    name: Vts.string(),
+                    values: Vts.optional(Vts.array(Vts.string({description: 'Enum value (string literal)'}))),
+                    description: Vts.optional(Vts.string()),
+                    pos: Vts.optional(Vts.object({x: Vts.number(), y: Vts.number()}))
+                }),
+                handler: async({projectUnid, containerUnid, name, values, description, pos}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const {enumNode} = repo.createEnum(containerUnid, name, pos ?? null, null);
+                        const valueUnids: {value: string; unid: string;}[] = [];
+                        for (const v of values ?? []) {
+                            const {value: created} = repo.addEnumValue(enumNode.unid, v, null);
+                            valueUnids.push({value: created.value, unid: created.unid});
+                        }
+                        if (description !== undefined && description.length > 0) {
+                            repo.updateEnum(enumNode.unid, {description: description}, null);
+                        }
+                        return McpToolBuilder.json({rev: repo.rev, enumUnid: enumNode.unid, values: valueUnids});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_update_enum',
+                description: 'Rename an enum and/or update its description. Use db_add_enum_value / db_update_enum_value / db_delete_enum_value for the value list. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    enumUnid: Vts.string({description: 'Enum unid (from db_get_tree)'}),
+                    name: Vts.optional(Vts.string()),
+                    description: Vts.optional(Vts.string())
+                }),
+                handler: async({projectUnid, enumUnid, name, description}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const patch: {name?: string; description?: string;} = {};
+                        if (name !== undefined) {patch.name = name;}
+                        if (description !== undefined) {patch.description = description;}
+                        if (Object.keys(patch).length === 0) {
+                            return McpToolBuilder.error('db_update_enum: at least one of `name` or `description` must be supplied');
+                        }
+                        const rev = repo.updateEnum(enumUnid, patch, null);
+                        return McpToolBuilder.json({rev: rev, enumUnid: enumUnid, patched: Object.keys(patch)});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_delete_enum',
+                description: 'Delete an enum type. Columns that referenced it via enumRef keep their unid in place — the AI should patch those columns to a different type before/after deletion if it matters. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    enumUnid: Vts.string({description: 'Enum unid to delete'})
+                }),
+                handler: async({projectUnid, enumUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.deleteEnum(enumUnid, null);
+                        return McpToolBuilder.json({rev: rev, deleted: enumUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_add_enum_value',
+                description: 'Append a value to an existing enum. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    enumUnid: Vts.string({description: 'Target enum unid'}),
+                    value: Vts.string({description: 'Enum value (string literal)'})
+                }),
+                handler: async({projectUnid, enumUnid, value}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const {rev, value: created} = repo.addEnumValue(enumUnid, value, null);
+                        return McpToolBuilder.json({rev: rev, enumUnid: enumUnid, valueUnid: created.unid, value: created.value});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_update_enum_value',
+                description: 'Rename an enum value in place. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    enumUnid: Vts.string({description: 'Enum unid'}),
+                    valueUnid: Vts.string({description: 'Value unid (from db_get_tree)'}),
+                    value: Vts.string({description: 'New value literal'})
+                }),
+                handler: async({projectUnid, enumUnid, valueUnid, value}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.updateEnumValue(enumUnid, valueUnid, value, null);
+                        return McpToolBuilder.json({rev: rev, enumUnid: enumUnid, valueUnid: valueUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_delete_enum_value',
+                description: 'Remove a single value from an enum. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    enumUnid: Vts.string({description: 'Enum unid'}),
+                    valueUnid: Vts.string({description: 'Value unid to delete'})
+                }),
+                handler: async({projectUnid, enumUnid, valueUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.removeEnumValue(enumUnid, valueUnid, null);
+                        return McpToolBuilder.json({rev: rev, enumUnid: enumUnid, deleted: valueUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_create_view',
+                description: 'Create a view inside a database or folder. `select` is the raw SELECT body (without the leading `CREATE VIEW name AS`). `materialized` is honoured by Postgres (emits `CREATE MATERIALIZED VIEW`); MySQL / MariaDB / SQLite ignore it. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    containerUnid: Vts.string({description: 'Parent database or folder unid'}),
+                    name: Vts.string(),
+                    select: Vts.optional(Vts.string({description: 'Raw SELECT body. Default empty — fill it in via db_update_view.'})),
+                    materialized: Vts.optional(Vts.boolean()),
+                    description: Vts.optional(Vts.string()),
+                    pos: Vts.optional(Vts.object({x: Vts.number(), y: Vts.number()}))
+                }),
+                handler: async({projectUnid, containerUnid, name, select, materialized, description, pos}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const {view} = repo.createView(containerUnid, name, pos ?? null, null);
+                        const patch: {select?: string; materialized?: boolean; description?: string;} = {};
+                        if (select !== undefined) {patch.select = select;}
+                        if (materialized !== undefined) {patch.materialized = materialized;}
+                        if (description !== undefined) {patch.description = description;}
+                        if (Object.keys(patch).length > 0) {
+                            repo.updateView(view.unid, patch, null);
+                        }
+                        return McpToolBuilder.json({rev: repo.rev, viewUnid: view.unid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_update_view',
+                description: 'Patch one or more fields on an existing view (rename, change SELECT body, toggle materialized, update description). **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    viewUnid: Vts.string({description: 'View unid (from db_get_tree)'}),
+                    name: Vts.optional(Vts.string()),
+                    select: Vts.optional(Vts.string()),
+                    materialized: Vts.optional(Vts.boolean()),
+                    description: Vts.optional(Vts.string())
+                }),
+                handler: async({projectUnid, viewUnid, name, select, materialized, description}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const patch: {name?: string; select?: string; materialized?: boolean; description?: string;} = {};
+                        if (name !== undefined) {patch.name = name;}
+                        if (select !== undefined) {patch.select = select;}
+                        if (materialized !== undefined) {patch.materialized = materialized;}
+                        if (description !== undefined) {patch.description = description;}
+                        if (Object.keys(patch).length === 0) {
+                            return McpToolBuilder.error('db_update_view: at least one field must be supplied');
+                        }
+                        const rev = repo.updateView(viewUnid, patch, null);
+                        return McpToolBuilder.json({rev: rev, viewUnid: viewUnid, patched: Object.keys(patch)});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_delete_view',
+                description: 'Delete a view. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    viewUnid: Vts.string({description: 'View unid to delete'})
+                }),
+                handler: async({projectUnid, viewUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.deleteView(viewUnid, null);
+                        return McpToolBuilder.json({rev: rev, deleted: viewUnid});
                     } catch (err) {
                         return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
                     }

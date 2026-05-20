@@ -640,6 +640,209 @@ describe('McpTools — foreign-key mutations', () => {
 
 });
 
+describe('McpTools — container mutations', () => {
+
+    it('db_create_container creates a folder under an existing database', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_container', {
+            projectUnid: 'pid-1',
+            parentUnid: db.unid,
+            name: 'public',
+            type: 'folder'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.type).toBe('folder');
+        expect(body.name).toBe('public');
+        expect(db.entrys).toHaveLength(1);
+        expect(db.entrys[0].name).toBe('public');
+        expect(db.entrys[0].type).toBe(JsonDataDBType.folder);
+    });
+
+    it('db_update_container renames a folder', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {entry: folder} = repo.createContainer(db.unid, 'old', JsonDataDBType.folder, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_container', {
+            projectUnid: 'pid-1',
+            containerUnid: folder.unid,
+            name: 'new'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.patched).toEqual(['name']);
+        expect(folder.name).toBe('new');
+    });
+
+    it('db_delete_container removes a folder and everything inside it', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {entry: folder} = repo.createContainer(db.unid, 'doomed', JsonDataDBType.folder, null);
+        repo.createTable(folder.unid, 'inner', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_container', {projectUnid: 'pid-1', containerUnid: folder.unid});
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(folder.unid);
+        expect(db.entrys).toEqual([]);
+    });
+
+});
+
+describe('McpTools — enum mutations', () => {
+
+    it('db_create_enum creates an enum with initial values in one call', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_enum', {
+            projectUnid: 'pid-1',
+            containerUnid: db.unid,
+            name: 'order_status',
+            values: ['pending', 'paid', 'shipped', 'cancelled']
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.values.map((v: {value: string;}) => v.value)).toEqual(['pending', 'paid', 'shipped', 'cancelled']);
+        expect(db.enums).toHaveLength(1);
+        expect(db.enums[0].name).toBe('order_status');
+        expect(db.enums[0].values.map(v => v.value)).toEqual(['pending', 'paid', 'shipped', 'cancelled']);
+    });
+
+    it('db_add_enum_value / db_update_enum_value / db_delete_enum_value mutate the value list in place', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {enumNode} = repo.createEnum(db.unid, 'order_status', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        // add
+        const added = await reg.call('db_add_enum_value', {projectUnid: 'pid-1', enumUnid: enumNode.unid, value: 'draft'});
+        const {body: addedBody} = parseJsonResult(added);
+        expect(enumNode.values).toHaveLength(1);
+        expect(enumNode.values[0].value).toBe('draft');
+        const valueUnid = addedBody.valueUnid as string;
+
+        // update
+        const updated = await reg.call('db_update_enum_value', {
+            projectUnid: 'pid-1', enumUnid: enumNode.unid, valueUnid: valueUnid, value: 'pending'
+        });
+        expect(updated.isError).toBe(undefined);
+        expect(enumNode.values[0].value).toBe('pending');
+
+        // delete
+        const deleted = await reg.call('db_delete_enum_value', {projectUnid: 'pid-1', enumUnid: enumNode.unid, valueUnid: valueUnid});
+        expect(deleted.isError).toBe(undefined);
+        expect(enumNode.values).toEqual([]);
+    });
+
+    it('db_delete_enum removes the enum from its container', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {enumNode} = repo.createEnum(db.unid, 'order_status', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_enum', {projectUnid: 'pid-1', enumUnid: enumNode.unid});
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(enumNode.unid);
+        expect(db.enums).toEqual([]);
+    });
+
+});
+
+describe('McpTools — view mutations', () => {
+
+    it('db_create_view persists the SELECT body and materialized flag in one call', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_view', {
+            projectUnid: 'pid-1',
+            containerUnid: db.unid,
+            name: 'active_orders',
+            select: 'SELECT * FROM orders WHERE status = \'active\'',
+            materialized: true,
+            description: 'Materialized cache of active orders'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(typeof body.viewUnid).toBe('string');
+        expect(db.views).toHaveLength(1);
+        expect(db.views[0]).toMatchObject({
+            name: 'active_orders',
+            select: 'SELECT * FROM orders WHERE status = \'active\'',
+            materialized: true,
+            description: 'Materialized cache of active orders'
+        });
+    });
+
+    it('db_update_view patches the SELECT body without touching the name', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {view} = repo.createView(db.unid, 'v', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_view', {
+            projectUnid: 'pid-1',
+            viewUnid: view.unid,
+            select: 'SELECT 1'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.patched).toEqual(['select']);
+        expect(view.select).toBe('SELECT 1');
+        expect(view.name).toBe('v');
+    });
+
+    it('db_delete_view removes the view', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {view} = repo.createView(db.unid, 'v', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_view', {projectUnid: 'pid-1', viewUnid: view.unid});
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(view.unid);
+        expect(db.views).toEqual([]);
+    });
+
+});
+
 describe('McpToolRegistry — validation + error handling', () => {
 
     it('returns isError=true when the tool name is unknown', async() => {
