@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, it} from 'vitest';
-import {DbProject} from '../../../DbProject/DbProject.js';
+import {DbProject} from '../../../editor_backend/DbProject/DbProject.js';
 import {JsonData} from '../../../DbEditor/JsonData.js';
-import {GeneratedFile} from '../../../DbGenerator/DbGenerator.js';
+import {GeneratedFile} from '../../../editor_backend/DbGenerator/DbGenerator.js';
 import {GenerationHookPlugin} from '../../../editor_core/plugin/GenerationHookPlugin.js';
 import {PluginKind} from '../../../editor_core/plugin/PluginKind.js';
 import {PluginRegistry} from '../../../editor_core/plugin/PluginRegistry.js';

@@ -1,5 +1,5 @@
 import type {Client} from 'pg';
-import {DbConnection, DbExecResult, DbRow} from '../../DbConnection/DbConnection.js';
+import {DbConnection, DbExecResult, DbRow} from '../../editor_backend/DbConnection/DbConnection.js';
 
 /**
  * Thin wrapper around `pg`'s `Client`. One sync-with-DB operation = one

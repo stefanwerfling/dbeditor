@@ -1,8 +1,8 @@
 import {Vts} from 'vts';
 import {JsonDataDBType} from '../../DbEditor/JsonData.js';
-import {DbFsRepository} from '../../DbRepository/DbFsRepository.js';
-import {DbFsTreeWalker} from '../../DbRepository/DbFsTreeWalker.js';
-import {DbRepositoryRegistry} from '../../DbRepository/DbRepositoryRegistry.js';
+import {DbFsRepository} from '../../editor_backend/DbRepository/DbFsRepository.js';
+import {DbFsTreeWalker} from '../../editor_backend/DbRepository/DbFsTreeWalker.js';
+import {DbRepositoryRegistry} from '../../editor_backend/DbRepository/DbRepositoryRegistry.js';
 import {McpTool, McpToolBuilder} from './McpTool.js';
 
 /**

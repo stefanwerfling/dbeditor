@@ -12,12 +12,12 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {SqliteDriver} from '../../../BundledPlugins/Sqlite/SqliteDriver.js';
 import {SqliteIntrospector} from '../../../BundledPlugins/Sqlite/SqliteIntrospector.js';
 import {SqliteDialect} from '../../../BundledPlugins/Sqlite/SqliteDialect.js';
-import {SchemaDiff} from '../../../DbDiff/SchemaDiff.js';
-import {SyncGenerator} from '../../../DbGenerator/Sync/SyncGenerator.js';
-import {SyncExecutor} from '../../../DbSyncExecutor/SyncExecutor.js';
-import {DialectContextBuilder} from '../../../DbGenerator/DialectContextBuilder.js';
-import {DbConnection} from '../../../DbConnection/DbConnection.js';
-import {DbProjectConnection} from '../../../DbProject/DbProject.js';
+import {SchemaDiff} from '../../../editor_backend/DbDiff/SchemaDiff.js';
+import {SyncGenerator} from '../../../editor_backend/DbGenerator/Sync/SyncGenerator.js';
+import {SyncExecutor} from '../../../editor_backend/DbSyncExecutor/SyncExecutor.js';
+import {DialectContextBuilder} from '../../../editor_backend/DbGenerator/DialectContextBuilder.js';
+import {DbConnection} from '../../../editor_backend/DbConnection/DbConnection.js';
+import {DbProjectConnection} from '../../../editor_backend/DbProject/DbProject.js';
 import {JsonColumn, JsonDataDB, JsonIndex} from '../../../DbEditor/JsonData.js';
 
 let tmpDbPath = '';

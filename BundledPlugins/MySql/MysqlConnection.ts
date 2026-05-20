@@ -1,6 +1,6 @@
 // eslint-disable-next-line import/extensions
 import {Connection, FieldPacket, RowDataPacket, ResultSetHeader} from 'mysql2/promise';
-import {DbConnection, DbExecResult, DbRow} from '../../DbConnection/DbConnection.js';
+import {DbConnection, DbExecResult, DbRow} from '../../editor_backend/DbConnection/DbConnection.js';
 
 /**
  * Thin wrapper around `mysql2/promise`'s `Connection`. Lifetime is one

@@ -1,4 +1,4 @@
-import {ConfigMcp, ConfigMcpPolicy, ConfigMcpPolicyAction, ConfigMcpPolicyRule} from '../../Config/Config.js';
+import {ConfigMcp, ConfigMcpPolicy, ConfigMcpPolicyAction, ConfigMcpPolicyRule} from '../../editor_backend/Config/Config.js';
 
 /**
  * Compiled policy decision for one tool name. Pure data — the registry

@@ -1,4 +1,4 @@
-import {DbConnection, DbRow} from '../../DbConnection/DbConnection.js';
+import {DbConnection, DbRow} from '../../editor_backend/DbConnection/DbConnection.js';
 import {
     JsonColumn,
     JsonDataDB,
@@ -12,9 +12,9 @@ import {
     JsonTableOptions,
     JsonView
 } from '../../DbEditor/JsonData.js';
-import {DbIntrospector} from '../../DbIntrospect/DbIntrospector.js';
-import {FkActionMapper} from '../../DbIntrospect/FkActionMapper.js';
-import {LiveUridScheme} from '../../DbIntrospect/LiveUridScheme.js';
+import {DbIntrospector} from '../../editor_backend/DbIntrospect/DbIntrospector.js';
+import {FkActionMapper} from '../../editor_backend/DbIntrospect/FkActionMapper.js';
+import {LiveUridScheme} from '../../editor_backend/DbIntrospect/LiveUridScheme.js';
 
 /**
  * Parsed shape of a MySQL `COLUMN_TYPE` string (e.g. `int(11) unsigned`,

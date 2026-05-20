@@ -1,5 +1,5 @@
 import {SchemaErrors} from 'vts';
-import {ConfigMcpPolicyAction} from '../../Config/Config.js';
+import {ConfigMcpPolicyAction} from '../../editor_backend/Config/Config.js';
 import {McpPolicyDecision} from './McpPolicy.js';
 import {McpTool, McpToolResult} from './McpTool.js';
 import {JsonSchemaNode, VtsJsonSchema} from './VtsJsonSchema.js';

@@ -1,7 +1,7 @@
-import {DbProjectConnection} from '../../DbProject/DbProject.js';
-import {DbConnection, DbDriver} from '../../DbConnection/DbConnection.js';
-import {DbIntrospector} from '../../DbIntrospect/DbIntrospector.js';
-import {DumpAdapter} from '../../DbSyncExecutor/DumpAdapters/DumpAdapter.js';
+import {DbProjectConnection} from '../../editor_backend/DbProject/DbProject.js';
+import {DbConnection, DbDriver} from '../../editor_backend/DbConnection/DbConnection.js';
+import {DbIntrospector} from '../../editor_backend/DbIntrospect/DbIntrospector.js';
+import {DumpAdapter} from '../../editor_backend/DbSyncExecutor/DumpAdapters/DumpAdapter.js';
 import {Plugin} from './Plugin.js';
 import {PluginKind} from './PluginKind.js';
 

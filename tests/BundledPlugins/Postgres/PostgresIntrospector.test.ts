@@ -11,7 +11,7 @@
  */
 import {describe, expect, it} from 'vitest';
 import {PostgresIntrospector} from '../../../BundledPlugins/Postgres/PostgresIntrospector.js';
-import {DbConnection, DbRow} from '../../../DbConnection/DbConnection.js';
+import {DbConnection, DbRow} from '../../../editor_backend/DbConnection/DbConnection.js';
 
 class RecordingConnection implements DbConnection {
 

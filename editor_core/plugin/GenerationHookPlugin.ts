@@ -1,6 +1,6 @@
-import {DbProject} from '../../DbProject/DbProject.js';
+import {DbProject} from '../../editor_backend/DbProject/DbProject.js';
 import {JsonData} from '../../DbEditor/JsonData.js';
-import {GeneratedFile} from '../../DbGenerator/DbGenerator.js';
+import {GeneratedFile} from '../../editor_backend/DbGenerator/DbGenerator.js';
 import {Plugin} from './Plugin.js';
 import {PluginKind} from './PluginKind.js';
 

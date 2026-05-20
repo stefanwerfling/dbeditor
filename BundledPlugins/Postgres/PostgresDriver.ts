@@ -1,9 +1,9 @@
 import pg from 'pg';
 import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
-import {DbIntrospector} from '../../DbIntrospect/DbIntrospector.js';
+import {DbIntrospector} from '../../editor_backend/DbIntrospect/DbIntrospector.js';
 import {PostgresIntrospector} from './PostgresIntrospector.js';
-import {DbProjectConnection} from '../../DbProject/DbProject.js';
-import {DbConnection} from '../../DbConnection/DbConnection.js';
+import {DbProjectConnection} from '../../editor_backend/DbProject/DbProject.js';
+import {DbConnection} from '../../editor_backend/DbConnection/DbConnection.js';
 import {PostgresConnection} from './PostgresConnection.js';
 
 const {Client} = pg;

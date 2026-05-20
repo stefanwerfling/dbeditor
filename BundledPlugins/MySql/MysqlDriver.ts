@@ -2,11 +2,11 @@
 import mysql from 'mysql2/promise';
 import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
 import {MysqlIntrospector} from './MysqlIntrospector.js';
-import {DbIntrospector} from '../../DbIntrospect/DbIntrospector.js';
-import {DbProjectConnection} from '../../DbProject/DbProject.js';
-import {DumpAdapter} from '../../DbSyncExecutor/DumpAdapters/DumpAdapter.js';
+import {DbIntrospector} from '../../editor_backend/DbIntrospect/DbIntrospector.js';
+import {DbProjectConnection} from '../../editor_backend/DbProject/DbProject.js';
+import {DumpAdapter} from '../../editor_backend/DbSyncExecutor/DumpAdapters/DumpAdapter.js';
 import {MysqlDumpAdapter} from './MysqlDumpAdapter.js';
-import {DbConnection} from '../../DbConnection/DbConnection.js';
+import {DbConnection} from '../../editor_backend/DbConnection/DbConnection.js';
 import {MysqlConnection} from './MysqlConnection.js';
 
 /**

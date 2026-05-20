@@ -1,7 +1,7 @@
 import {spawn} from 'child_process';
 import * as fs from 'fs';
-import {DbProjectConnection} from '../../DbProject/DbProject.js';
-import {DumpAdapter, DumpRestoreResult} from '../../DbSyncExecutor/DumpAdapters/DumpAdapter.js';
+import {DbProjectConnection} from '../../editor_backend/DbProject/DbProject.js';
+import {DumpAdapter, DumpRestoreResult} from '../../editor_backend/DbSyncExecutor/DumpAdapters/DumpAdapter.js';
 
 /**
  * Spawn the binary and resolve with the captured stderr + exit code.

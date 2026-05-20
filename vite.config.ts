@@ -5,22 +5,22 @@ import * as path from 'path';
 import {randomUUID} from 'crypto';
 import {defineConfig, Plugin} from 'vite';
 import {SchemaErrors} from 'vts';
-import {ConfigDialect, ConfigOutputMode, SchemaConfig} from './Config/Config.js';
-import {EnvPlaceholderError, EnvPlaceholderResolver} from './Config/EnvPlaceholderResolver.js';
-import {DbProject, DbProjectConnection} from './DbProject/DbProject.js';
-import {DbFsRepository} from './DbRepository/DbFsRepository.js';
-import {DbRepositoryRegistry} from './DbRepository/DbRepositoryRegistry.js';
-import {DbLiveRepository} from './DbRepository/DbLiveRepository.js';
-import {DbLiveRepositoryRegistry} from './DbRepository/DbLiveRepositoryRegistry.js';
-import {DbRepositoryEvent} from './DbRepository/DbRepositoryEventTypes.js';
-import {registerDbApiRoutes} from './DbApi/DbApiRoutes.js';
+import {ConfigDialect, ConfigOutputMode, SchemaConfig} from './editor_backend/Config/Config.js';
+import {EnvPlaceholderError, EnvPlaceholderResolver} from './editor_backend/Config/EnvPlaceholderResolver.js';
+import {DbProject, DbProjectConnection} from './editor_backend/DbProject/DbProject.js';
+import {DbFsRepository} from './editor_backend/DbRepository/DbFsRepository.js';
+import {DbRepositoryRegistry} from './editor_backend/DbRepository/DbRepositoryRegistry.js';
+import {DbLiveRepository} from './editor_backend/DbRepository/DbLiveRepository.js';
+import {DbLiveRepositoryRegistry} from './editor_backend/DbRepository/DbLiveRepositoryRegistry.js';
+import {DbRepositoryEvent} from './editor_backend/DbRepository/DbRepositoryEventTypes.js';
+import {registerDbApiRoutes} from './editor_backend/DbApi/DbApiRoutes.js';
 // eslint-disable-next-line import/extensions
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {McpServer} from './editor_core/Mcp/McpServer.js';
 import {McpPolicy} from './editor_core/Mcp/McpPolicy.js';
 import {McpToolRegistry} from './editor_core/Mcp/McpToolRegistry.js';
 import {McpTools} from './editor_core/Mcp/McpTools.js';
-import {DbGenerator, GeneratedFile} from './DbGenerator/DbGenerator.js';
+import {DbGenerator, GeneratedFile} from './editor_backend/DbGenerator/DbGenerator.js';
 import {PluginBootstrap} from './editor_core/plugin/PluginBootstrap.js';
 
 function expressMiddleware(): Plugin {

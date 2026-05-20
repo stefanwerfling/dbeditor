@@ -13,7 +13,7 @@
  */
 import {describe, expect, it} from 'vitest';
 import {MysqlIntrospector} from '../../../BundledPlugins/MySql/MysqlIntrospector.js';
-import {DbConnection, DbRow} from '../../../DbConnection/DbConnection.js';
+import {DbConnection, DbRow} from '../../../editor_backend/DbConnection/DbConnection.js';
 
 class ScriptedConnection implements DbConnection {
 

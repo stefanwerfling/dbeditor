@@ -1,5 +1,5 @@
 import type {Database} from 'better-sqlite3';
-import {DbConnection, DbExecResult, DbRow} from '../../DbConnection/DbConnection.js';
+import {DbConnection, DbExecResult, DbRow} from '../../editor_backend/DbConnection/DbConnection.js';
 
 /**
  * Thin wrapper around `better-sqlite3`'s `Database` (sync). We adapt the

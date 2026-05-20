@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {ConfigMcpPolicyAction} from '../../../Config/Config.js';
+import {ConfigMcpPolicyAction} from '../../../editor_backend/Config/Config.js';
 import {McpPolicy} from '../../../editor_core/Mcp/McpPolicy.js';
 
 describe('McpPolicy.compile', () => {

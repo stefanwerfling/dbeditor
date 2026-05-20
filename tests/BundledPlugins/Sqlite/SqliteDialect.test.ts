@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {SqliteDialect} from '../../../BundledPlugins/Sqlite/SqliteDialect.js';
-import {DialectContext} from '../../../DbGenerator/DbDialect.js';
-import {DialectContextBuilder} from '../../../DbGenerator/DialectContextBuilder.js';
+import {DialectContext} from '../../../editor_backend/DbGenerator/DbDialect.js';
+import {DialectContextBuilder} from '../../../editor_backend/DbGenerator/DialectContextBuilder.js';
 import {
     JsonColumn,
     JsonDataDB,
