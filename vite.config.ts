@@ -42,8 +42,6 @@ function expressMiddleware(): Plugin {
 
             const repositories = new DbRepositoryRegistry();
             const liveRepositories = new DbLiveRepositoryRegistry();
-            // unid -> projectName, used for /api/load-schema response
-            const unidByName = new Map<string, string>();
 
             if (configFile && fs.existsSync(configFile)) {
                 const rawConfig = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
@@ -117,7 +115,6 @@ function expressMiddleware(): Plugin {
                     const unid = randomUUID();
                     repositories.register(unid, repo);
                     liveRepositories.register(unid, liveRepo);
-                    unidByName.set(unid, project.name);
 
                     if (project.autoGenerate) {
                         repo.setAfterFlush(async (r) => { await runGenerate(r); });
