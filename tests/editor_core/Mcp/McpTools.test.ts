@@ -843,6 +843,75 @@ describe('McpTools — view mutations', () => {
 
 });
 
+describe('McpTools — routine mutations', () => {
+
+    it('db_create_routine creates a procedure with the body inlined', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_create_routine', {
+            projectUnid: 'pid-1',
+            containerUnid: db.unid,
+            name: 'archive_orders',
+            kind: 'procedure',
+            body: 'BEGIN\n  DELETE FROM orders WHERE created_at < NOW() - INTERVAL 1 YEAR;\nEND',
+            description: 'Drop orders older than a year'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.kind).toBe('procedure');
+        expect(db.routines).toHaveLength(1);
+        expect(db.routines![0].name).toBe('archive_orders');
+        expect(db.routines![0].body).toContain('DELETE FROM orders');
+        expect(db.routines![0].description).toBe('Drop orders older than a year');
+    });
+
+    it('db_update_routine patches only the supplied fields', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {routine} = repo.createRoutine(db.unid, 'r', 'procedure', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_routine', {
+            projectUnid: 'pid-1',
+            routineUnid: routine.unid,
+            body: 'BEGIN SELECT 1; END',
+            description: 'noop'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.patched.sort()).toEqual(['body', 'description']);
+        expect(routine.body).toBe('BEGIN SELECT 1; END');
+        expect(routine.description).toBe('noop');
+        expect(routine.name).toBe('r');
+        expect(routine.kind).toBe('procedure');
+    });
+
+    it('db_delete_routine removes the routine', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {routine} = repo.createRoutine(db.unid, 'r', 'function', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_routine', {projectUnid: 'pid-1', routineUnid: routine.unid});
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(routine.unid);
+        expect(db.routines ?? []).toEqual([]);
+    });
+
+});
+
 describe('McpToolRegistry — validation + error handling', () => {
 
     it('returns isError=true when the tool name is unknown', async() => {

@@ -739,6 +739,83 @@ export class McpTools {
                         return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
                     }
                 }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_create_routine',
+                description: 'Create a stored procedure, function, or trigger inside a database or folder. `kind` is one of "procedure" / "function" / "trigger"; the generator emits separate files per kind. `body` is the raw routine body (everything inside the `BEGIN … END` block for procedures/functions, or the full trigger body). Returns the new routineUnid. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    containerUnid: Vts.string({description: 'Parent database or folder unid'}),
+                    name: Vts.string(),
+                    kind: Vts.string({description: '"procedure" | "function" | "trigger"'}),
+                    body: Vts.optional(Vts.string({description: 'Raw routine body. Default empty — fill it in via db_update_routine.'})),
+                    description: Vts.optional(Vts.string()),
+                    pos: Vts.optional(Vts.object({x: Vts.number(), y: Vts.number()}))
+                }),
+                handler: async({projectUnid, containerUnid, name, kind, body, description, pos}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const {routine} = repo.createRoutine(containerUnid, name, kind, pos ?? null, null);
+                        const patch: {body?: string; description?: string;} = {};
+                        if (body !== undefined) {patch.body = body;}
+                        if (description !== undefined) {patch.description = description;}
+                        if (Object.keys(patch).length > 0) {
+                            repo.updateRoutine(routine.unid, patch, null);
+                        }
+                        return McpToolBuilder.json({rev: repo.rev, routineUnid: routine.unid, kind: routine.kind});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_update_routine',
+                description: 'Patch one or more fields on an existing routine (rename, change kind, rewrite body, update description). Only supplied keys are overwritten. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    routineUnid: Vts.string({description: 'Routine unid (from db_get_tree)'}),
+                    name: Vts.optional(Vts.string()),
+                    kind: Vts.optional(Vts.string({description: '"procedure" | "function" | "trigger"'})),
+                    body: Vts.optional(Vts.string()),
+                    description: Vts.optional(Vts.string())
+                }),
+                handler: async({projectUnid, routineUnid, name, kind, body, description}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const patch: {name?: string; kind?: string; body?: string; description?: string;} = {};
+                        if (name !== undefined) {patch.name = name;}
+                        if (kind !== undefined) {patch.kind = kind;}
+                        if (body !== undefined) {patch.body = body;}
+                        if (description !== undefined) {patch.description = description;}
+                        if (Object.keys(patch).length === 0) {
+                            return McpToolBuilder.error('db_update_routine: at least one field must be supplied');
+                        }
+                        const rev = repo.updateRoutine(routineUnid, patch, null);
+                        return McpToolBuilder.json({rev: rev, routineUnid: routineUnid, patched: Object.keys(patch)});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_delete_routine',
+                description: 'Delete a stored procedure, function, or trigger. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    routineUnid: Vts.string({description: 'Routine unid to delete'})
+                }),
+                handler: async({projectUnid, routineUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.deleteRoutine(routineUnid, null);
+                        return McpToolBuilder.json({rev: rev, deleted: routineUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
             })
         ];
     }
