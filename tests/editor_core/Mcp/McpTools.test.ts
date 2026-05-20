@@ -256,6 +256,198 @@ describe('McpTools — db_create_table mutation', () => {
 
 });
 
+describe('McpTools — db_update_table / db_delete_table mutations', () => {
+
+    it('db_update_table renames and updates the description', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'orders', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_table', {
+            projectUnid: 'pid-1',
+            tableUnid: table.unid,
+            name: 'sales_orders',
+            description: 'Renamed to disambiguate from the legacy table.'
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.patched.sort()).toEqual(['description', 'name']);
+        expect(table.name).toBe('sales_orders');
+        expect(table.description).toBe('Renamed to disambiguate from the legacy table.');
+    });
+
+    it('db_update_table errors when no patch fields are supplied', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'orders', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_table', {projectUnid: 'pid-1', tableUnid: table.unid});
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('at least one');
+    });
+
+    it('db_delete_table removes the table and strips dangling FKs in other tables', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table: users} = repo.createTable(db.unid, 'users', null, null);
+        const {table: orders} = repo.createTable(db.unid, 'orders', null, null);
+        // orders.user_id -> users
+        orders.foreignKeys.push({
+            unid: 'fk-1',
+            name: 'fk_orders_user',
+            refTableUnid: users.unid,
+            columns: []
+        });
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_table', {projectUnid: 'pid-1', tableUnid: users.unid});
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(users.unid);
+        expect(db.tables.find(t => t.unid === users.unid)).toBeUndefined();
+        // FK was stripped when its refTable disappeared
+        expect(orders.foreignKeys).toEqual([]);
+    });
+
+    it('db_delete_table returns an error for an unknown tableUnid', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_table', {projectUnid: 'pid-1', tableUnid: 'tid-missing'});
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('tid-missing');
+    });
+
+});
+
+describe('McpTools — db_add_column / db_update_column / db_delete_column mutations', () => {
+
+    it('db_add_column appends to an existing table and returns the new columnUnid', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_add_column', {
+            projectUnid: 'pid-1',
+            tableUnid: table.unid,
+            column: {name: 'email', type: 'varchar', length: '255', notNull: true, unique: true}
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.name).toBe('email');
+        expect(table.columns).toHaveLength(1);
+        expect(table.columns[0]).toMatchObject({name: 'email', type: 'varchar', length: '255', notNull: true, unique: true});
+        expect(table.columns[0].unid).toBe(body.columnUnid);
+    });
+
+    it('db_update_column patches only the supplied fields', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        const {column} = repo.addColumn(table.unid, {name: 'email', type: 'varchar', length: '255'}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_column', {
+            projectUnid: 'pid-1',
+            tableUnid: table.unid,
+            columnUnid: column.unid,
+            patch: {length: '320', notNull: true}
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.patched.sort()).toEqual(['length', 'notNull']);
+        // patched fields changed; unpatched name + type unchanged
+        expect(column.name).toBe('email');
+        expect(column.type).toBe('varchar');
+        expect(column.length).toBe('320');
+        expect(column.notNull).toBe(true);
+    });
+
+    it('db_update_column rejects an empty patch', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        const {column} = repo.addColumn(table.unid, {name: 'email', type: 'varchar'}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_column', {
+            projectUnid: 'pid-1',
+            tableUnid: table.unid,
+            columnUnid: column.unid,
+            patch: {}
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('at least one');
+    });
+
+    it('db_delete_column removes the column and prunes empty indexes referencing it', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        const {column: email} = repo.addColumn(table.unid, {name: 'email', type: 'varchar', length: '255'}, null);
+        // single-column index on email — should be dropped when the column goes
+        table.indexes.push({
+            unid: 'ix-1',
+            name: 'ux_users_email',
+            type: 'unique',
+            columns: [{columnUnid: email.unid, length: undefined, sort: undefined}]
+        } as never);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_column', {
+            projectUnid: 'pid-1',
+            tableUnid: table.unid,
+            columnUnid: email.unid
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(email.unid);
+        expect(table.columns).toEqual([]);
+        // index that had only the deleted column was pruned
+        expect(table.indexes).toEqual([]);
+    });
+
+    it('db_add_column returns an error for an unknown tableUnid', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_add_column', {
+            projectUnid: 'pid-1',
+            tableUnid: 'tid-missing',
+            column: {name: 'x', type: 'int'}
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('tid-missing');
+    });
+
+});
+
 describe('McpToolRegistry — validation + error handling', () => {
 
     it('returns isError=true when the tool name is unknown', async() => {
