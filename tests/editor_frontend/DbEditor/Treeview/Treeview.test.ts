@@ -11,7 +11,7 @@
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Treeview} from '../../../../editor_frontend/DbEditor/Treeview/Treeview.js';
 import {EditorEvents} from '../../../../editor_frontend/DbEditor/Base/EditorEvents.js';
-import {JsonDataDB, JsonDataDBType, JsonTable, JsonRoutineKind} from '../../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonDataDBType, JsonTable, JsonRoutineKind} from '../../../../editor_schemas/JsonData.js';
 
 const mkTable = (name: string, unid?: string): JsonTable => ({
     unid: unid ?? `t-${name}`,

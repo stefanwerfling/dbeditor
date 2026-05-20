@@ -12,7 +12,7 @@ import {
     JsonTable,
     JsonTableOptions,
     JsonView
-} from '../../../editor_frontend/DbEditor/JsonData.js';
+} from '../../../editor_schemas/JsonData.js';
 
 const sync = (patch: Partial<DbProjectSync> = {}): DbProjectSync => ({
     ignoreTables: [],

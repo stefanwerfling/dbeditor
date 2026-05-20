@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonDataDBType} from '../JsonData.js';
+import {JsonDataDB, JsonDataDBType} from '../../../editor_schemas/JsonData.js';
 
 /**
  * One indexed entry for the global search palette. Tables and columns

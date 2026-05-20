@@ -8,7 +8,7 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import type {BrowserJsPlumbInstance} from '@jsplumb/browser-ui';
 import {DbView} from '../../../../editor_frontend/DbEditor/View/DbView.js';
 import {EditorEvents} from '../../../../editor_frontend/DbEditor/Base/EditorEvents.js';
-import {JsonView} from '../../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonView} from '../../../../editor_schemas/JsonData.js';
 
 const mkView = (over: Partial<JsonView> = {}): JsonView => ({
     unid: 'v-active',

@@ -4,7 +4,7 @@ import * as path from 'path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {Vts} from 'vts';
 import {ConfigMcpPolicyAction} from '../../../editor_backend/Config/Config.js';
-import {JsonDataDBType} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDBType} from '../../../editor_schemas/JsonData.js';
 import {DbFsRepository} from '../../../editor_backend/DbRepository/DbFsRepository.js';
 import {DbRepositoryRegistry} from '../../../editor_backend/DbRepository/DbRepositoryRegistry.js';
 import {McpPolicy} from '../../../editor_core/Mcp/McpPolicy.js';

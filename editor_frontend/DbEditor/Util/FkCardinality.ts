@@ -1,4 +1,4 @@
-import {JsonIndex, JsonIndexType, JsonTable} from '../JsonData.js';
+import {JsonIndex, JsonIndexType, JsonTable} from '../../../editor_schemas/JsonData.js';
 
 export class FkCardinality {
 

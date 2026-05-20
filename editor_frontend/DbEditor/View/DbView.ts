@@ -1,5 +1,5 @@
 import {BrowserJsPlumbInstance} from '@jsplumb/browser-ui';
-import {JsonView} from '../JsonData.js';
+import {JsonView} from '../../../editor_schemas/JsonData.js';
 import {EditorEventBus, EditorEvents} from '../Base/EditorEvents.js';
 import {ContextMenu} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';

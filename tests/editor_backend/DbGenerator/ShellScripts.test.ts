@@ -5,7 +5,7 @@ import {describe, expect, it, beforeEach, afterEach} from 'vitest';
 import {DbGenerator} from '../../../editor_backend/DbGenerator/DbGenerator.js';
 import {DbProject} from '../../../editor_backend/DbProject/DbProject.js';
 import {ConfigDialect, ConfigOutputMode} from '../../../editor_backend/Config/Config.js';
-import {JsonData, JsonDataDBType} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonData, JsonDataDBType} from '../../../editor_schemas/JsonData.js';
 
 const baseData = (): JsonData => ({
     fs: {

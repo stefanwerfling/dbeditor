@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonRoutine, JsonRoutineKind} from '../JsonData.js';
+import {JsonRoutine, JsonRoutineKind} from '../../../editor_schemas/JsonData.js';
 
 export type RoutineDialogResult = {
     name: string;

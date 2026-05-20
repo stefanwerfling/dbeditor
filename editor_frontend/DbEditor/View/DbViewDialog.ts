@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonView} from '../JsonData.js';
+import {JsonView} from '../../../editor_schemas/JsonData.js';
 
 export type ViewDialogResult = {
     name: string;

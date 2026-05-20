@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonEnum, JsonDiagram, JsonTable, JsonView} from '../JsonData.js';
+import {JsonDataDB, JsonEnum, JsonDiagram, JsonTable, JsonView} from '../../../editor_schemas/JsonData.js';
 
 export type WarningSeverity = 'error' | 'warning' | 'info';
 

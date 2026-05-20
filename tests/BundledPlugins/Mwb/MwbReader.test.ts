@@ -16,7 +16,7 @@ import {describe, expect, it} from 'vitest';
 // eslint-disable-next-line import/extensions
 import AdmZip from 'adm-zip';
 import {MwbReader} from '../../../BundledPlugins/Mwb/MwbReader.js';
-import {JsonDataDBType, JsonRoutineKind} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDBType, JsonRoutineKind} from '../../../editor_schemas/JsonData.js';
 
 const SAMPLE = path.resolve(__dirname, '../../../sample/example.mwb');
 

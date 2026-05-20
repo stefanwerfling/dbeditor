@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonColumn, JsonEnum} from '../JsonData.js';
+import {JsonColumn, JsonEnum} from '../../../editor_schemas/JsonData.js';
 
 const COMMON_TYPES = [
     'int', 'bigint', 'smallint', 'tinyint',

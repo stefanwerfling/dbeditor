@@ -1,5 +1,5 @@
 import {Vts} from 'vts';
-import {JsonDataDBType} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDBType} from '../../editor_schemas/JsonData.js';
 import {DbFsRepository} from '../../editor_backend/DbRepository/DbFsRepository.js';
 import {DbFsTreeWalker} from '../../editor_backend/DbRepository/DbFsTreeWalker.js';
 import {DbRepositoryRegistry} from '../../editor_backend/DbRepository/DbRepositoryRegistry.js';

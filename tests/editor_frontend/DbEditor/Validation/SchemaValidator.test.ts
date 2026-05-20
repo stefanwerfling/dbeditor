@@ -5,7 +5,7 @@
  */
 import {describe, expect, it} from 'vitest';
 import {SchemaValidator, SchemaWarning} from '../../../../editor_frontend/DbEditor/Validation/SchemaValidator.js';
-import {JsonDataDB, JsonDataDBType, JsonTable} from '../../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonDataDBType, JsonTable} from '../../../../editor_schemas/JsonData.js';
 
 const root = (databases: JsonDataDB[]): JsonDataDB => ({
     unid: 'root',

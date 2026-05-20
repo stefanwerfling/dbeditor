@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonTable, JsonView, JsonColumn} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonTable, JsonView, JsonColumn} from '../../editor_schemas/JsonData.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
 import {DbProjectSync} from '../DbProject/DbProject.js';
 import {SchemaChange, SchemaChangeKind, SchemaChangeSet, SchemaChangeSeverity, SchemaRenameHints} from './ChangeTypes.js';

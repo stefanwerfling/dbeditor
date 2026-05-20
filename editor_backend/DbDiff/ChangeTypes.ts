@@ -1,4 +1,4 @@
-import {JsonColumn, JsonForeignKey, JsonIndex, JsonTable, JsonTableOptions, JsonView} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonColumn, JsonForeignKey, JsonIndex, JsonTable, JsonTableOptions, JsonView} from '../../editor_schemas/JsonData.js';
 
 export enum SchemaChangeKind {
     tableAdded = 'tableAdded',

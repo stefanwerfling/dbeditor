@@ -6,7 +6,7 @@ import {
     JsonRoutine,
     JsonTable,
     JsonView
-} from '../../editor_frontend/DbEditor/JsonData.js';
+} from '../../editor_schemas/JsonData.js';
 import {DbDialect, DialectContext} from '../../editor_backend/DbGenerator/DbDialect.js';
 import {Plugin} from './Plugin.js';
 import {PluginKind} from './PluginKind.js';

@@ -1,4 +1,4 @@
-import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonRoutine, JsonTable, JsonView} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonRoutine, JsonTable, JsonView} from '../../editor_schemas/JsonData.js';
 
 /**
  * Context shared between the dispatcher and the dialect. The dialect uses

@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonDataDBType} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonDataDBType} from '../../editor_schemas/JsonData.js';
 import {FileFormatImportResult, FileFormatPlugin} from '../../editor_core/plugin/FileFormatPlugin.js';
 import {MwbImportResult, MwbReader} from './MwbReader.js';
 import {MwbWriter} from './MwbWriter.js';

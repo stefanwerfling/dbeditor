@@ -40,7 +40,7 @@ import {FkMarkers} from './Util/CrowsFoot.js';
 import {FkCardinality} from './Util/FkCardinality.js';
 import {Zoom} from './Util/Zoom.js';
 import {Rects} from './Util/Rect.js';
-import {JsonColumn, JsonDataDB, JsonDataDBType, JsonEnum, JsonForeignKey, JsonDiagram, JsonLayer, JsonRoutine, JsonTable, JsonView} from './JsonData.js';
+import {JsonColumn, JsonDataDB, JsonDataDBType, JsonEnum, JsonForeignKey, JsonDiagram, JsonLayer, JsonRoutine, JsonTable, JsonView} from '../../editor_schemas/JsonData.js';
 
 type LoadedProject = {
     unid: string;

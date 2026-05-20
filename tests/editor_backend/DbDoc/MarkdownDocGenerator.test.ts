@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {MarkdownDocGenerator} from '../../../editor_backend/DbDoc/MarkdownDocGenerator.js';
-import {JsonDataDB, JsonDataDBType} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonDataDBType} from '../../../editor_schemas/JsonData.js';
 
 const root = (entrys: JsonDataDB[]): JsonDataDB => ({
     unid: 'root',

@@ -1,5 +1,5 @@
 import {DbConnection} from '../DbConnection/DbConnection.js';
-import {JsonDataDB} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB} from '../../editor_schemas/JsonData.js';
 
 /**
  * Reads a live database's schema and produces a `JsonDataDB` tree shaped

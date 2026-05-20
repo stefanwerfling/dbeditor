@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonEnum} from '../JsonData.js';
+import {JsonEnum} from '../../../editor_schemas/JsonData.js';
 
 export type EnumDialogResult = {
     name: string;

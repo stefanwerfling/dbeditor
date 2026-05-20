@@ -7,7 +7,7 @@ import {
     JsonIndexType,
     JsonTableOptions,
     JsonView
-} from '../../../editor_frontend/DbEditor/JsonData.js';
+} from '../../../editor_schemas/JsonData.js';
 
 const col = (patch: Partial<JsonColumn>): JsonColumn => ({
     unid: 'u',

@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonTableOptions} from '../JsonData.js';
+import {JsonTableOptions} from '../../../editor_schemas/JsonData.js';
 
 export type TableOptionsDialogResult = JsonTableOptions | null;
 

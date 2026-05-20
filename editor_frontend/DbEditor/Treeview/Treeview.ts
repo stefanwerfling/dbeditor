@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonDataDBType, JsonRoutineKind, JsonTable, JsonView} from '../JsonData.js';
+import {JsonDataDB, JsonDataDBType, JsonRoutineKind, JsonTable, JsonView} from '../../../editor_schemas/JsonData.js';
 import {EditorEventBus, EditorEvents} from '../Base/EditorEvents.js';
 import {ContextMenu, ContextMenuItem} from '../Base/ContextMenu.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';

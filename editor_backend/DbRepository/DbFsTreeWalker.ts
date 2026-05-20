@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonTable, JsonView, JsonEnum, JsonDiagram, JsonLayer, JsonRoutine} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonTable, JsonView, JsonEnum, JsonDiagram, JsonLayer, JsonRoutine} from '../../editor_schemas/JsonData.js';
 
 /**
  * Tree-walk helpers. The recursive tree mixes `entrys` (subfolders/databases)

@@ -11,7 +11,7 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {DbFsRepository} from '../../../editor_backend/DbRepository/DbFsRepository.js';
 import {DbProject} from '../../../editor_backend/DbProject/DbProject.js';
 import {ConfigDialect, ConfigOutputMode} from '../../../editor_backend/Config/Config.js';
-import {JsonDataDB, JsonDataDBType} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonDataDBType} from '../../../editor_schemas/JsonData.js';
 
 let tmpFile = '';
 const DB_UNID = 'db-main';

@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonForeignKeyAction} from '../JsonData.js';
+import {JsonForeignKeyAction} from '../../../editor_schemas/JsonData.js';
 
 const ACTIONS = [
     {value: '',                              label: '— default —'},

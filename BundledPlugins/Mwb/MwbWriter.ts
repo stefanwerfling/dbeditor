@@ -15,7 +15,7 @@ import {
     JsonRoutineKind,
     JsonTable,
     JsonView
-} from '../../editor_frontend/DbEditor/JsonData.js';
+} from '../../editor_schemas/JsonData.js';
 
 /**
  * Build a `.mwb` archive from one or more `JsonDataDB` databases. The

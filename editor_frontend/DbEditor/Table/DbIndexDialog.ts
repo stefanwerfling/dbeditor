@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonColumn, JsonIndex, JsonIndexColumn, JsonIndexType} from '../JsonData.js';
+import {JsonColumn, JsonIndex, JsonIndexColumn, JsonIndexType} from '../../../editor_schemas/JsonData.js';
 
 const TYPES: {value: string; label: string;}[] = [
     {value: JsonIndexType.index,    label: 'INDEX'},

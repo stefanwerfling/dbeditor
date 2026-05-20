@@ -13,7 +13,7 @@ import {
     JsonTable,
     JsonTableOptions,
     JsonView
-} from '../../../editor_frontend/DbEditor/JsonData.js';
+} from '../../../editor_schemas/JsonData.js';
 
 const col = (name: string, patch: Partial<JsonColumn> = {}): JsonColumn => ({
     unid: `col-${name}`,

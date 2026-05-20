@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {ScopeNarrow} from '../../../editor_backend/DbGenerator/ScopeNarrow.js';
-import {JsonData, JsonDataDB, JsonDataDBType, JsonTable, JsonView, JsonEnum} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonData, JsonDataDB, JsonDataDBType, JsonTable, JsonView, JsonEnum} from '../../../editor_schemas/JsonData.js';
 
 const table = (unid: string, name: string, patch: Partial<JsonTable> = {}): JsonTable => ({
     unid: unid,

@@ -1,5 +1,5 @@
 import {BrowserJsPlumbInstance} from '@jsplumb/browser-ui';
-import {JsonTable, JsonColumn, JsonEnum, JsonIndex} from '../JsonData.js';
+import {JsonTable, JsonColumn, JsonEnum, JsonIndex} from '../../../editor_schemas/JsonData.js';
 import {EditorEventBus, EditorEvents} from '../Base/EditorEvents.js';
 import {ConfirmDialog} from '../Base/ConfirmDialog.js';
 import {ContextMenu} from '../Base/ContextMenu.js';

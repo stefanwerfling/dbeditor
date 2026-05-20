@@ -12,7 +12,7 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import type {BrowserJsPlumbInstance} from '@jsplumb/browser-ui';
 import {DbTable} from '../../../../editor_frontend/DbEditor/Table/DbTable.js';
 import {EditorEvents} from '../../../../editor_frontend/DbEditor/Base/EditorEvents.js';
-import {JsonTable} from '../../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonTable} from '../../../../editor_schemas/JsonData.js';
 
 const mkTable = (over: Partial<JsonTable> = {}): JsonTable => ({
     unid: 't-users',

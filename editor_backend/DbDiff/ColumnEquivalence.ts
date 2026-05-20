@@ -1,4 +1,4 @@
-import {JsonColumn, JsonForeignKey, JsonIndex, JsonTableOptions, JsonView} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonColumn, JsonForeignKey, JsonIndex, JsonTableOptions, JsonView} from '../../editor_schemas/JsonData.js';
 
 /**
  * Normalisers used by the diff engine to decide whether two values are

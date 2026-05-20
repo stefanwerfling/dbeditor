@@ -1,5 +1,5 @@
 import {DbFsTreeWalker} from '../../DbRepository/DbFsTreeWalker.js';
-import {JsonColumn, JsonDataDB, JsonForeignKey, JsonIndex, JsonTable, JsonView} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonColumn, JsonDataDB, JsonForeignKey, JsonIndex, JsonTable, JsonView} from '../../../editor_schemas/JsonData.js';
 import {SchemaChange, SchemaChangeKind, SchemaChangeSet} from '../../DbDiff/ChangeTypes.js';
 import {DbDialect, DialectContext} from '../DbDialect.js';
 

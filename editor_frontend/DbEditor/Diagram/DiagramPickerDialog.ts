@@ -1,5 +1,5 @@
 import {BaseDialog} from '../Base/BaseDialog.js';
-import {JsonDiagram} from '../JsonData.js';
+import {JsonDiagram} from '../../../editor_schemas/JsonData.js';
 
 /**
  * Dialog return values:

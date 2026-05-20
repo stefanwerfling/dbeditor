@@ -1,4 +1,4 @@
-import {JsonForeignKeyAction} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonForeignKeyAction} from '../../editor_schemas/JsonData.js';
 
 /**
  * Maps an SQL-side FK action string (as returned by information_schema /

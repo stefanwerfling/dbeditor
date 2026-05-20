@@ -9,7 +9,7 @@ import {PostgresDialect} from '../../../BundledPlugins/Postgres/PostgresDialect.
 import {SqliteDialect} from '../../../BundledPlugins/Sqlite/SqliteDialect.js';
 import {DialectContext} from '../../../editor_backend/DbGenerator/DbDialect.js';
 import {DialectContextBuilder} from '../../../editor_backend/DbGenerator/DialectContextBuilder.js';
-import {JsonDataDB, JsonDataDBType, JsonRoutine, JsonRoutineKind} from '../../../editor_frontend/DbEditor/JsonData.js';
+import {JsonDataDB, JsonDataDBType, JsonRoutine, JsonRoutineKind} from '../../../editor_schemas/JsonData.js';
 
 const ctx = (): DialectContext => DialectContextBuilder.fromModel({
     unid: 'db', name: 'db', type: JsonDataDBType.database,

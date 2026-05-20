@@ -1,4 +1,4 @@
-import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonIndexType, JsonRoutine, JsonRoutineKind, JsonTable, JsonView} from '../../editor_frontend/DbEditor/JsonData.js';
+import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonIndexType, JsonRoutine, JsonRoutineKind, JsonTable, JsonView} from '../../editor_schemas/JsonData.js';
 import {DialectContext} from '../../editor_backend/DbGenerator/DbDialect.js';
 import {DialectPlugin} from '../../editor_core/plugin/DialectPlugin.js';
 
