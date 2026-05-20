@@ -276,7 +276,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         const repo = getRepo(req, res, deps); if (!repo) {return;}
         if (!validate(Bodies.SchemaCreateEnumBody, req.body, res)) {return;}
         try {
-            const r = repo.createEnum(req.body.containerUnid, req.body.name, req.body.pos || null, clientId(req));
+            const r = repo.createEnum(req.body.containerUnid, req.body.name, clientId(req));
             res.json({ success: true, rev: r.rev, data: r.enumNode });
         } catch (err) { handleRepoError(err, res); }
     });

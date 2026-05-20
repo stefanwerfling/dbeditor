@@ -280,8 +280,8 @@ export class DbApiClient {
 
     /* enums */
 
-    public createEnum(pid: string, containerUnid: string, name: string, pos?: {x: number; y: number;}): Promise<any> {
-        return this._request('POST', `/api/projects/${pid}/enums`, {containerUnid: containerUnid, name: name, pos: pos});
+    public createEnum(pid: string, containerUnid: string, name: string): Promise<any> {
+        return this._request('POST', `/api/projects/${pid}/enums`, {containerUnid: containerUnid, name: name});
     }
 
     public updateEnum(pid: string, unid: string, patch: any): Promise<any> {

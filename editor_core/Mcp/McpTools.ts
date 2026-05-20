@@ -735,13 +735,12 @@ export class McpTools {
                     containerUnid: Vts.string({description: 'Parent database or folder unid'}),
                     name: Vts.string(),
                     values: Vts.optional(Vts.array(Vts.string({description: 'Enum value (string literal)'}))),
-                    description: Vts.optional(Vts.string()),
-                    pos: Vts.optional(Vts.object({x: Vts.number(), y: Vts.number()}))
+                    description: Vts.optional(Vts.string())
                 }),
-                handler: async({projectUnid, containerUnid, name, values, description, pos}) => {
+                handler: async({projectUnid, containerUnid, name, values, description}) => {
                     const repo = McpTools._repoOf(ctx, projectUnid);
                     try {
-                        const {enumNode} = repo.createEnum(containerUnid, name, pos ?? null, null);
+                        const {enumNode} = repo.createEnum(containerUnid, name, null);
                         const valueUnids: {value: string; unid: string;}[] = [];
                         for (const v of values ?? []) {
                             const {value: created} = repo.addEnumValue(enumNode.unid, v, null);

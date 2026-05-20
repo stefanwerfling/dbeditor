@@ -126,13 +126,11 @@ export const SchemaUpdateForeignKeyBody = Vts.object({
 
 export const SchemaCreateEnumBody = Vts.object({
     containerUnid: Vts.string(),
-    name: Vts.string(),
-    pos: Vts.optional(SchemaJsonPosition)
+    name: Vts.string()
 });
 
 export const SchemaUpdateEnumBody = Vts.object({
     name: Vts.optional(Vts.string()),
-    pos: Vts.optional(SchemaJsonPosition),
     description: Vts.optional(Vts.string())
 });
 

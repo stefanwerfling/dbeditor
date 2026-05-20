@@ -377,7 +377,7 @@ describe('DbFsRepository — Phase E.2 per-table XML cache (all-or-nothing acros
         const {repo, tableUnid} = seedWithTable();
         repo.setMwbTableOriginalXml(new Map([[tableUnid, mkEntry('<x/>')]]));
         /* No view exists — fake by setting and deleting wouldn't work without a real view. Use enum.create instead which is also a different family. */
-        repo.createEnum('db-1', 'kind', null, null);
+        repo.createEnum('db-1', 'kind', null);
         expect(repo.getMwbTableOriginalXml().size).toBe(1);
     });
 

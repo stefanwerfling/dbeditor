@@ -352,7 +352,14 @@ export type JsonEnumValue = ExtractSchemaResultType<typeof SchemaJsonEnumValue>;
 export const SchemaJsonEnum = Vts.object({
     unid: Vts.string(),
     name: Vts.string(),
-    pos: SchemaJsonPosition,
+    /**
+     * Vestigial. Enums are not rendered as cards on the canvas — they
+     * only appear in the treeview and as column-type references. The
+     * field stays in the schema (as optional) for backward compatibility
+     * with `database.json` files written before the cleanup; new enums
+     * created via repo / API / MCP no longer carry it.
+     */
+    pos: Vts.optional(SchemaJsonPosition),
     values: Vts.array(SchemaJsonEnumValue),
     description: Vts.optional(Vts.string())
 });

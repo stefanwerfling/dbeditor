@@ -155,7 +155,7 @@ describe('McpTools — enum / view / routine / diagram read tools', () => {
         const repositories = new DbRepositoryRegistry();
         const repo = makeRepo('demo');
         const db = repo.data.fs.entrys[0]!;
-        const {enumNode} = repo.createEnum(db.unid, 'order_status', null, null);
+        const {enumNode} = repo.createEnum(db.unid, 'order_status', null);
         repo.addEnumValue(enumNode.unid, 'pending', null);
         repo.addEnumValue(enumNode.unid, 'shipped', null);
         repositories.register('pid-1', repo);
@@ -851,7 +851,7 @@ describe('McpTools — enum mutations', () => {
         const repositories = new DbRepositoryRegistry();
         const repo = makeRepo('demo');
         const db = repo.data.fs.entrys[0]!;
-        const {enumNode} = repo.createEnum(db.unid, 'order_status', null, null);
+        const {enumNode} = repo.createEnum(db.unid, 'order_status', null);
         repositories.register('pid-1', repo);
         const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
 
@@ -879,7 +879,7 @@ describe('McpTools — enum mutations', () => {
         const repositories = new DbRepositoryRegistry();
         const repo = makeRepo('demo');
         const db = repo.data.fs.entrys[0]!;
-        const {enumNode} = repo.createEnum(db.unid, 'order_status', null, null);
+        const {enumNode} = repo.createEnum(db.unid, 'order_status', null);
         repositories.register('pid-1', repo);
         const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
 

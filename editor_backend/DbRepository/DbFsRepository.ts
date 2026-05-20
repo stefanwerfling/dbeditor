@@ -763,13 +763,12 @@ export class DbFsRepository {
      * ---------------------------------------------------------------------
      */
 
-    public createEnum(containerUnid: string, name: string, pos: JsonPosition | null, clientId: string | null): { rev: number; enumNode: JsonEnum; } {
+    public createEnum(containerUnid: string, name: string, clientId: string | null): { rev: number; enumNode: JsonEnum; } {
         const container = DbFsTreeWalker.findContainer(this._data.fs, containerUnid);
         if (!container) {throw new RepoNotFoundError(`container ${containerUnid} not found`);}
         const enumNode: JsonEnum = {
             unid: randomUUID(),
             name: name,
-            pos: pos || DbFsRepository._defaultPos(),
             values: [],
             description: ''
         };
@@ -778,11 +777,10 @@ export class DbFsRepository {
         return { rev: rev, enumNode: enumNode };
     }
 
-    public updateEnum(unid: string, patch: Partial<Pick<JsonEnum, 'name' | 'pos' | 'description'>>, clientId: string | null): number {
+    public updateEnum(unid: string, patch: Partial<Pick<JsonEnum, 'name' | 'description'>>, clientId: string | null): number {
         const hit = DbFsTreeWalker.findEnum(this._data.fs, unid);
         if (!hit) {throw new RepoNotFoundError(`enum ${unid} not found`);}
         if (patch.name !== undefined) {hit.enum.name = patch.name;}
-        if (patch.pos !== undefined) {hit.enum.pos = patch.pos;}
         if (patch.description !== undefined) {hit.enum.description = patch.description;}
         return this._commit('enum.update', { unid: unid, patch: patch }, clientId);
     }

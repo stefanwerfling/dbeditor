@@ -2028,7 +2028,7 @@ export class DbEditor {
         });
         window.addEventListener(EditorEvents.createEnumIn, (e) => {
             const { containerUnid, name } = (e as CustomEvent).detail;
-            this._mutate(p => this._api.createEnum(p.unid, containerUnid, name, { x: 80, y: 80 })).then(() => this._reload());
+            this._mutate(p => this._api.createEnum(p.unid, containerUnid, name)).then(() => this._reload());
         });
         window.addEventListener(EditorEvents.assignTableToDiagram, (e) => {
             const { tableUnid, diagramUnid } = (e as CustomEvent).detail as {tableUnid: string; diagramUnid: string;};
@@ -2601,7 +2601,7 @@ export class DbEditor {
         if (!await this._requireActiveContainer()) {return;}
         const name = await InputDialog.showInput('Add enum', 'Enum name', 'new_enum');
         if (!name) {return;}
-        await this._mutate(p => this._api.createEnum(p.unid, this._activeContainerUnid!, name, { x: 80, y: 80 }));
+        await this._mutate(p => this._api.createEnum(p.unid, this._activeContainerUnid!, name));
         await this._reload();
     }
 
