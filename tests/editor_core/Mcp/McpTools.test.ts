@@ -448,6 +448,198 @@ describe('McpTools — db_add_column / db_update_column / db_delete_column mutat
 
 });
 
+describe('McpTools — index mutations', () => {
+
+    it('db_add_index creates an index referencing existing columns', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        const {column: email} = repo.addColumn(table.unid, {name: 'email', type: 'varchar', length: '255'}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_add_index', {
+            projectUnid: 'pid-1',
+            tableUnid: table.unid,
+            index: {
+                name: 'ux_users_email',
+                type: 'unique',
+                columns: [{columnUnid: email.unid}]
+            }
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.name).toBe('ux_users_email');
+        expect(table.indexes).toHaveLength(1);
+        expect(table.indexes[0]).toMatchObject({name: 'ux_users_email', type: 'unique'});
+        expect(table.indexes[0].columns[0].columnUnid).toBe(email.unid);
+        expect(table.indexes[0].unid).toBe(body.indexUnid);
+    });
+
+    it('db_update_index patches only the supplied fields', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        const {column: email} = repo.addColumn(table.unid, {name: 'email', type: 'varchar'}, null);
+        const {index} = repo.addIndex(table.unid, {name: 'ux_email', type: 'index', columns: [{columnUnid: email.unid}]}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_index', {
+            projectUnid: 'pid-1',
+            tableUnid: table.unid,
+            indexUnid: index.unid,
+            patch: {name: 'ux_users_email', type: 'unique'}
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.patched.sort()).toEqual(['name', 'type']);
+        expect(index.name).toBe('ux_users_email');
+        expect(index.type).toBe('unique');
+        // columns unchanged
+        expect(index.columns[0].columnUnid).toBe(email.unid);
+    });
+
+    it('db_update_index rejects an empty patch', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        const {column} = repo.addColumn(table.unid, {name: 'email', type: 'varchar'}, null);
+        const {index} = repo.addIndex(table.unid, {name: 'ix', type: 'index', columns: [{columnUnid: column.unid}]}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_index', {
+            projectUnid: 'pid-1', tableUnid: table.unid, indexUnid: index.unid, patch: {}
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('at least one');
+    });
+
+    it('db_delete_index drops the index', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table} = repo.createTable(db.unid, 'users', null, null);
+        const {column} = repo.addColumn(table.unid, {name: 'email', type: 'varchar'}, null);
+        const {index} = repo.addIndex(table.unid, {name: 'ix', type: 'index', columns: [{columnUnid: column.unid}]}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_index', {
+            projectUnid: 'pid-1', tableUnid: table.unid, indexUnid: index.unid
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(index.unid);
+        expect(table.indexes).toEqual([]);
+    });
+
+});
+
+describe('McpTools — foreign-key mutations', () => {
+
+    it('db_add_foreign_key creates a FK between two tables', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table: users} = repo.createTable(db.unid, 'users', null, null);
+        const {column: userId} = repo.addColumn(users.unid, {name: 'id', type: 'int', primaryKey: true}, null);
+        const {table: orders} = repo.createTable(db.unid, 'orders', null, null);
+        const {column: ordersUserId} = repo.addColumn(orders.unid, {name: 'user_id', type: 'int'}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_add_foreign_key', {
+            projectUnid: 'pid-1',
+            tableUnid: orders.unid,
+            fk: {
+                name: 'fk_orders_user',
+                refTableUnid: users.unid,
+                columns: [{columnUnid: ordersUserId.unid, refColumnUnid: userId.unid}],
+                onDelete: 'CASCADE'
+            }
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.name).toBe('fk_orders_user');
+        expect(orders.foreignKeys).toHaveLength(1);
+        expect(orders.foreignKeys[0]).toMatchObject({
+            name: 'fk_orders_user',
+            refTableUnid: users.unid,
+            onDelete: 'CASCADE'
+        });
+        expect(orders.foreignKeys[0].columns[0]).toEqual({columnUnid: ordersUserId.unid, refColumnUnid: userId.unid});
+        expect(orders.foreignKeys[0].unid).toBe(body.fkUnid);
+    });
+
+    it('db_update_foreign_key changes onDelete/onUpdate', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table: users} = repo.createTable(db.unid, 'users', null, null);
+        const {column: userId} = repo.addColumn(users.unid, {name: 'id', type: 'int'}, null);
+        const {table: orders} = repo.createTable(db.unid, 'orders', null, null);
+        const {column: ordersUserId} = repo.addColumn(orders.unid, {name: 'user_id', type: 'int'}, null);
+        const {fk} = repo.addForeignKey(orders.unid, {
+            name: 'fk_x',
+            refTableUnid: users.unid,
+            columns: [{columnUnid: ordersUserId.unid, refColumnUnid: userId.unid}]
+        }, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_update_foreign_key', {
+            projectUnid: 'pid-1',
+            tableUnid: orders.unid,
+            fkUnid: fk.unid,
+            patch: {onDelete: 'CASCADE', onUpdate: 'RESTRICT'}
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.patched.sort()).toEqual(['onDelete', 'onUpdate']);
+        expect(fk.onDelete).toBe('CASCADE');
+        expect(fk.onUpdate).toBe('RESTRICT');
+        // name + columns unchanged
+        expect(fk.name).toBe('fk_x');
+    });
+
+    it('db_delete_foreign_key drops the FK', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {table: users} = repo.createTable(db.unid, 'users', null, null);
+        const {column: userId} = repo.addColumn(users.unid, {name: 'id', type: 'int'}, null);
+        const {table: orders} = repo.createTable(db.unid, 'orders', null, null);
+        const {column: ordersUserId} = repo.addColumn(orders.unid, {name: 'user_id', type: 'int'}, null);
+        const {fk} = repo.addForeignKey(orders.unid, {
+            name: 'fk_x',
+            refTableUnid: users.unid,
+            columns: [{columnUnid: ordersUserId.unid, refColumnUnid: userId.unid}]
+        }, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const result = await reg.call('db_delete_foreign_key', {
+            projectUnid: 'pid-1', tableUnid: orders.unid, fkUnid: fk.unid
+        });
+        const {body, isError} = parseJsonResult(result);
+
+        expect(isError).toBe(false);
+        expect(body.deleted).toBe(fk.unid);
+        expect(orders.foreignKeys).toEqual([]);
+    });
+
+});
+
 describe('McpToolRegistry — validation + error handling', () => {
 
     it('returns isError=true when the tool name is unknown', async() => {

@@ -70,6 +70,65 @@ export class McpTools {
         comment: Vts.optional(Vts.string())
     });
 
+    /** One column reference on `db_add_index` / `db_update_index`. */
+    private static _indexColumnSchema = Vts.object({
+        columnUnid: Vts.string(),
+        order: Vts.optional(Vts.string({description: 'ASC | DESC; default ASC'})),
+        length: Vts.optional(Vts.number({description: 'Prefix length (mysql only)'}))
+    });
+
+    /** Full input shape for `db_add_index`. */
+    private static _indexInputSchema = Vts.object({
+        name: Vts.string(),
+        type: Vts.optional(Vts.string({description: 'index | unique | fulltext | spatial; default `index`'})),
+        columns: Vts.array(Vts.object({
+            columnUnid: Vts.string(),
+            order: Vts.optional(Vts.string()),
+            length: Vts.optional(Vts.number())
+        })),
+        where: Vts.optional(Vts.string({description: 'Partial-index predicate (postgres / sqlite only)'})),
+        comment: Vts.optional(Vts.string())
+    });
+
+    /** Partial-update shape for `db_update_index`. */
+    private static _indexPatchSchema = Vts.object({
+        name: Vts.optional(Vts.string()),
+        type: Vts.optional(Vts.string()),
+        columns: Vts.optional(Vts.array(Vts.object({
+            columnUnid: Vts.string(),
+            order: Vts.optional(Vts.string()),
+            length: Vts.optional(Vts.number())
+        }))),
+        where: Vts.optional(Vts.string()),
+        comment: Vts.optional(Vts.string())
+    });
+
+    /** Full input shape for `db_add_foreign_key`. */
+    private static _fkInputSchema = Vts.object({
+        name: Vts.string(),
+        refTableUnid: Vts.string({description: 'unid of the referenced table (in any database in this project)'}),
+        columns: Vts.array(Vts.object({
+            columnUnid: Vts.string(),
+            refColumnUnid: Vts.string()
+        })),
+        onDelete: Vts.optional(Vts.string({description: 'NO ACTION | RESTRICT | CASCADE | SET NULL | SET DEFAULT'})),
+        onUpdate: Vts.optional(Vts.string({description: 'NO ACTION | RESTRICT | CASCADE | SET NULL | SET DEFAULT'})),
+        comment: Vts.optional(Vts.string())
+    });
+
+    /** Partial-update shape for `db_update_foreign_key`. */
+    private static _fkPatchSchema = Vts.object({
+        name: Vts.optional(Vts.string()),
+        refTableUnid: Vts.optional(Vts.string()),
+        columns: Vts.optional(Vts.array(Vts.object({
+            columnUnid: Vts.string(),
+            refColumnUnid: Vts.string()
+        }))),
+        onDelete: Vts.optional(Vts.string()),
+        onUpdate: Vts.optional(Vts.string()),
+        comment: Vts.optional(Vts.string())
+    });
+
     public static build(ctx: McpContext): McpTool[] {
         return [
             McpToolBuilder.define({
@@ -283,6 +342,128 @@ export class McpTools {
                     try {
                         const rev = repo.removeColumn(tableUnid, columnUnid, null);
                         return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, deleted: columnUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_add_index',
+                description: 'Create an index on an existing table. `type` defaults to `index`; use `unique` for a uniqueness constraint, `fulltext` / `spatial` for the corresponding mysql index kinds, or a `where` predicate for a partial index (postgres / sqlite). Column entries reference columns by unid (from db_get_table). **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    tableUnid: Vts.string({description: 'Target table unid'}),
+                    index: McpTools._indexInputSchema
+                }),
+                handler: async({projectUnid, tableUnid, index}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const {rev, index: created} = repo.addIndex(tableUnid, index, null);
+                        return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, indexUnid: created.unid, name: created.name});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_update_index',
+                description: 'Patch one or more fields on an existing index (rename, retype, change column set / order, adjust WHERE predicate). Only supplied keys are overwritten. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    tableUnid: Vts.string({description: 'Table unid'}),
+                    indexUnid: Vts.string({description: 'Index unid (from db_get_table)'}),
+                    patch: McpTools._indexPatchSchema
+                }),
+                handler: async({projectUnid, tableUnid, indexUnid, patch}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        if (Object.keys(patch).length === 0) {
+                            return McpToolBuilder.error('db_update_index: `patch` must contain at least one field');
+                        }
+                        const rev = repo.updateIndex(tableUnid, indexUnid, patch, null);
+                        return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, indexUnid: indexUnid, patched: Object.keys(patch)});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_delete_index',
+                description: 'Drop an index from a table. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    tableUnid: Vts.string({description: 'Table unid'}),
+                    indexUnid: Vts.string({description: 'Index unid to delete'})
+                }),
+                handler: async({projectUnid, tableUnid, indexUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.removeIndex(tableUnid, indexUnid, null);
+                        return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, deleted: indexUnid});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_add_foreign_key',
+                description: 'Add a foreign-key constraint from one table to another. `refTableUnid` is the target table (in any database in this project; FKs can cross-reference between databases at the model level). Each column entry pairs a local columnUnid with the target refColumnUnid. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    tableUnid: Vts.string({description: 'Source table unid (where the FK lives)'}),
+                    fk: McpTools._fkInputSchema
+                }),
+                handler: async({projectUnid, tableUnid, fk}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const {rev, fk: created} = repo.addForeignKey(tableUnid, fk, null);
+                        return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, fkUnid: created.unid, name: created.name});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_update_foreign_key',
+                description: 'Patch one or more fields on an existing FK (rename, retarget refTableUnid, change column pairs, adjust onDelete / onUpdate). Only supplied keys are overwritten. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    tableUnid: Vts.string({description: 'Source table unid'}),
+                    fkUnid: Vts.string({description: 'FK unid (from db_get_table)'}),
+                    patch: McpTools._fkPatchSchema
+                }),
+                handler: async({projectUnid, tableUnid, fkUnid, patch}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        if (Object.keys(patch).length === 0) {
+                            return McpToolBuilder.error('db_update_foreign_key: `patch` must contain at least one field');
+                        }
+                        const rev = repo.updateForeignKey(tableUnid, fkUnid, patch, null);
+                        return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, fkUnid: fkUnid, patched: Object.keys(patch)});
+                    } catch (err) {
+                        return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
+                    }
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_delete_foreign_key',
+                description: 'Drop a foreign-key constraint. **Mutation tool — gated by mcp.policy (default `ask`).**',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    tableUnid: Vts.string({description: 'Source table unid'}),
+                    fkUnid: Vts.string({description: 'FK unid to delete'})
+                }),
+                handler: async({projectUnid, tableUnid, fkUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    try {
+                        const rev = repo.removeForeignKey(tableUnid, fkUnid, null);
+                        return McpToolBuilder.json({rev: rev, tableUnid: tableUnid, deleted: fkUnid});
                     } catch (err) {
                         return McpToolBuilder.error(err instanceof Error ? err.message : String(err));
                     }
