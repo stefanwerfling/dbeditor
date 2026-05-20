@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="dbeditor">
+  <title>dbeditor</title>
+  <!--
+    Square icon-only mark. Same visual concept as the wordmark logo
+    in logo.svg, compressed to a 32x32 viewBox so it reads cleanly
+    at favicon sizes (16px) and topbar sizes (18-24px).
+
+    Parent cylinder on the left, child cylinder on the right,
+    FK relationship line with one-bar + crow's-foot. `currentColor`
+    on the cylinders so it inherits from the host text colour (lets
+    the same file work in both light and dark contexts).
+  -->
+  <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+
+    <!-- left cylinder (parent) -->
+    <g stroke="currentColor" stroke-width="1.6">
+      <ellipse cx="6.5" cy="7" rx="4.5" ry="1.5"/>
+      <path d="M2 7v16c0 0.83 2 1.5 4.5 1.5S11 23.83 11 23V7"/>
+      <path d="M2 12c0 0.83 2 1.5 4.5 1.5S11 12.83 11 12"/>
+      <path d="M2 17c0 0.83 2 1.5 4.5 1.5S11 17.83 11 17"/>
+    </g>
+
+    <!-- right cylinder (child) -->
+    <g stroke="currentColor" stroke-width="1.6">
+      <ellipse cx="25" cy="11" rx="4" ry="1.4"/>
+      <path d="M21 11v14c0 0.7 1.8 1.4 4 1.4s4-0.7 4-1.4V11"/>
+      <path d="M21 16c0 0.7 1.8 1.4 4 1.4s4-0.7 4-1.4"/>
+      <path d="M21 21c0 0.7 1.8 1.4 4 1.4s4-0.7 4-1.4"/>
+    </g>
+
+    <!-- FK relationship: one-bar (parent) → crow's-foot (child) -->
+    <g stroke="#3e9c8a" stroke-width="1.6">
+      <line x1="13" y1="14" x2="13" y2="18"/>
+      <path d="M13 16 H19" />
+      <line x1="19" y1="16" x2="21" y2="14"/>
+      <line x1="19" y1="16" x2="21" y2="18"/>
+      <line x1="19" y1="16" x2="21" y2="16"/>
+    </g>
+  </g>
+</svg>

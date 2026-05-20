@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="doc/logo.svg" alt="dbeditor — visual database designer" width="420">
+</p>
+
 # dbeditor
 
 Visual database designer — the modeling half of MySQL Workbench, but as a browser-based tool that runs inside your project, reads/writes a single `database.json`, and regenerates SQL DDL on save.

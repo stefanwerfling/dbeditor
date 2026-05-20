@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" width="480" height="120" role="img" aria-label="dbeditor — visual database designer">
+  <title>dbeditor</title>
+  <desc>Two database cylinders connected by a foreign-key line ending in a crow's-foot mark, with the dbeditor wordmark to the right.</desc>
+
+  <!--
+    Icon group: 32x32 logical viewport, scaled to 110x110 inside the
+    canvas. Left cylinder (parent / "one" side), right cylinder
+    (child / "many" side), curved FK line with crow's-foot at the
+    many end. Mirrors the editor's own crow's-foot notation.
+  -->
+  <g transform="translate(10 5)" stroke-linecap="round" stroke-linejoin="round" fill="none">
+
+    <!-- left cylinder (parent) -->
+    <g stroke="#3e7e9c" stroke-width="2.6">
+      <ellipse cx="22" cy="20" rx="18" ry="5"/>
+      <path d="M4 20v62c0 2.8 8 5 18 5s18-2.2 18-5V20"/>
+      <path d="M4 40c0 2.8 8 5 18 5s18-2.2 18-5"/>
+      <path d="M4 60c0 2.8 8 5 18 5s18-2.2 18-5"/>
+    </g>
+
+    <!-- right cylinder (child) -->
+    <g stroke="#3e7e9c" stroke-width="2.6">
+      <ellipse cx="88" cy="36" rx="14" ry="4"/>
+      <path d="M74 36v52c0 2.2 6 4 14 4s14-1.8 14-4V36"/>
+      <path d="M74 52c0 2.2 6 4 14 4s14-1.8 14-4"/>
+      <path d="M74 68c0 2.2 6 4 14 4s14-1.8 14-4"/>
+    </g>
+
+    <!--
+      FK relationship. Single bar on the "one" side (left), crow's-
+      foot on the "many" side (right). The line touches the cylinder
+      walls at their vertical midpoints.
+    -->
+    <g stroke="#3e9c8a" stroke-width="2.4">
+      <!-- one-bar near the parent -->
+      <line x1="44" y1="46" x2="44" y2="58"/>
+      <!-- connecting segment -->
+      <path d="M44 52 H70" />
+      <!-- crow's foot near the child -->
+      <line x1="70" y1="52" x2="74" y2="46"/>
+      <line x1="70" y1="52" x2="74" y2="58"/>
+      <line x1="70" y1="52" x2="74" y2="52"/>
+    </g>
+  </g>
+
+  <!--
+    Wordmark. The split coloring (db vs editor) lets the eye lock onto
+    the noun + action — same trick GitLab / Postgres do. Type weight
+    is open + readable at 16px (favicon) all the way up to header
+    size; geometric sans avoids fighting the geometric icon.
+  -->
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-weight="700" letter-spacing="-1">
+    <text x="140" y="68" font-size="52" fill="#3e7e9c">db</text>
+    <text x="196" y="68" font-size="52" fill="#1f2937">editor</text>
+  </g>
+
+  <!-- tagline -->
+  <text x="140" y="94" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="14" font-weight="500" fill="#6b7280" letter-spacing="0.5">
+    visual database designer
+  </text>
+</svg>
