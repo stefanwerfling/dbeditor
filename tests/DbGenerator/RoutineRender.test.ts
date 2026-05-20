@@ -8,10 +8,10 @@ import {MySqlDialect} from '../../DbGenerator/Dialects/MySqlDialect.js';
 import {PostgresDialect} from '../../DbGenerator/Dialects/PostgresDialect.js';
 import {SqliteDialect} from '../../DbGenerator/Dialects/SqliteDialect.js';
 import {DialectContext} from '../../DbGenerator/DbDialect.js';
-import {buildDialectContextFromModel} from '../../DbGenerator/DialectContextBuilder.js';
+import {DialectContextBuilder} from '../../DbGenerator/DialectContextBuilder.js';
 import {JsonDataDB, JsonDataDBType, JsonRoutine, JsonRoutineKind} from '../../DbEditor/JsonData.js';
 
-const ctx = (): DialectContext => buildDialectContextFromModel({
+const ctx = (): DialectContext => DialectContextBuilder.fromModel({
     unid: 'db', name: 'db', type: JsonDataDBType.database,
     entrys: [], tables: [], views: [], enums: []
 } as JsonDataDB, '    ', ';', true);

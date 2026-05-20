@@ -1,8 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
-    addProjectToConfig,
-    updateProjectInConfig,
-    removeProjectFromConfig,
+    ProjectConfig,
     AddProjectError
 } from '../../Config/AddProject.js';
 
@@ -36,7 +34,7 @@ const validInput = (overrides: Record<string, any> = {}): any => ({
 describe('addProjectToConfig', () => {
 
     it('appends a new project entry without touching existing ones', () => {
-        const next = addProjectToConfig(baseConfig(), validInput());
+        const next = ProjectConfig.add(baseConfig(), validInput());
         expect(next.projects.length).toBe(2);
         expect(next.projects[0].name).toBe('MyDatabase');
         expect(next.projects[1]).toMatchObject({
@@ -48,26 +46,26 @@ describe('addProjectToConfig', () => {
     });
 
     it('preserves server/browser blocks verbatim', () => {
-        const next = addProjectToConfig(baseConfig(), validInput());
+        const next = ProjectConfig.add(baseConfig(), validInput());
         expect(next.server).toEqual({port: 5274});
         expect(next.browser).toEqual({open: false});
     });
 
     it('omits autoGenerate when not requested (default behaviour stays implicit)', () => {
-        const next = addProjectToConfig(baseConfig(), validInput());
+        const next = ProjectConfig.add(baseConfig(), validInput());
         expect((next.projects[1] as any).autoGenerate).toBeUndefined();
     });
 
     it('emits autoGenerate: true only when requested', () => {
-        const next = addProjectToConfig(baseConfig(), validInput({autoGenerate: true}));
+        const next = ProjectConfig.add(baseConfig(), validInput({autoGenerate: true}));
         expect((next.projects[1] as any).autoGenerate).toBe(true);
     });
 
     it('rejects duplicate name (case-insensitive)', () => {
-        expect(() => addProjectToConfig(baseConfig(), validInput({name: 'MYDATABASE'})))
+        expect(() => ProjectConfig.add(baseConfig(), validInput({name: 'MYDATABASE'})))
         .toThrow(AddProjectError);
         try {
-            addProjectToConfig(baseConfig(), validInput({name: 'mydatabase'}));
+            ProjectConfig.add(baseConfig(), validInput({name: 'mydatabase'}));
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('duplicate-name');
@@ -76,7 +74,7 @@ describe('addProjectToConfig', () => {
 
     it('rejects duplicate schemaPath (case-sensitive)', () => {
         try {
-            addProjectToConfig(baseConfig(), validInput({schemaPath: './schemas/database.json'}));
+            ProjectConfig.add(baseConfig(), validInput({schemaPath: './schemas/database.json'}));
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('duplicate-schema-path');
@@ -85,7 +83,7 @@ describe('addProjectToConfig', () => {
 
     it('rejects unknown dialect', () => {
         try {
-            addProjectToConfig(baseConfig(), validInput({dialect: 'oracle'}));
+            ProjectConfig.add(baseConfig(), validInput({dialect: 'oracle'}));
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('invalid-input');
@@ -95,7 +93,7 @@ describe('addProjectToConfig', () => {
 
     it('rejects unknown output mode', () => {
         try {
-            addProjectToConfig(baseConfig(), validInput({output: {mode: 'json-files', destinationPath: './x'}}));
+            ProjectConfig.add(baseConfig(), validInput({output: {mode: 'json-files', destinationPath: './x'}}));
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('invalid-input');
@@ -104,7 +102,7 @@ describe('addProjectToConfig', () => {
 
     it('rejects empty name after trim', () => {
         try {
-            addProjectToConfig(baseConfig(), validInput({name: '   '}));
+            ProjectConfig.add(baseConfig(), validInput({name: '   '}));
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('invalid-input');
@@ -113,7 +111,7 @@ describe('addProjectToConfig', () => {
 
     it('rejects empty schemaPath after trim', () => {
         try {
-            addProjectToConfig(baseConfig(), validInput({schemaPath: '   '}));
+            ProjectConfig.add(baseConfig(), validInput({schemaPath: '   '}));
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('invalid-input');
@@ -122,7 +120,7 @@ describe('addProjectToConfig', () => {
 
     it('rejects empty destinationPath after trim', () => {
         try {
-            addProjectToConfig(baseConfig(), validInput({output: {mode: 'ddl-files', destinationPath: '   '}}));
+            ProjectConfig.add(baseConfig(), validInput({output: {mode: 'ddl-files', destinationPath: '   '}}));
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('invalid-input');
@@ -131,7 +129,7 @@ describe('addProjectToConfig', () => {
 
     it('rejects malformed config object (no projects array)', () => {
         try {
-            addProjectToConfig({server: {port: 5174}}, validInput());
+            ProjectConfig.add({server: {port: 5174}}, validInput());
         } catch (err) {
             expect(err).toBeInstanceOf(AddProjectError);
             expect((err as AddProjectError).code).toBe('invalid-config');
@@ -139,26 +137,26 @@ describe('addProjectToConfig', () => {
     });
 
     it('appends correctly when starting from a single-project config', () => {
-        const next = addProjectToConfig(baseConfig(), validInput({name: 'Analytics', schemaPath: './schemas/analytics.json'}));
+        const next = ProjectConfig.add(baseConfig(), validInput({name: 'Analytics', schemaPath: './schemas/analytics.json'}));
         expect(next.projects.map(p => p.name)).toEqual(['MyDatabase', 'Analytics']);
     });
 
     it('appends correctly when starting from an empty projects array', () => {
         const cfg: unknown = {projects: [], server: {port: 5174}};
-        const next = addProjectToConfig(cfg, validInput());
+        const next = ProjectConfig.add(cfg, validInput());
         expect(next.projects.length).toBe(1);
         expect(next.projects[0].name).toBe('Second');
     });
 
     it('trims name and schemaPath before persisting', () => {
-        const next = addProjectToConfig(baseConfig(), validInput({name: '  Padded  ', schemaPath: '  ./schemas/padded.json  '}));
+        const next = ProjectConfig.add(baseConfig(), validInput({name: '  Padded  ', schemaPath: '  ./schemas/padded.json  '}));
         expect(next.projects[1].name).toBe('Padded');
         expect(next.projects[1].schemaPath).toBe('./schemas/padded.json');
     });
 
     it('accepts all four supported dialects', () => {
         for (const dialect of ['mysql', 'mariadb', 'postgres', 'sqlite']) {
-            const next = addProjectToConfig(baseConfig(), validInput({
+            const next = ProjectConfig.add(baseConfig(), validInput({
                 name: `proj-${dialect}`,
                 schemaPath: `./schemas/${dialect}.json`,
                 dialect: dialect
@@ -203,94 +201,94 @@ const expectAddError = (fn: () => unknown, code: string): AddProjectError => {
 describe('updateProjectInConfig', () => {
 
     it('renames a project (case-insensitive lookup)', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'primary', {name: 'Main'});
+        const next = ProjectConfig.update(twoProjectConfig(), 'primary', {name: 'Main'});
         expect(next.projects[0].name).toBe('Main');
         expect(next.projects[1].name).toBe('Analytics');
     });
 
     it('keeps autoGenerate when patch omits it', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'Analytics', {name: 'AnalyticsV2'});
+        const next = ProjectConfig.update(twoProjectConfig(), 'Analytics', {name: 'AnalyticsV2'});
         expect((next.projects[1] as any).autoGenerate).toBe(true);
     });
 
     it('explicit autoGenerate:false removes the key', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'Analytics', {autoGenerate: false});
+        const next = ProjectConfig.update(twoProjectConfig(), 'Analytics', {autoGenerate: false});
         expect((next.projects[1] as any).autoGenerate).toBeUndefined();
     });
 
     it('explicit autoGenerate:true sets the key', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'Primary', {autoGenerate: true});
+        const next = ProjectConfig.update(twoProjectConfig(), 'Primary', {autoGenerate: true});
         expect((next.projects[0] as any).autoGenerate).toBe(true);
     });
 
     it('patches output.mode without touching destinationPath', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'Primary', {output: {mode: 'migrations'}});
+        const next = ProjectConfig.update(twoProjectConfig(), 'Primary', {output: {mode: 'migrations'}});
         expect(next.projects[0].output.mode).toBe('migrations');
         expect(next.projects[0].output.destinationPath).toBe('./schemas/primary-sql');
     });
 
     it('rejects rename collision with another project (case-insensitive)', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Primary', {name: 'ANALYTICS'}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Primary', {name: 'ANALYTICS'}),
             'duplicate-name'
         );
     });
 
     it('allows keeping own name (no-op rename)', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'Primary', {name: 'PRIMARY'});
+        const next = ProjectConfig.update(twoProjectConfig(), 'Primary', {name: 'PRIMARY'});
         expect(next.projects[0].name).toBe('PRIMARY');
     });
 
     it('rejects schemaPath collision with another project', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Primary', {schemaPath: './schemas/analytics.json'}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Primary', {schemaPath: './schemas/analytics.json'}),
             'duplicate-schema-path'
         );
     });
 
     it('allows keeping own schemaPath', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'Primary', {schemaPath: './schemas/primary.json'});
+        const next = ProjectConfig.update(twoProjectConfig(), 'Primary', {schemaPath: './schemas/primary.json'});
         expect(next.projects[0].schemaPath).toBe('./schemas/primary.json');
     });
 
     it('rejects unknown dialect', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Primary', {dialect: 'oracle'}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Primary', {dialect: 'oracle'}),
             'invalid-input'
         );
     });
 
     it('rejects unknown output mode', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Primary', {output: {mode: 'json-files'}}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Primary', {output: {mode: 'json-files'}}),
             'invalid-input'
         );
     });
 
     it('rejects empty trimmed name (cannot clear)', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Primary', {name: '   '}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Primary', {name: '   '}),
             'invalid-input'
         );
     });
 
     it('rejects empty trimmed schemaPath', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Primary', {schemaPath: '   '}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Primary', {schemaPath: '   '}),
             'invalid-input'
         );
     });
 
     it('rejects empty trimmed output.destinationPath', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Primary', {output: {destinationPath: '   '}}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Primary', {output: {destinationPath: '   '}}),
             'invalid-input'
         );
     });
 
     it('rejects unknown project name', () => {
         expectAddError(
-            () => updateProjectInConfig(twoProjectConfig(), 'Nope', {name: 'X'}),
+            () => ProjectConfig.update(twoProjectConfig(), 'Nope', {name: 'X'}),
             'unknown-project'
         );
     });
@@ -306,14 +304,14 @@ describe('updateProjectInConfig', () => {
                 sync: {ignoreTables: ['junction']}
             }]
         };
-        const next = updateProjectInConfig(cfg, 'KeepFields', {name: 'Renamed'});
+        const next = ProjectConfig.update(cfg, 'KeepFields', {name: 'Renamed'});
         const p = next.projects[0] as any;
         expect(p.connections).toEqual([{databaseUnid: 'x', host: 'h', user: 'u', database: 'd'}]);
         expect(p.sync).toEqual({ignoreTables: ['junction']});
     });
 
     it('leaves the other project untouched when one is patched', () => {
-        const next = updateProjectInConfig(twoProjectConfig(), 'Primary', {name: 'Main', dialect: 'mariadb'});
+        const next = ProjectConfig.update(twoProjectConfig(), 'Primary', {name: 'Main', dialect: 'mariadb'});
         expect(next.projects[1]).toMatchObject({
             name: 'Analytics',
             schemaPath: './schemas/analytics.json',
@@ -326,13 +324,13 @@ describe('updateProjectInConfig', () => {
 describe('removeProjectFromConfig', () => {
 
     it('drops the named project (case-insensitive)', () => {
-        const next = removeProjectFromConfig(twoProjectConfig(), 'analytics');
+        const next = ProjectConfig.remove(twoProjectConfig(), 'analytics');
         expect(next.projects).toHaveLength(1);
         expect(next.projects[0].name).toBe('Primary');
     });
 
     it('preserves the surviving project verbatim', () => {
-        const next = removeProjectFromConfig(twoProjectConfig(), 'Analytics');
+        const next = ProjectConfig.remove(twoProjectConfig(), 'Analytics');
         expect(next.projects[0]).toMatchObject({
             name: 'Primary',
             schemaPath: './schemas/primary.json',
@@ -342,7 +340,7 @@ describe('removeProjectFromConfig', () => {
     });
 
     it('preserves server/browser blocks', () => {
-        const next = removeProjectFromConfig(twoProjectConfig(), 'Primary');
+        const next = ProjectConfig.remove(twoProjectConfig(), 'Primary');
         expect(next.server).toEqual({port: 5274});
     });
 
@@ -356,20 +354,20 @@ describe('removeProjectFromConfig', () => {
             }],
             server: {port: 5174}
         };
-        const next = removeProjectFromConfig(cfg, 'Only');
+        const next = ProjectConfig.remove(cfg, 'Only');
         expect(next.projects).toEqual([]);
     });
 
     it('rejects unknown project name', () => {
         expectAddError(
-            () => removeProjectFromConfig(twoProjectConfig(), 'Nope'),
+            () => ProjectConfig.remove(twoProjectConfig(), 'Nope'),
             'unknown-project'
         );
     });
 
     it('rejects malformed config', () => {
         expectAddError(
-            () => removeProjectFromConfig({server: {port: 5174}}, 'X'),
+            () => ProjectConfig.remove({server: {port: 5174}}, 'X'),
             'invalid-config'
         );
     });

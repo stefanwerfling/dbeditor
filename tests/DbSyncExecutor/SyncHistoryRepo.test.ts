@@ -2,12 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {
-    appendEntry,
-    historyPathFor,
-    loadHistory,
-    summariseChanges
-} from '../../DbSyncExecutor/SyncHistoryRepo.js';
+import {SyncHistoryRepo} from '../../DbSyncExecutor/SyncHistoryRepo.js';
 import {SchemaChangeKind} from '../../DbDiff/ChangeTypes.js';
 
 let tmpDir = '';
@@ -38,8 +33,8 @@ const baseEntry = (overrides: Record<string, unknown> = {}): any => ({
 describe('historyPathFor', () => {
 
     it('places sync-history.json next to the schema file', () => {
-        expect(historyPathFor('/proj/schemas/db.json')).toBe('/proj/schemas/sync-history.json');
-        expect(historyPathFor('/abs/foo/bar.json')).toBe('/abs/foo/sync-history.json');
+        expect(SyncHistoryRepo.pathFor('/proj/schemas/db.json')).toBe('/proj/schemas/sync-history.json');
+        expect(SyncHistoryRepo.pathFor('/abs/foo/bar.json')).toBe('/abs/foo/sync-history.json');
     });
 
 });
@@ -47,17 +42,17 @@ describe('historyPathFor', () => {
 describe('loadHistory', () => {
 
     it('returns empty list when file does not exist', () => {
-        expect(loadHistory(histPath)).toEqual([]);
+        expect(SyncHistoryRepo.load(histPath)).toEqual([]);
     });
 
     it('returns empty list when file is unparseable JSON', () => {
         fs.writeFileSync(histPath, '{not valid json');
-        expect(loadHistory(histPath)).toEqual([]);
+        expect(SyncHistoryRepo.load(histPath)).toEqual([]);
     });
 
     it('returns empty list when entries field is missing', () => {
         fs.writeFileSync(histPath, JSON.stringify({version: 1}));
-        expect(loadHistory(histPath)).toEqual([]);
+        expect(SyncHistoryRepo.load(histPath)).toEqual([]);
     });
 
 });
@@ -65,9 +60,9 @@ describe('loadHistory', () => {
 describe('appendEntry', () => {
 
     it('writes the file and prepends new entries newest-first', () => {
-        const first = appendEntry(histPath, baseEntry({databaseName: 'first'}));
-        const second = appendEntry(histPath, baseEntry({databaseName: 'second'}));
-        const list = loadHistory(histPath);
+        const first = SyncHistoryRepo.append(histPath, baseEntry({databaseName: 'first'}));
+        const second = SyncHistoryRepo.append(histPath, baseEntry({databaseName: 'second'}));
+        const list = SyncHistoryRepo.load(histPath);
         expect(list).toHaveLength(2);
         expect(list[0].databaseName).toBe('second');
         expect(list[1].databaseName).toBe('first');
@@ -75,7 +70,7 @@ describe('appendEntry', () => {
     });
 
     it('fills in id and ts automatically', () => {
-        const entry = appendEntry(histPath, baseEntry());
+        const entry = SyncHistoryRepo.append(histPath, baseEntry());
         expect(typeof entry.id).toBe('string');
         expect(entry.id.length).toBeGreaterThan(0);
         expect(typeof entry.ts).toBe('string');
@@ -84,22 +79,22 @@ describe('appendEntry', () => {
 
     it('creates the parent directory if missing', () => {
         const deep = path.join(tmpDir, 'a', 'b', 'sync-history.json');
-        appendEntry(deep, baseEntry());
+        SyncHistoryRepo.append(deep, baseEntry());
         expect(fs.existsSync(deep)).toBe(true);
-        expect(loadHistory(deep)).toHaveLength(1);
+        expect(SyncHistoryRepo.load(deep)).toHaveLength(1);
     });
 
     it('preserves history across multiple processes / instances (file-based)', () => {
         for (let i = 0; i < 5; i++) {
-            appendEntry(histPath, baseEntry({databaseName: `db-${i}`}));
+            SyncHistoryRepo.append(histPath, baseEntry({databaseName: `db-${i}`}));
         }
-        const list = loadHistory(histPath);
+        const list = SyncHistoryRepo.load(histPath);
         expect(list).toHaveLength(5);
         expect(list.map(e => e.databaseName)).toEqual(['db-4', 'db-3', 'db-2', 'db-1', 'db-0']);
     });
 
     it('persists critical + restoreError fields on test-run entries', () => {
-        appendEntry(histPath, baseEntry({
+        SyncHistoryRepo.append(histPath, baseEntry({
             mode: 'test-run',
             success: false,
             critical: true,
@@ -108,7 +103,7 @@ describe('appendEntry', () => {
             dumpPath: '/tmp/dump.sql',
             dumpKept: true
         }));
-        const list = loadHistory(histPath);
+        const list = SyncHistoryRepo.load(histPath);
         expect(list[0].critical).toBe(true);
         expect(list[0].restoreOk).toBe(false);
         expect(list[0].restoreError).toBe('mysql exit 1');
@@ -120,7 +115,7 @@ describe('appendEntry', () => {
 describe('summariseChanges', () => {
 
     it('counts by kind', () => {
-        expect(summariseChanges([
+        expect(SyncHistoryRepo.summarise([
             {kind: SchemaChangeKind.tableAdded},
             {kind: SchemaChangeKind.tableAdded},
             {kind: SchemaChangeKind.columnDropped}
@@ -128,7 +123,7 @@ describe('summariseChanges', () => {
     });
 
     it('handles empty input', () => {
-        expect(summariseChanges([])).toEqual({});
+        expect(SyncHistoryRepo.summarise([])).toEqual({});
     });
 
 });

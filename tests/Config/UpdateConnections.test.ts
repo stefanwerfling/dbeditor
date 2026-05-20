@@ -6,10 +6,7 @@
 /* eslint-disable no-template-curly-in-string */
 import {describe, expect, it} from 'vitest';
 import {
-    addConnectionToConfig,
-    rebindConnectionInConfig,
-    removeConnectionFromConfig,
-    updateConnectionInConfig,
+    ConnectionConfig,
     ConnectionConfigError
 } from '../../Config/UpdateConnections.js';
 
@@ -51,7 +48,7 @@ const expectError = (fn: () => unknown, code: string): ConnectionConfigError => 
 describe('addConnectionToConfig', () => {
 
     it('appends to a connectionless project', () => {
-        const next = addConnectionToConfig(baseConfig(), 'MyDatabase', validInput());
+        const next = ConnectionConfig.add(baseConfig(), 'MyDatabase', validInput());
         expect(next.projects[0].connections).toHaveLength(1);
         expect(next.projects[0].connections![0]).toMatchObject({
             databaseUnid: 'db-uuid-1',
@@ -65,19 +62,19 @@ describe('addConnectionToConfig', () => {
 
     it('appends alongside an existing connection on the same project', () => {
         const cfg = baseConfig({databaseUnid: 'db-uuid-0', host: 'a', user: 'u', database: 'd'});
-        const next = addConnectionToConfig(cfg, 'MyDatabase', validInput());
+        const next = ConnectionConfig.add(cfg, 'MyDatabase', validInput());
         expect(next.projects[0].connections).toHaveLength(2);
         expect(next.projects[0].connections!.map(c => c.databaseUnid)).toEqual(['db-uuid-0', 'db-uuid-1']);
     });
 
     it('looks up the project case-insensitively', () => {
-        const next = addConnectionToConfig(baseConfig(), 'mydatabase', validInput());
+        const next = ConnectionConfig.add(baseConfig(), 'mydatabase', validInput());
         expect(next.projects[0].connections).toHaveLength(1);
     });
 
     it('rejects when no project of that name exists', () => {
         expectError(
-            () => addConnectionToConfig(baseConfig(), 'Other', validInput()),
+            () => ConnectionConfig.add(baseConfig(), 'Other', validInput()),
             'unknown-project'
         );
     });
@@ -85,41 +82,41 @@ describe('addConnectionToConfig', () => {
     it('rejects duplicate databaseUnid within the same project', () => {
         const cfg = baseConfig({databaseUnid: 'db-uuid-1', host: 'h', user: 'u', database: 'd'});
         expectError(
-            () => addConnectionToConfig(cfg, 'MyDatabase', validInput()),
+            () => ConnectionConfig.add(cfg, 'MyDatabase', validInput()),
             'duplicate-connection'
         );
     });
 
     it('rejects empty host after trim', () => {
         expectError(
-            () => addConnectionToConfig(baseConfig(), 'MyDatabase', validInput({host: '   '})),
+            () => ConnectionConfig.add(baseConfig(), 'MyDatabase', validInput({host: '   '})),
             'invalid-input'
         );
     });
 
     it('rejects empty user after trim', () => {
         expectError(
-            () => addConnectionToConfig(baseConfig(), 'MyDatabase', validInput({user: '   '})),
+            () => ConnectionConfig.add(baseConfig(), 'MyDatabase', validInput({user: '   '})),
             'invalid-input'
         );
     });
 
     it('rejects empty database after trim', () => {
         expectError(
-            () => addConnectionToConfig(baseConfig(), 'MyDatabase', validInput({database: '   '})),
+            () => ConnectionConfig.add(baseConfig(), 'MyDatabase', validInput({database: '   '})),
             'invalid-input'
         );
     });
 
     it('rejects empty databaseUnid after trim', () => {
         expectError(
-            () => addConnectionToConfig(baseConfig(), 'MyDatabase', validInput({databaseUnid: '   '})),
+            () => ConnectionConfig.add(baseConfig(), 'MyDatabase', validInput({databaseUnid: '   '})),
             'invalid-input'
         );
     });
 
     it('omits optional fields when not supplied (clean on-disk shape)', () => {
-        const next = addConnectionToConfig(baseConfig(), 'MyDatabase', {
+        const next = ConnectionConfig.add(baseConfig(), 'MyDatabase', {
             databaseUnid: 'db-uuid-1',
             host: 'localhost',
             user: 'root',
@@ -133,21 +130,21 @@ describe('addConnectionToConfig', () => {
     });
 
     it('keeps ssl/readOnly only when true (false-equals-omit)', () => {
-        const next = addConnectionToConfig(baseConfig(), 'MyDatabase', validInput({ssl: false, readOnly: false}));
+        const next = ConnectionConfig.add(baseConfig(), 'MyDatabase', validInput({ssl: false, readOnly: false}));
         const c = next.projects[0].connections![0] as any;
         expect(c.ssl).toBeUndefined();
         expect(c.readOnly).toBeUndefined();
     });
 
     it('preserves boolean true for ssl + readOnly', () => {
-        const next = addConnectionToConfig(baseConfig(), 'MyDatabase', validInput({ssl: true, readOnly: true}));
+        const next = ConnectionConfig.add(baseConfig(), 'MyDatabase', validInput({ssl: true, readOnly: true}));
         expect(next.projects[0].connections![0].ssl).toBe(true);
         expect(next.projects[0].connections![0].readOnly).toBe(true);
     });
 
     it('rejects malformed config (missing projects array)', () => {
         expectError(
-            () => addConnectionToConfig({server: {port: 5174}}, 'MyDatabase', validInput()),
+            () => ConnectionConfig.add({server: {port: 5174}}, 'MyDatabase', validInput()),
             'invalid-config'
         );
     });
@@ -167,7 +164,7 @@ describe('updateConnectionInConfig', () => {
     });
 
     it('replaces only the patched fields', () => {
-        const next = updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {host: 'new-host'});
+        const next = ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {host: 'new-host'});
         const c = next.projects[0].connections![0];
         expect(c.host).toBe('new-host');
         expect(c.user).toBe('old-user');
@@ -177,7 +174,7 @@ describe('updateConnectionInConfig', () => {
     });
 
     it('keeps unchanged fields verbatim when patch is empty', () => {
-        const next = updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {});
+        const next = ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {});
         expect(next.projects[0].connections![0]).toMatchObject({
             host: 'old-host',
             port: 3306,
@@ -189,72 +186,72 @@ describe('updateConnectionInConfig', () => {
 
     it('rejects empty trimmed host (cannot clear)', () => {
         expectError(
-            () => updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {host: '   '}),
+            () => ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {host: '   '}),
             'invalid-input'
         );
     });
 
     it('rejects empty trimmed user', () => {
         expectError(
-            () => updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {user: '   '}),
+            () => ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {user: '   '}),
             'invalid-input'
         );
     });
 
     it('rejects empty trimmed database', () => {
         expectError(
-            () => updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {database: '   '}),
+            () => ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {database: '   '}),
             'invalid-input'
         );
     });
 
     it('rejects non-finite port', () => {
         expectError(
-            () => updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {port: Number.NaN}),
+            () => ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {port: Number.NaN}),
             'invalid-input'
         );
     });
 
     it('clears password when patch sends empty string', () => {
-        const next = updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {password: ''});
+        const next = ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {password: ''});
         const c = next.projects[0].connections![0] as any;
         expect(c.password).toBeUndefined();
     });
 
     it('replaces password when patch sends a value', () => {
-        const next = updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {password: '${NEW_PWD}'});
+        const next = ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {password: '${NEW_PWD}'});
         expect(next.projects[0].connections![0].password).toBe('${NEW_PWD}');
     });
 
     it('keeps password when patch omits the key', () => {
-        const next = updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {host: 'new-host'});
+        const next = ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {host: 'new-host'});
         expect(next.projects[0].connections![0].password).toBe('${OLD_PWD}');
     });
 
     it('toggles ssl on and off (false removes the key)', () => {
-        const on = updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {ssl: true});
+        const on = ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {ssl: true});
         expect(on.projects[0].connections![0].ssl).toBe(true);
-        const off = updateConnectionInConfig(on, 'MyDatabase', 'db-uuid-1', {ssl: false});
+        const off = ConnectionConfig.update(on, 'MyDatabase', 'db-uuid-1', {ssl: false});
         expect((off.projects[0].connections![0] as any).ssl).toBeUndefined();
     });
 
     it('toggles readOnly on and off (false removes the key)', () => {
-        const on = updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-1', {readOnly: true});
+        const on = ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-1', {readOnly: true});
         expect(on.projects[0].connections![0].readOnly).toBe(true);
-        const off = updateConnectionInConfig(on, 'MyDatabase', 'db-uuid-1', {readOnly: false});
+        const off = ConnectionConfig.update(on, 'MyDatabase', 'db-uuid-1', {readOnly: false});
         expect((off.projects[0].connections![0] as any).readOnly).toBeUndefined();
     });
 
     it('rejects unknown project', () => {
         expectError(
-            () => updateConnectionInConfig(seeded(), 'Other', 'db-uuid-1', {host: 'x'}),
+            () => ConnectionConfig.update(seeded(), 'Other', 'db-uuid-1', {host: 'x'}),
             'unknown-project'
         );
     });
 
     it('rejects unknown databaseUnid', () => {
         expectError(
-            () => updateConnectionInConfig(seeded(), 'MyDatabase', 'db-uuid-99', {host: 'x'}),
+            () => ConnectionConfig.update(seeded(), 'MyDatabase', 'db-uuid-99', {host: 'x'}),
             'unknown-connection'
         );
     });
@@ -272,7 +269,7 @@ describe('updateConnectionInConfig', () => {
                 ]
             }]
         };
-        const next = updateConnectionInConfig(cfg, 'MyDatabase', 'a', {host: 'a-host-2'});
+        const next = ConnectionConfig.update(cfg, 'MyDatabase', 'a', {host: 'a-host-2'});
         expect(next.projects[0].connections![0].host).toBe('a-host-2');
         expect(next.projects[0].connections![1].host).toBe('b-host');
     });
@@ -283,7 +280,7 @@ describe('removeConnectionFromConfig', () => {
 
     it('removes the named connection', () => {
         const cfg = baseConfig({databaseUnid: 'db-uuid-1', host: 'h', user: 'u', database: 'd'});
-        const next = removeConnectionFromConfig(cfg, 'MyDatabase', 'db-uuid-1');
+        const next = ConnectionConfig.remove(cfg, 'MyDatabase', 'db-uuid-1');
         expect((next.projects[0] as any).connections).toBeUndefined();
     });
 
@@ -300,7 +297,7 @@ describe('removeConnectionFromConfig', () => {
                 ]
             }]
         };
-        const next = removeConnectionFromConfig(cfg, 'MyDatabase', 'a');
+        const next = ConnectionConfig.remove(cfg, 'MyDatabase', 'a');
         expect(next.projects[0].connections).toHaveLength(1);
         expect(next.projects[0].connections![0].databaseUnid).toBe('b');
     });
@@ -308,7 +305,7 @@ describe('removeConnectionFromConfig', () => {
     it('rejects when project name unknown', () => {
         const cfg = baseConfig({databaseUnid: 'db-uuid-1', host: 'h', user: 'u', database: 'd'});
         expectError(
-            () => removeConnectionFromConfig(cfg, 'Other', 'db-uuid-1'),
+            () => ConnectionConfig.remove(cfg, 'Other', 'db-uuid-1'),
             'unknown-project'
         );
     });
@@ -316,14 +313,14 @@ describe('removeConnectionFromConfig', () => {
     it('rejects when databaseUnid not present', () => {
         const cfg = baseConfig({databaseUnid: 'db-uuid-1', host: 'h', user: 'u', database: 'd'});
         expectError(
-            () => removeConnectionFromConfig(cfg, 'MyDatabase', 'db-uuid-99'),
+            () => ConnectionConfig.remove(cfg, 'MyDatabase', 'db-uuid-99'),
             'unknown-connection'
         );
     });
 
     it('rejects when project has no connections at all', () => {
         expectError(
-            () => removeConnectionFromConfig(baseConfig(), 'MyDatabase', 'db-uuid-1'),
+            () => ConnectionConfig.remove(baseConfig(), 'MyDatabase', 'db-uuid-1'),
             'unknown-connection'
         );
     });
@@ -346,7 +343,7 @@ describe('rebindConnectionInConfig', () => {
                 ]
             }]
         };
-        const next = rebindConnectionInConfig(cfg, 'MyDatabase', 'b', 'c');
+        const next = ConnectionConfig.rebind(cfg, 'MyDatabase', 'b', 'c');
         expect(next.projects[0].connections).toHaveLength(2);
         expect(next.projects[0].connections![0].databaseUnid).toBe('a');
         const rebound = next.projects[0].connections![1];
@@ -364,7 +361,7 @@ describe('rebindConnectionInConfig', () => {
 
     it('treats same-source-and-target as a no-op success', () => {
         const cfg = baseConfig({databaseUnid: 'a', host: 'h', user: 'u', database: 'd'});
-        const next = rebindConnectionInConfig(cfg, 'MyDatabase', 'a', 'a');
+        const next = ConnectionConfig.rebind(cfg, 'MyDatabase', 'a', 'a');
         expect(next.projects[0].connections).toHaveLength(1);
         expect(next.projects[0].connections![0].databaseUnid).toBe('a');
     });
@@ -372,7 +369,7 @@ describe('rebindConnectionInConfig', () => {
     it('rejects when project name unknown', () => {
         const cfg = baseConfig({databaseUnid: 'a', host: 'h', user: 'u', database: 'd'});
         expectError(
-            () => rebindConnectionInConfig(cfg, 'Other', 'a', 'b'),
+            () => ConnectionConfig.rebind(cfg, 'Other', 'a', 'b'),
             'unknown-project'
         );
     });
@@ -380,7 +377,7 @@ describe('rebindConnectionInConfig', () => {
     it('rejects when oldDatabaseUnid not present', () => {
         const cfg = baseConfig({databaseUnid: 'a', host: 'h', user: 'u', database: 'd'});
         expectError(
-            () => rebindConnectionInConfig(cfg, 'MyDatabase', 'no-such', 'b'),
+            () => ConnectionConfig.rebind(cfg, 'MyDatabase', 'no-such', 'b'),
             'unknown-connection'
         );
     });
@@ -400,7 +397,7 @@ describe('rebindConnectionInConfig', () => {
             }]
         };
         expectError(
-            () => rebindConnectionInConfig(cfg, 'MyDatabase', 'a', 'b'),
+            () => ConnectionConfig.rebind(cfg, 'MyDatabase', 'a', 'b'),
             'duplicate-connection'
         );
     });
@@ -408,7 +405,7 @@ describe('rebindConnectionInConfig', () => {
     it('rejects when newDatabaseUnid is empty', () => {
         const cfg = baseConfig({databaseUnid: 'a', host: 'h', user: 'u', database: 'd'});
         expectError(
-            () => rebindConnectionInConfig(cfg, 'MyDatabase', 'a', '   '),
+            () => ConnectionConfig.rebind(cfg, 'MyDatabase', 'a', '   '),
             'invalid-input'
         );
     });

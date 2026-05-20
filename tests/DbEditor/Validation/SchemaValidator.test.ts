@@ -4,7 +4,7 @@
  * each test builds a minimal tree exercising one rule.
  */
 import {describe, expect, it} from 'vitest';
-import {validateSchema, SchemaWarning} from '../../../DbEditor/Validation/SchemaValidator.js';
+import {SchemaValidator, SchemaWarning} from '../../../DbEditor/Validation/SchemaValidator.js';
 import {JsonDataDB, JsonDataDBType, JsonTable} from '../../../DbEditor/JsonData.js';
 
 const root = (databases: JsonDataDB[]): JsonDataDB => ({
@@ -46,7 +46,7 @@ const messages = (warnings: SchemaWarning[]): string[] => warnings.map(w => w.me
 describe('SchemaValidator — duplicate column names within table', () => {
 
     it('flags a table with two columns sharing a (case-insensitive) name', () => {
-        const w = validateSchema(root([db('mydb', {tables: [
+        const w = SchemaValidator.validate(root([db('mydb', {tables: [
             tbl('user', [
                 {unid: 'c1', name: 'id', type: 'int', primaryKey: true},
                 {unid: 'c2', name: 'ID', type: 'int'}
@@ -58,7 +58,7 @@ describe('SchemaValidator — duplicate column names within table', () => {
     });
 
     it('does not flag distinct column names', () => {
-        const w = validateSchema(root([db('mydb', {tables: [
+        const w = SchemaValidator.validate(root([db('mydb', {tables: [
             tbl('user', [
                 {unid: 'c1', name: 'id', type: 'int', primaryKey: true},
                 {unid: 'c2', name: 'email', type: 'varchar'}
@@ -72,7 +72,7 @@ describe('SchemaValidator — duplicate column names within table', () => {
 describe('SchemaValidator — index with no columns', () => {
 
     it('flags an empty index', () => {
-        const w = validateSchema(root([db('mydb', {tables: [
+        const w = SchemaValidator.validate(root([db('mydb', {tables: [
             tbl(
                 'user',
                 [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
@@ -89,7 +89,7 @@ describe('SchemaValidator — index with no columns', () => {
 describe('SchemaValidator — enum-typed column refs', () => {
 
     it('flags an enum column with no enumRef', () => {
-        const w = validateSchema(root([db('mydb', {tables: [
+        const w = SchemaValidator.validate(root([db('mydb', {tables: [
             tbl('user', [
                 {unid: 'c1', name: 'id', type: 'int', primaryKey: true},
                 {unid: 'c2', name: 'role', type: 'enum'}
@@ -99,7 +99,7 @@ describe('SchemaValidator — enum-typed column refs', () => {
     });
 
     it('flags an enum column whose enumRef does not resolve', () => {
-        const w = validateSchema(root([db('mydb', {tables: [
+        const w = SchemaValidator.validate(root([db('mydb', {tables: [
             tbl('user', [
                 {unid: 'c1', name: 'id', type: 'int', primaryKey: true},
                 {unid: 'c2', name: 'role', type: 'enum', enumRef: 'gone'}
@@ -109,7 +109,7 @@ describe('SchemaValidator — enum-typed column refs', () => {
     });
 
     it('accepts an enum column whose enumRef resolves to a sibling enum', () => {
-        const w = validateSchema(root([db('mydb', {
+        const w = SchemaValidator.validate(root([db('mydb', {
             enums: [{unid: 'e1', name: 'role_t', pos: {x: 0, y: 0}, values: [{unid: 'v1', value: 'admin'}]}],
             tables: [
                 tbl('user', [
@@ -132,7 +132,7 @@ describe('SchemaValidator — enum-typed column refs', () => {
             views: [],
             enums: [{unid: 'e1', name: 'role_t', pos: {x: 0, y: 0}, values: [{unid: 'v1', value: 'admin'}]}]
         };
-        const w = validateSchema(root([db('mydb', {
+        const w = SchemaValidator.validate(root([db('mydb', {
             entrys: [folder],
             tables: [
                 tbl('user', [
@@ -149,7 +149,7 @@ describe('SchemaValidator — enum-typed column refs', () => {
 describe('SchemaValidator — dangling diagramUnid', () => {
 
     it('flags a table whose diagramUnid does not resolve', () => {
-        const w = validateSchema(root([db('mydb', {
+        const w = SchemaValidator.validate(root([db('mydb', {
             tables: [{
                 unid: 't-1', name: 'user', pos: {x: 0, y: 0},
                 columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
@@ -161,7 +161,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
     });
 
     it('does not flag a table whose diagramUnid resolves to a sibling diagram', () => {
-        const w = validateSchema(root([db('mydb', {
+        const w = SchemaValidator.validate(root([db('mydb', {
             tables: [{
                 unid: 't-1', name: 'user', pos: {x: 0, y: 0},
                 columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
@@ -174,7 +174,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
     });
 
     it('flags a diagramPlacements entry pointing at a deleted diagram', () => {
-        const w = validateSchema(root([db('mydb', {
+        const w = SchemaValidator.validate(root([db('mydb', {
             tables: [{
                 unid: 't-1', name: 'user', pos: {x: 0, y: 0},
                 columns: [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}],
@@ -193,7 +193,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
     it('flags a view whose diagramUnid does not resolve', () => {
         const dbNode = db('mydb', {});
         dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', diagramUnid: 'gone'}];
-        const w = validateSchema(root([dbNode]));
+        const w = SchemaValidator.validate(root([dbNode]));
         expect(messages(w)).toContain('View "active_users" references a deleted diagram.');
     });
 
@@ -202,7 +202,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
             diagrams: [{unid: 'L1', name: 'People'}]
         });
         dbNode.views = [{unid: 'v-1', name: 'active_users', pos: {x: 0, y: 0}, select: 'SELECT 1', diagramUnid: 'L1'}];
-        const w = validateSchema(root([dbNode]));
+        const w = SchemaValidator.validate(root([dbNode]));
         expect(w.find(x => x.message.includes('deleted diagram'))).toBeUndefined();
     });
 
@@ -215,7 +215,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
             diagramUnid: 'L1',
             diagramPlacements: [{diagramUnid: 'gone', pos: {x: 1, y: 1}}]
         }];
-        const w = validateSchema(root([dbNode]));
+        const w = SchemaValidator.validate(root([dbNode]));
         expect(messages(w)).toContain('View "active_users" placement references a deleted diagram.');
     });
 
@@ -224,7 +224,7 @@ describe('SchemaValidator — dangling diagramUnid', () => {
 describe('SchemaValidator — duplicate table names within database', () => {
 
     it('flags two tables sharing a name in the same database (one warning per table)', () => {
-        const w = validateSchema(root([db('mydb', {tables: [
+        const w = SchemaValidator.validate(root([db('mydb', {tables: [
             tbl('user', [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}]),
             {...tbl('USER', [{unid: 'c2', name: 'id', type: 'int', primaryKey: true}]), unid: 't-user-2'}
         ]})]));
@@ -234,7 +234,7 @@ describe('SchemaValidator — duplicate table names within database', () => {
     });
 
     it('does not flag same-named tables in DIFFERENT databases', () => {
-        const w = validateSchema(root([
+        const w = SchemaValidator.validate(root([
             db('a', {tables: [tbl('user', [{unid: 'c1', name: 'id', type: 'int', primaryKey: true}])]}, 'db-a'),
             db('b', {tables: [tbl('user', [{unid: 'c2', name: 'id', type: 'int', primaryKey: true}])]}, 'db-b')
         ]));
@@ -252,7 +252,7 @@ describe('SchemaValidator — duplicate table names within database', () => {
             entrys: [], tables: [{...tbl('user', [{unid: 'c2', name: 'id', type: 'int', primaryKey: true}]), unid: 't-user-2'}],
             views: [], enums: []
         };
-        const w = validateSchema(root([db('mydb', {entrys: [f1, f2]})]));
+        const w = SchemaValidator.validate(root([db('mydb', {entrys: [f1, f2]})]));
         const dups = w.filter(x => x.message.includes('tables named'));
         expect(dups).toHaveLength(2);
     });
@@ -266,7 +266,7 @@ describe('SchemaValidator — existing rules still fire', () => {
      * accidentally break the original four warnings.
      */
     it('table without primary key + auto-increment without PK + multiple AIs', () => {
-        const w = validateSchema(root([db('mydb', {tables: [
+        const w = SchemaValidator.validate(root([db('mydb', {tables: [
             tbl('thing', [
                 {unid: 'c1', name: 'a', type: 'int', autoIncrement: true},
                 {unid: 'c2', name: 'b', type: 'int', autoIncrement: true}

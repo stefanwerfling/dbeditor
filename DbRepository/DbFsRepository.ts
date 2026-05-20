@@ -30,34 +30,7 @@ import {RepoNotFoundError, RepoInvalidError} from './DbRepositoryErrors.js';
 import {SchemaChange, SchemaChangeKind} from '../DbDiff/ChangeTypes.js';
 
 const FLUSH_DEBOUNCE_MS = 150;
-
-const emptyData = (name: string): JsonData => ({
-    fs: {
-        unid: 'root',
-        name: 'root',
-        type: JsonDataDBType.root,
-        entrys: [
-            {
-                unid: randomUUID(),
-                name: name,
-                type: JsonDataDBType.database,
-                istoggle: true,
-                entrys: [],
-                tables: [],
-                views: [],
-                enums: [],
-                routines: []
-            } as JsonDataDB
-        ],
-        tables: [],
-        views: [],
-        enums: [],
-        routines: []
-    },
-    editor: {}
-});
-
-const defaultPos = (): JsonPosition => ({x: 80, y: 80});
+const UNDO_STACK_MAX = 100;
 
 /**
  * In-memory store for one project's JSON tree. Mutations are synchronous
@@ -65,9 +38,39 @@ const defaultPos = (): JsonPosition => ({x: 80, y: 80});
  * flush we optionally run a hook (used by the backend to trigger codegen
  * when `autoGenerate` is on).
  */
-const UNDO_STACK_MAX = 100;
-
 export class DbFsRepository {
+
+    private static _emptyData(name: string): JsonData {
+        return {
+            fs: {
+                unid: 'root',
+                name: 'root',
+                type: JsonDataDBType.root,
+                entrys: [
+                    {
+                        unid: randomUUID(),
+                        name: name,
+                        type: JsonDataDBType.database,
+                        istoggle: true,
+                        entrys: [],
+                        tables: [],
+                        views: [],
+                        enums: [],
+                        routines: []
+                    } as JsonDataDB
+                ],
+                tables: [],
+                views: [],
+                enums: [],
+                routines: []
+            },
+            editor: {}
+        };
+    }
+
+    private static _defaultPos(): JsonPosition {
+        return {x: 80, y: 80};
+    }
 
     private readonly _project: DbProject;
     private readonly _bus = new DbRepositoryEventBus();
@@ -201,19 +204,19 @@ export class DbFsRepository {
 
     private _loadFromDisk(): JsonData {
         const file = this._project.schemaPath;
-        if (!fs.existsSync(file)) {return emptyData(this._project.name);}
+        if (!fs.existsSync(file)) {return DbFsRepository._emptyData(this._project.name);}
         try {
             const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
             DbFsRepository._migrateLegacyLayerSchema(raw);
             const errors: any[] = [];
             if (!SchemaJsonData.validate(raw, errors)) {
                 console.error(`[DbFsRepository] schema in ${file} failed validation, using empty:`, errors);
-                return emptyData(this._project.name);
+                return DbFsRepository._emptyData(this._project.name);
             }
             return raw as JsonData;
         } catch (err) {
             console.error(`[DbFsRepository] failed to read ${file}:`, err);
-            return emptyData(this._project.name);
+            return DbFsRepository._emptyData(this._project.name);
         }
     }
 
@@ -463,7 +466,7 @@ export class DbFsRepository {
         const table: JsonTable = {
             unid: randomUUID(),
             name: name,
-            pos: pos || defaultPos(),
+            pos: pos || DbFsRepository._defaultPos(),
             columns: [],
             indexes: [],
             foreignKeys: [],
@@ -766,7 +769,7 @@ export class DbFsRepository {
         const enumNode: JsonEnum = {
             unid: randomUUID(),
             name: name,
-            pos: pos || defaultPos(),
+            pos: pos || DbFsRepository._defaultPos(),
             values: [],
             description: ''
         };
@@ -828,7 +831,7 @@ export class DbFsRepository {
         const view: JsonView = {
             unid: randomUUID(),
             name: name,
-            pos: pos || defaultPos(),
+            pos: pos || DbFsRepository._defaultPos(),
             select: '',
             description: ''
         };
@@ -1009,7 +1012,7 @@ export class DbFsRepository {
         const routine: JsonRoutine = {
             unid: randomUUID(),
             name: name,
-            pos: pos || defaultPos(),
+            pos: pos || DbFsRepository._defaultPos(),
             kind: kind || JsonRoutineKind.procedure,
             body: '',
             description: ''
@@ -1371,7 +1374,7 @@ export class DbFsRepository {
                 modelDb.views.push({
                     ...liveView,
                     unid: randomUUID(),
-                    pos: defaultPos()
+                    pos: DbFsRepository._defaultPos()
                 });
                 return true;
             }
@@ -1465,7 +1468,7 @@ export class DbFsRepository {
         return {
             unid: randomUUID(),
             name: liveTable.name,
-            pos: defaultPos(),
+            pos: DbFsRepository._defaultPos(),
             columns: columns,
             indexes: indexes,
             foreignKeys: foreignKeys,

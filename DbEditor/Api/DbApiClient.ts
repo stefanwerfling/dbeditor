@@ -40,10 +40,6 @@ export type SyncHistoryEntry = {
     durationMs: number;
 };
 
-const hasAnyRename = (r: RenameHints): boolean =>
-    (r.tables !== undefined && r.tables.length > 0) ||
-    (r.columns !== undefined && r.columns.length > 0);
-
 export type AddProjectInput = {
     name: string;
     schemaPath: string;
@@ -126,6 +122,11 @@ export type RequestListener = (ev: RequestEvent) => void;
  * and would make the indicator flicker.
  */
 export class DbApiClient {
+
+    private static _hasAnyRename(r: RenameHints): boolean {
+        return (r.tables !== undefined && r.tables.length > 0) ||
+            (r.columns !== undefined && r.columns.length > 0);
+    }
 
     public readonly clientId: string;
 
@@ -448,7 +449,7 @@ export class DbApiClient {
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid};
         if (diagramUnid) {body.diagramUnid = diagramUnid;}
-        if (renames && hasAnyRename(renames)) {body.renames = renames;}
+        if (renames && DbApiClient._hasAnyRename(renames)) {body.renames = renames;}
         return this._request('POST', `/api/projects/${pid}/sync/preview`, body);
     }
 
@@ -467,7 +468,7 @@ export class DbApiClient {
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid, changeIds: changeIds, dryRun: dryRun};
         if (diagramUnid) {body.diagramUnid = diagramUnid;}
-        if (renames && hasAnyRename(renames)) {body.renames = renames;}
+        if (renames && DbApiClient._hasAnyRename(renames)) {body.renames = renames;}
         return this._request('POST', `/api/projects/${pid}/sync/apply`, body);
     }
 
@@ -485,7 +486,7 @@ export class DbApiClient {
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid, changeIds: changeIds};
         if (diagramUnid) {body.diagramUnid = diagramUnid;}
-        if (renames && hasAnyRename(renames)) {body.renames = renames;}
+        if (renames && DbApiClient._hasAnyRename(renames)) {body.renames = renames;}
         return this._request('POST', `/api/projects/${pid}/sync/reverse-apply`, body);
     }
 
@@ -538,7 +539,7 @@ export class DbApiClient {
     }> {
         const body: Record<string, unknown> = {databaseUnid: databaseUnid, changeIds: changeIds};
         if (diagramUnid) {body.diagramUnid = diagramUnid;}
-        if (renames && hasAnyRename(renames)) {body.renames = renames;}
+        if (renames && DbApiClient._hasAnyRename(renames)) {body.renames = renames;}
         if (purgeOnSuccess === false) {body.purgeOnSuccess = false;}
         return this._request('POST', `/api/projects/${pid}/sync/test-run`, body);
     }

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {narrowDataForScope} from '../../DbGenerator/ScopeNarrow.js';
+import {ScopeNarrow} from '../../DbGenerator/ScopeNarrow.js';
 import {JsonData, JsonDataDB, JsonDataDBType, JsonTable, JsonView, JsonEnum} from '../../DbEditor/JsonData.js';
 
 const table = (unid: string, name: string, patch: Partial<JsonTable> = {}): JsonTable => ({
@@ -50,14 +50,14 @@ const buildData = (databases: JsonDataDB[]): JsonData => ({
     editor: {controls_width: 240}
 });
 
-describe('narrowDataForScope', () => {
+describe('ScopeNarrow.narrow', () => {
 
     it('database-only scope keeps that database and drops siblings', () => {
         const data = buildData([
             dbNode('db-A', 'A', {tables: [table('t-A1', 'a1')], views: [view('v-A1', 'av1')]}),
             dbNode('db-B', 'B', {tables: [table('t-B1', 'b1')]})
         ]);
-        const out = narrowDataForScope(data, {databaseUnid: 'db-A'});
+        const out = ScopeNarrow.narrow(data, {databaseUnid: 'db-A'});
         const dbs = out.fs.entrys as JsonDataDB[];
         expect(dbs).toHaveLength(1);
         expect(dbs[0].name).toBe('A');
@@ -74,7 +74,7 @@ describe('narrowDataForScope', () => {
             }),
             dbNode('db-B', 'B', {tables: [table('t-B1', 'b1')]})
         ]);
-        const out = narrowDataForScope(data, {tableUnid: 't-A2'});
+        const out = ScopeNarrow.narrow(data, {tableUnid: 't-A2'});
         const dbs = out.fs.entrys as JsonDataDB[];
         expect(dbs).toHaveLength(1);
         expect(dbs[0].name).toBe('A');
@@ -95,7 +95,7 @@ describe('narrowDataForScope', () => {
                 }]})
             ]})
         ]);
-        const out = narrowDataForScope(data, {tableUnid: 't-2'});
+        const out = ScopeNarrow.narrow(data, {tableUnid: 't-2'});
         const dbs = out.fs.entrys as JsonDataDB[];
         expect(dbs[0].tables[0].foreignKeys).toEqual([]);
     });
@@ -103,7 +103,7 @@ describe('narrowDataForScope', () => {
     it('preserves editor settings verbatim', () => {
         const data = buildData([dbNode('db-A', 'A')]);
         data.editor.active_entry_unid = 'whatever';
-        const out = narrowDataForScope(data, {databaseUnid: 'db-A'});
+        const out = ScopeNarrow.narrow(data, {databaseUnid: 'db-A'});
         expect(out.editor).toEqual(data.editor);
     });
 
@@ -112,7 +112,7 @@ describe('narrowDataForScope', () => {
         const folder = dbNode('f-1', 'subfolder', {type: JsonDataDBType.folder, entrys: [innerDb]});
         const outerDb = dbNode('db-outer', 'outerDb', {entrys: [folder]});
         const data = buildData([outerDb]);
-        const out = narrowDataForScope(data, {tableUnid: 't-1'});
+        const out = ScopeNarrow.narrow(data, {tableUnid: 't-1'});
         /* root → outerDb shell → folder shell → innerDb (with the one table) */
         const root = out.fs;
         const outer = root.entrys[0] as JsonDataDB;
@@ -127,7 +127,7 @@ describe('narrowDataForScope', () => {
 
     it('throws when both unids are missing', () => {
         const data = buildData([dbNode('db-A', 'A')]);
-        expect(() => narrowDataForScope(data, {})).toThrow();
+        expect(() => ScopeNarrow.narrow(data, {})).toThrow();
     });
 
     it('multi-table: keeps the requested tables and PRESERVES FKs between them', () => {
@@ -144,7 +144,7 @@ describe('narrowDataForScope', () => {
                 table('t-A3', 'archive')
             ]})
         ]);
-        const out = narrowDataForScope(data, {tableUnids: ['t-A1', 't-A2']});
+        const out = ScopeNarrow.narrow(data, {tableUnids: ['t-A1', 't-A2']});
         const dbs = out.fs.entrys as JsonDataDB[];
         expect(dbs[0].tables.map(t => t.name).sort()).toEqual(['orders', 'users']);
         const orders = dbs[0].tables.find(t => t.name === 'orders')!;
@@ -165,7 +165,7 @@ describe('narrowDataForScope', () => {
                 table('t-A3', 'archive')
             ]})
         ]);
-        const out = narrowDataForScope(data, {tableUnids: ['t-A1', 't-A2']});
+        const out = ScopeNarrow.narrow(data, {tableUnids: ['t-A1', 't-A2']});
         const dbs = out.fs.entrys as JsonDataDB[];
         const orders = dbs[0].tables.find(t => t.name === 'orders')!;
         expect(orders.foreignKeys).toEqual([]);
@@ -176,7 +176,7 @@ describe('narrowDataForScope', () => {
             dbNode('db-A', 'A', {tables: [table('t-A1', 'a1')]}),
             dbNode('db-B', 'B', {tables: [table('t-B1', 'b1')]})
         ]);
-        expect(() => narrowDataForScope(data, {tableUnids: ['t-A1', 't-B1']}))
+        expect(() => ScopeNarrow.narrow(data, {tableUnids: ['t-A1', 't-B1']}))
         .toThrow(/same database/u);
     });
 
@@ -188,7 +188,7 @@ describe('narrowDataForScope', () => {
                 table('t-other', 'other')
             ]})
         ]);
-        const out = narrowDataForScope(data, {tableUnids: ['t-A1']});
+        const out = ScopeNarrow.narrow(data, {tableUnids: ['t-A1']});
         const dbs = out.fs.entrys as JsonDataDB[];
         expect(dbs[0].tables.map(t => t.name)).toEqual(['x']);
         expect(dbs[0].tables[0].foreignKeys).toEqual([]);
@@ -196,12 +196,12 @@ describe('narrowDataForScope', () => {
 
     it('throws when databaseUnid does not resolve', () => {
         const data = buildData([dbNode('db-A', 'A')]);
-        expect(() => narrowDataForScope(data, {databaseUnid: 'missing'})).toThrow();
+        expect(() => ScopeNarrow.narrow(data, {databaseUnid: 'missing'})).toThrow();
     });
 
     it('throws when tableUnid does not resolve', () => {
         const data = buildData([dbNode('db-A', 'A')]);
-        expect(() => narrowDataForScope(data, {tableUnid: 'missing'})).toThrow();
+        expect(() => ScopeNarrow.narrow(data, {tableUnid: 'missing'})).toThrow();
     });
 
     it('tableUnid wins when both unids are provided (mismatched databaseUnid ignored)', () => {
@@ -209,7 +209,7 @@ describe('narrowDataForScope', () => {
             dbNode('db-A', 'A', {tables: [table('t-A1', 'a1')]}),
             dbNode('db-B', 'B', {tables: [table('t-B1', 'b1')]})
         ]);
-        const out = narrowDataForScope(data, {databaseUnid: 'db-A', tableUnid: 't-B1'});
+        const out = ScopeNarrow.narrow(data, {databaseUnid: 'db-A', tableUnid: 't-B1'});
         const dbs = out.fs.entrys as JsonDataDB[];
         expect(dbs).toHaveLength(1);
         expect(dbs[0].name).toBe('B');

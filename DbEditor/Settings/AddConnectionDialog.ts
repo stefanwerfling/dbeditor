@@ -2,7 +2,7 @@
  * Literal ${VAR} placeholders in the default input values are *user-
  * facing examples* of the env-placeholder syntax that `dbeditor.json`
  * supports — they're persisted verbatim and resolved at server boot
- * by `resolveEnvPlaceholders`. Disable the lint check that flags
+ * by `EnvPlaceholderResolver.resolve`. Disable the lint check that flags
  * them as suspicious un-templated literals.
  */
 /* eslint-disable no-template-curly-in-string */
@@ -16,24 +16,6 @@ export type AddConnectionDatabaseChoice = {
 };
 
 /**
- * Per-dialect default port. MySQL/MariaDB share the long-standing
- * 3306; Postgres uses 5432; SQLite is file-based so the field is
- * meaningless — we leave it at 0 and the user (or the schema) ignores
- * it. Picked at dialog construction; users can override.
- */
-const defaultPortForDialect = (dialect: string): number => {
-    switch (dialect) {
-        case 'mysql':
-        case 'mariadb':
-            return 3306;
-        case 'postgres':
-            return 5432;
-        default:
-            return 0;
-    }
-};
-
-/**
  * Form for adding a new live-DB connection to a project's
  * `connections[]` in dbeditor.json. The "Model database" select shows
  * only databases that don't already have a connection on this project
@@ -41,7 +23,7 @@ const defaultPortForDialect = (dialect: string): number => {
  * server-side too). Cancel → resolves with `null`.
  *
  * The password field supports `${VAR}` and `${VAR:-default}` env
- * placeholder syntax verbatim — the server's `resolveEnvPlaceholders`
+ * placeholder syntax verbatim — the server's `EnvPlaceholderResolver.resolve`
  * substitutes them at boot. The dialog has no special handling beyond
  * persisting the literal string.
  */
@@ -61,6 +43,24 @@ export type AdHocConnectionTester = (input: {
 }) => Promise<{success: boolean;}>;
 
 export class AddConnectionDialog extends BaseDialog<AddConnectionInput | null> {
+
+    /**
+     * Per-dialect default port. MySQL/MariaDB share the long-standing
+     * 3306; Postgres uses 5432; SQLite is file-based so the field is
+     * meaningless — we leave it at 0 and the user (or the schema) ignores
+     * it. Picked at dialog construction; users can override.
+     */
+    private static _defaultPortForDialect(dialect: string): number {
+        switch (dialect) {
+            case 'mysql':
+            case 'mariadb':
+                return 3306;
+            case 'postgres':
+                return 5432;
+            default:
+                return 0;
+        }
+    }
 
     private readonly _availableDatabases: AddConnectionDatabaseChoice[];
     private readonly _dialect: string;
@@ -110,7 +110,7 @@ export class AddConnectionDialog extends BaseDialog<AddConnectionInput | null> {
         );
 
         this._host = this.addInput('Host', '${DB_HOST:-localhost}');
-        const port = defaultPortForDialect(dialect);
+        const port = AddConnectionDialog._defaultPortForDialect(dialect);
         this._port = this.addInput('Port', port > 0 ? String(port) : '');
         this._port.inputMode = 'numeric';
         this._user = this.addInput('User', '${DB_USER}');

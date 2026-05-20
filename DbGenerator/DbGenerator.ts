@@ -8,28 +8,6 @@ import {pickDialect} from './DialectFactory.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
 import {PluginRegistry} from '../editor_core/plugin/PluginRegistry.js';
 
-const safeFilename = (name: string): string => name.replace(/[^a-zA-Z0-9_-]+/gu, '_');
-
-const clearDir = (dir: string): void => {
-    if (!fs.existsSync(dir)) {return;}
-    for (const entry of fs.readdirSync(dir)) {
-        const p = path.join(dir, entry);
-        const stat = fs.statSync(p);
-        if (stat.isDirectory()) {
-            clearDir(p);
-            fs.rmdirSync(p);
-        } else {
-            fs.unlinkSync(p);
-        }
-    }
-};
-
-const ensureDir = (dir: string): void => {
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, {recursive: true});
-    }
-};
-
 export type GeneratedFile = { path: string; content: string; };
 
 export type GenerateOptions = {
@@ -66,6 +44,30 @@ export type GenerateOptions = {
  */
 export class DbGenerator {
 
+    private static _safeFilename(name: string): string {
+        return name.replace(/[^a-zA-Z0-9_-]+/gu, '_');
+    }
+
+    private static _clearDir(dir: string): void {
+        if (!fs.existsSync(dir)) {return;}
+        for (const entry of fs.readdirSync(dir)) {
+            const p = path.join(dir, entry);
+            const stat = fs.statSync(p);
+            if (stat.isDirectory()) {
+                DbGenerator._clearDir(p);
+                fs.rmdirSync(p);
+            } else {
+                fs.unlinkSync(p);
+            }
+        }
+    }
+
+    private static _ensureDir(dir: string): void {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, {recursive: true});
+        }
+    }
+
     private _dryRun = false;
 
     public async generate(project: DbProject, data: JsonData, options: GenerateOptions = {}): Promise<GeneratedFile[]> {
@@ -87,8 +89,8 @@ export class DbGenerator {
             }
 
             const dest = project.output.destinationPath;
-            if (project.output.destinationClear && !this._dryRun) {clearDir(dest);}
-            if (!this._dryRun) {ensureDir(dest);}
+            if (project.output.destinationClear && !this._dryRun) {DbGenerator._clearDir(dest);}
+            if (!this._dryRun) {DbGenerator._ensureDir(dest);}
 
             const written: GeneratedFile[] = [];
             if (project.output.mode === ConfigOutputMode.migrations) {
@@ -151,8 +153,8 @@ export class DbGenerator {
 
         for (const dbNode of (data.fs.entrys as JsonDataDB[])) {
             if (dbNode.type !== 'database') {continue;}
-            const dbDir = path.join(dest, safeFilename(dbNode.name));
-            if (!this._dryRun) {ensureDir(dbDir);}
+            const dbDir = path.join(dest, DbGenerator._safeFilename(dbNode.name));
+            if (!this._dryRun) {DbGenerator._ensureDir(dbDir);}
 
             const enumStmts: string[] = [];
             for (const { enum: e } of DbFsTreeWalker.allEnums(dbNode)) {
@@ -169,7 +171,7 @@ export class DbGenerator {
                 const indexes = table.indexes.map(ix => dialect.renderCreateIndex(table, ix, ctx)).filter(Boolean).map(s => s + term);
                 const body = [create, ...indexes].join('\n\n');
                 this._writeFile(written,
-                    path.join(dbDir, `${safeFilename(table.name)}.sql`),
+                    path.join(dbDir, `${DbGenerator._safeFilename(table.name)}.sql`),
                     `${this._fileHeader(project, `table ${dbNode.name}.${table.name}`) + body}\n`);
             }
 
@@ -177,7 +179,7 @@ export class DbGenerator {
                 const stmt = dialect.renderCreateView(view, ctx);
                 if (!stmt) {continue;}
                 this._writeFile(written,
-                    path.join(dbDir, `${safeFilename(view.name)}.view.sql`),
+                    path.join(dbDir, `${DbGenerator._safeFilename(view.name)}.view.sql`),
                     `${this._fileHeader(project, `view ${dbNode.name}.${view.name}`)}${stmt}${term}\n`);
             }
 
@@ -191,7 +193,7 @@ export class DbGenerator {
                 if (!stmt) {continue;}
                 const kindTag = String(routine.kind || 'routine').toLowerCase();
                 this._writeFile(written,
-                    path.join(dbDir, `${safeFilename(routine.name)}.${kindTag}.sql`),
+                    path.join(dbDir, `${DbGenerator._safeFilename(routine.name)}.${kindTag}.sql`),
                     `${this._fileHeader(project, `${kindTag} ${dbNode.name}.${routine.name}`)}${stmt}\n`);
             }
 

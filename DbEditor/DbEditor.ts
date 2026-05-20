@@ -14,7 +14,7 @@ import {DiagramMembershipDialog} from './Diagram/DiagramMembershipDialog.js';
 import {DbEnumDialog} from './Enum/DbEnumDialog.js';
 import {DbViewDialog} from './View/DbViewDialog.js';
 import {WarningsPanel} from './Validation/WarningsPanel.js';
-import {validateSchema} from './Validation/SchemaValidator.js';
+import {SchemaValidator} from './Validation/SchemaValidator.js';
 import {AutoSaveIndicator} from './AutoSaveIndicator.js';
 import {AlertDialog} from './Base/AlertDialog.js';
 import {InputDialog} from './Base/InputDialog.js';
@@ -496,7 +496,7 @@ export class DbEditor {
         this._renderTreeview();
         // Re-validate after every reload so warnings stay in sync.
         if (this._warnings && this._activeProject) {
-            this._warnings.render(validateSchema(this._activeProject.data));
+            this._warnings.render(SchemaValidator.validate(this._activeProject.data));
         }
 
         // start (or refresh) SSE for the active project

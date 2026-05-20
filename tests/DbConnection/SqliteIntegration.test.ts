@@ -15,7 +15,7 @@ import {SqliteDialect} from '../../DbGenerator/Dialects/SqliteDialect.js';
 import {SchemaDiff} from '../../DbDiff/SchemaDiff.js';
 import {SyncGenerator} from '../../DbGenerator/Sync/SyncGenerator.js';
 import {SyncExecutor} from '../../DbSyncExecutor/SyncExecutor.js';
-import {buildDialectContextFromModel} from '../../DbGenerator/DialectContextBuilder.js';
+import {DialectContextBuilder} from '../../DbGenerator/DialectContextBuilder.js';
 import {DbConnection} from '../../DbConnection/DbConnection.js';
 import {DbProjectConnection} from '../../DbProject/DbProject.js';
 import {JsonColumn, JsonDataDB, JsonIndex} from '../../DbEditor/JsonData.js';
@@ -102,7 +102,7 @@ describe('SQLite end-to-end sync pipeline', () => {
         expect(cs.changes[0].columnName).toBe('age');
 
         const dialect = new SqliteDialect();
-        const ctx = buildDialectContextFromModel(model, '  ', '', false);
+        const ctx = DialectContextBuilder.fromModel(model, '  ', '', false);
         const statements = SyncGenerator.generate(cs, model, dialect, ctx);
         expect(statements).toHaveLength(1);
         expect(statements[0].sql).toBe('ALTER TABLE "users" ADD COLUMN "age" INTEGER NOT NULL DEFAULT 0');
@@ -165,7 +165,7 @@ describe('SQLite end-to-end sync pipeline', () => {
             })
         }));
 
-        const ctx = buildDialectContextFromModel({
+        const ctx = DialectContextBuilder.fromModel({
             ...live,
             tables: live.tables.map(t => t.name === 'acct' ? modelTable : t)
         }, '  ', '', false);

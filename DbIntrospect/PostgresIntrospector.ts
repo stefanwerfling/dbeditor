@@ -6,7 +6,6 @@ import {
     JsonEnum,
     JsonEnumValue,
     JsonForeignKey,
-    JsonForeignKeyAction,
     JsonForeignKeyColumn,
     JsonIndex,
     JsonIndexColumn,
@@ -16,89 +15,61 @@ import {
     JsonView
 } from '../DbEditor/JsonData.js';
 import {DbIntrospector} from './DbIntrospector.js';
-
-/*
- * ---------------------------------------------------------------------------
- * Unid synthesis — same scheme as MysqlIntrospector. "db" here is the
- * Postgres database name; schemas other than `public` aren't surfaced as
- * separate containers (out of scope for iter 3 — single-schema is the
- * MySQL-parity baseline).
- * ---------------------------------------------------------------------------
- */
-const uTable = (db: string, t: string): string => `live:t:${db}:${t}`;
-const uColumn = (db: string, t: string, c: string): string => `live:c:${db}:${t}:${c}`;
-const uIndex = (db: string, t: string, i: string): string => `live:i:${db}:${t}:${i}`;
-const uFk = (db: string, t: string, n: string): string => `live:fk:${db}:${t}:${n}`;
-const uView = (db: string, v: string): string => `live:v:${db}:${v}`;
-const uEnum = (db: string, e: string): string => `live:e:${db}:${e}`;
-const uDb = (db: string): string => `live:db:${db}`;
-
-/*
- * ---------------------------------------------------------------------------
- * Type mapping back to editor's logical type names. Postgres `data_type` is
- * verbose ("character varying", "timestamp without time zone", ...); the
- * editor expects the shorter logical names. udt_name carries the underlying
- * type (e.g. `varchar`, `int4`, `timestamptz`) which is closer to what we
- * want; we still normalise common aliases.
- * ---------------------------------------------------------------------------
- */
-const mapType = (dataType: string, udtName: string): string => {
-    const dt = (dataType || '').toLowerCase();
-    const udt = (udtName || '').toLowerCase();
-    switch (udt) {
-        case 'int2': return 'smallint';
-        case 'int4': return 'int';
-        case 'int8': return 'bigint';
-        case 'float4': return 'float';
-        case 'float8': return 'double';
-        case 'bool': return 'boolean';
-        case 'varchar': return 'varchar';
-        case 'bpchar': return 'char';
-        case 'text': return 'text';
-        case 'numeric': return 'decimal';
-        case 'date': return 'date';
-        case 'timestamp':
-        case 'timestamptz': return 'timestamp';
-        case 'time':
-        case 'timetz': return 'time';
-        case 'jsonb':
-        case 'json': return 'json';
-        case 'uuid': return 'uuid';
-        case 'bytea': return 'blob';
-        default:
-            return udt || dt || 'text';
-    }
-};
-
-const mapAction = (raw: string | null | undefined): string | undefined => {
-    if (!raw) {return undefined;}
-    const v = String(raw).toUpperCase();
-    switch (v) {
-        case 'NO ACTION':   return JsonForeignKeyAction.no_action;
-        case 'RESTRICT':    return JsonForeignKeyAction.restrict;
-        case 'CASCADE':     return JsonForeignKeyAction.cascade;
-        case 'SET NULL':    return JsonForeignKeyAction.set_null;
-        case 'SET DEFAULT': return JsonForeignKeyAction.set_default;
-        default:            return v;
-    }
-};
-
-/**
- * Whitelist Postgres identifier shape (letters / digits / underscores /
- * `$`, not starting with a digit). The introspector inlines the schema
- * name into SQL string literals, so a hostile value with embedded
- * quotes would otherwise be an SQL-injection vector. We can't use
- * positional parameters because `DbConnection.query` doesn't expose
- * them. Throw on shape mismatch — better fail-fast than silent breakage.
- */
-const assertSafeSchemaName = (s: string): string => {
-    if (!/^[A-Za-z_][A-Za-z0-9_$]*$/u.test(s)) {
-        throw new Error(`PostgresIntrospector: refusing unsafe schema name "${s}" — must match [A-Za-z_][A-Za-z0-9_$]*`);
-    }
-    return s;
-};
+import {FkActionMapper} from './FkActionMapper.js';
+import {LiveUridScheme} from './LiveUridScheme.js';
 
 export class PostgresIntrospector implements DbIntrospector {
+
+    /**
+     * Type mapping back to editor's logical type names. Postgres
+     * `data_type` is verbose ("character varying", "timestamp without
+     * time zone", ...); the editor expects the shorter logical names.
+     * `udt_name` carries the underlying type (e.g. `varchar`, `int4`,
+     * `timestamptz`) which is closer to what we want; we still normalise
+     * common aliases.
+     */
+    private static _mapType(dataType: string, udtName: string): string {
+        const dt = (dataType || '').toLowerCase();
+        const udt = (udtName || '').toLowerCase();
+        switch (udt) {
+            case 'int2': return 'smallint';
+            case 'int4': return 'int';
+            case 'int8': return 'bigint';
+            case 'float4': return 'float';
+            case 'float8': return 'double';
+            case 'bool': return 'boolean';
+            case 'varchar': return 'varchar';
+            case 'bpchar': return 'char';
+            case 'text': return 'text';
+            case 'numeric': return 'decimal';
+            case 'date': return 'date';
+            case 'timestamp':
+            case 'timestamptz': return 'timestamp';
+            case 'time':
+            case 'timetz': return 'time';
+            case 'jsonb':
+            case 'json': return 'json';
+            case 'uuid': return 'uuid';
+            case 'bytea': return 'blob';
+            default:
+                return udt || dt || 'text';
+        }
+    }
+
+    /**
+     * Whitelist Postgres identifier shape (letters / digits / underscores /
+     * `$`, not starting with a digit). The introspector inlines the schema
+     * name into SQL string literals, so a hostile value with embedded
+     * quotes would otherwise be an SQL-injection vector. We can't use
+     * positional parameters because `DbConnection.query` doesn't expose
+     * them. Throw on shape mismatch — better fail-fast than silent breakage.
+     */
+    private static _assertSafeSchemaName(s: string): string {
+        if (!/^[A-Za-z_][A-Za-z0-9_$]*$/u.test(s)) {
+            throw new Error(`PostgresIntrospector: refusing unsafe schema name "${s}" — must match [A-Za-z_][A-Za-z0-9_$]*`);
+        }
+        return s;
+    }
 
     public async introspect(conn: DbConnection, db: string, schemaName: string = 'public'): Promise<JsonDataDB> {
         /*
@@ -110,13 +81,13 @@ export class PostgresIntrospector implements DbIntrospector {
          * callers that supply an unsafe value get a clear error
          * instead of an SQL injection later.
          */
-        const schema = assertSafeSchemaName(schemaName);
+        const schema = PostgresIntrospector._assertSafeSchemaName(schemaName);
         const enums = await this._loadEnums(conn, db, schema);
         const tables = await this._loadTables(conn, db, schema);
         const views = await this._loadViews(conn, db, schema);
 
         return {
-            unid: uDb(db),
+            unid: LiveUridScheme.db(db),
             name: db,
             type: JsonDataDBType.database,
             istoggle: true,
@@ -147,7 +118,7 @@ export class PostgresIntrospector implements DbIntrospector {
             let e = byName.get(name);
             if (!e) {
                 e = {
-                    unid: uEnum(db, name),
+                    unid: LiveUridScheme.enumType(db, name),
                     name: name,
                     pos: {x: 0, y: 0},
                     values: []
@@ -291,7 +262,7 @@ export class PostgresIntrospector implements DbIntrospector {
             if (p === 't') {options.persistence = 'TEMPORARY';}
 
             tables.push({
-                unid: uTable(db, tableName),
+                unid: LiveUridScheme.table(db, tableName),
                 name: tableName,
                 pos: {x: 0, y: 0},
                 columns: columns,
@@ -320,9 +291,9 @@ export class PostgresIntrospector implements DbIntrospector {
             const isIdentity = String(r.is_identity || '').toUpperCase() === 'YES';
 
             const col: JsonColumn = {
-                unid: uColumn(db, tableName, colName),
+                unid: LiveUridScheme.column(db, tableName, colName),
                 name: colName,
-                type: udt === 'enum' || dt === 'USER-DEFINED' ? 'enum' : mapType(dt, udt)
+                type: udt === 'enum' || dt === 'USER-DEFINED' ? 'enum' : PostgresIntrospector._mapType(dt, udt)
             };
             if (length) {col.length = length;}
             if (String(r.is_nullable).toUpperCase() === 'NO') {col.notNull = true;}
@@ -351,7 +322,7 @@ export class PostgresIntrospector implements DbIntrospector {
              */
             if (dt === 'USER-DEFINED' && udt) {
                 col.type = 'enum';
-                col.enumRef = uEnum(db, udt);
+                col.enumRef = LiveUridScheme.enumType(db, udt);
             }
             out.push(col);
         }
@@ -411,7 +382,7 @@ export class PostgresIntrospector implements DbIntrospector {
                 type = JsonIndexType.index;
             }
             out.push({
-                unid: uIndex(db, tableName, indexName),
+                unid: LiveUridScheme.index(db, tableName, indexName),
                 name: indexName,
                 type: type,
                 columns: indexColumns
@@ -432,13 +403,13 @@ export class PostgresIntrospector implements DbIntrospector {
             if (!fk) {
                 const refTable = String(r.ref_table);
                 fk = {
-                    unid: uFk(db, tableName, fkName),
+                    unid: LiveUridScheme.fk(db, tableName, fkName),
                     name: fkName,
-                    refTableUnid: uTable(db, refTable),
+                    refTableUnid: LiveUridScheme.table(db, refTable),
                     columns: []
                 };
-                const onDelete = mapAction(r.delete_rule as string);
-                const onUpdate = mapAction(r.update_rule as string);
+                const onDelete = FkActionMapper.fromSql(r.delete_rule as string);
+                const onUpdate = FkActionMapper.fromSql(r.update_rule as string);
                 if (onDelete) {fk.onDelete = onDelete;}
                 if (onUpdate) {fk.onUpdate = onUpdate;}
                 byName.set(fkName, fk);
@@ -447,7 +418,7 @@ export class PostgresIntrospector implements DbIntrospector {
             if (!local) {continue;}
             const fkc: JsonForeignKeyColumn = {
                 columnUnid: local.unid,
-                refColumnUnid: uColumn(db, String(r.ref_table), String(r.ref_column))
+                refColumnUnid: LiveUridScheme.column(db, String(r.ref_table), String(r.ref_column))
             };
             fk.columns.push(fkc);
         }
@@ -475,7 +446,7 @@ export class PostgresIntrospector implements DbIntrospector {
             const name = String(r.name);
             const body = String(r.body || '').trim();
             const view: JsonView = {
-                unid: uView(db, name),
+                unid: LiveUridScheme.view(db, name),
                 name: name,
                 pos: {x: 0, y: 0},
                 select: body

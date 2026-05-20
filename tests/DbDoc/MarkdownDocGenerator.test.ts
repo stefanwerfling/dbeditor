@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {generateMarkdownDocs} from '../../DbDoc/MarkdownDocGenerator.js';
+import {MarkdownDocGenerator} from '../../DbDoc/MarkdownDocGenerator.js';
 import {JsonDataDB, JsonDataDBType} from '../../DbEditor/JsonData.js';
 
 const root = (entrys: JsonDataDB[]): JsonDataDB => ({
@@ -27,11 +27,11 @@ const db = (name: string, init: Partial<JsonDataDB> = {}): JsonDataDB => ({
 
 const pos = (): {x: number; y: number;} => ({x: 0, y: 0});
 
-describe('generateMarkdownDocs', () => {
+describe('MarkdownDocGenerator.generate', () => {
 
     it('returns one document per database', () => {
         const data = root([db('main'), db('analytics')]);
-        const out = generateMarkdownDocs(data);
+        const out = MarkdownDocGenerator.generate(data);
         expect(out).toHaveLength(2);
         expect(out.map(d => d.path)).toEqual(['main.md', 'analytics.md']);
     });
@@ -45,7 +45,7 @@ describe('generateMarkdownDocs', () => {
             enums: [{unid: 'e1', name: 'role', pos: pos(), values: [{unid: 'ev1', value: 'admin'}]}],
             routines: [{unid: 'r1', name: 'recount', kind: 'procedure', pos: pos(), body: 'BEGIN END'}]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('## Contents');
         expect(doc.content).toContain('### Tables');
         expect(doc.content).toContain('[`users`]');
@@ -69,7 +69,7 @@ describe('generateMarkdownDocs', () => {
                 foreignKeys: []
             }]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('| 1 | id | int | PK, NN, AI, UN |');
         expect(doc.content).toContain('| 2 | email | varchar(255) | NN, UQ |');
     });
@@ -87,7 +87,7 @@ describe('generateMarkdownDocs', () => {
                 values: [{unid: 'ev1', value: 'admin'}, {unid: 'ev2', value: 'user'}]
             }]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('enum (user_role)');
     });
 
@@ -112,7 +112,7 @@ describe('generateMarkdownDocs', () => {
                 }
             ]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('Foreign keys (outgoing)');
         expect(doc.content).toContain('fk_orders_user');
         expect(doc.content).toContain('[users](#table-users) (id)');
@@ -132,7 +132,7 @@ describe('generateMarkdownDocs', () => {
                 }]
             }]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('_(unresolved)_');
     });
 
@@ -155,7 +155,7 @@ describe('generateMarkdownDocs', () => {
                 }
             ]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         const usersSection = doc.content.slice(doc.content.indexOf('### Table `users`'));
         expect(usersSection).toContain('Referenced by');
         expect(usersSection).toContain('[orders](#table-orders)');
@@ -173,7 +173,7 @@ describe('generateMarkdownDocs', () => {
                 foreignKeys: []
             }]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('idx_logs_ts');
         expect(doc.content).toContain('ts DESC');
     });
@@ -189,14 +189,14 @@ describe('generateMarkdownDocs', () => {
                 indexes: [], foreignKeys: []
             }]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('multi-line comment with \\| pipe');
         expect(doc.content).not.toContain('multi-line\ncomment');
     });
 
     it('handles fully empty database without throwing', () => {
         const data = root([db('empty')]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('# Database `empty`');
         expect(doc.content).toContain('0 table(s)');
     });
@@ -211,7 +211,7 @@ describe('generateMarkdownDocs', () => {
                 }], views: [], enums: [], routines: []
             }]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('[`nested`]');
     });
 
@@ -219,7 +219,7 @@ describe('generateMarkdownDocs', () => {
         const data = root([db('main', {
             views: [{unid: 'v1', name: 'recent', pos: pos(), select: 'SELECT * FROM users LIMIT 10', materialized: true}]
         })]);
-        const [doc] = generateMarkdownDocs(data);
+        const [doc] = MarkdownDocGenerator.generate(data);
         expect(doc.content).toContain('### View `recent` (materialized)');
         expect(doc.content).toContain('```sql\nSELECT * FROM users LIMIT 10\n```');
     });

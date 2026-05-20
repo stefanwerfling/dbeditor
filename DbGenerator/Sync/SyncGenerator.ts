@@ -17,52 +17,6 @@ export type SyncStatement = {
 };
 
 /**
- * Execution-order buckets. Within a bucket order doesn't matter beyond
- * stable iteration of the changeset. Across buckets the order is:
- *
- *   1  drop FKs that reference soon-to-go columns / tables
- *   2  drop views (might reference columns we touch)
- *   3  drop indexes
- *   4  drop columns
- *   5  drop tables
- *   6  create new tables
- *   7  add columns
- *   8  alter columns
- *   9  alter table options
- *   10 create indexes
- *   11 add FKs
- *   12 replace / create views
- */
-const Bucket = {
-    /*
-     * Renames go FIRST. Subsequent buckets reference the table/column
-     * by its model-side name; renaming early makes those name lookups
-     * resolve. Table-rename precedes column-rename so column refs use
-     * the new table name.
-     */
-    renameTable: -2,
-    renameColumn: -1,
-    dropFk: 1,
-    dropView: 2,
-    dropIndex: 3,
-    dropColumn: 4,
-    dropTable: 5,
-    createTable: 6,
-    addColumn: 7,
-    alterColumn: 8,
-    alterTableOptions: 9,
-    createIndex: 10,
-    addFk: 11,
-    createOrReplaceView: 12
-};
-
-const isColumn = (v: unknown): v is JsonColumn => Boolean(v) && typeof (v as JsonColumn).name === 'string' && typeof (v as JsonColumn).type === 'string';
-const isTable = (v: unknown): v is JsonTable => Boolean(v) && Array.isArray((v as JsonTable).columns);
-const isIndex = (v: unknown): v is JsonIndex => Boolean(v) && Array.isArray((v as JsonIndex).columns) && typeof (v as JsonIndex).type === 'string';
-const isFk = (v: unknown): v is JsonForeignKey => Boolean(v) && typeof (v as JsonForeignKey).refTableUnid === 'string';
-const isView = (v: unknown): v is JsonView => Boolean(v) && typeof (v as JsonView).select === 'string';
-
-/**
  * Renders SQL for every change in a `SchemaChangeSet`. Mutates the changeset
  * in place by filling each change's `sql[]` array and additionally returns
  * an ordered list of `SyncStatement`s for execution.
@@ -72,6 +26,65 @@ const isView = (v: unknown): v is JsonView => Boolean(v) && typeof (v as JsonVie
  * table name.
  */
 export class SyncGenerator {
+
+    /**
+     * Execution-order buckets. Within a bucket order doesn't matter beyond
+     * stable iteration of the changeset. Across buckets the order is:
+     *
+     *   1  drop FKs that reference soon-to-go columns / tables
+     *   2  drop views (might reference columns we touch)
+     *   3  drop indexes
+     *   4  drop columns
+     *   5  drop tables
+     *   6  create new tables
+     *   7  add columns
+     *   8  alter columns
+     *   9  alter table options
+     *   10 create indexes
+     *   11 add FKs
+     *   12 replace / create views
+     *
+     * Renames go FIRST (negative bucket). Subsequent buckets reference the
+     * table/column by its model-side name; renaming early makes those name
+     * lookups resolve. Table-rename precedes column-rename so column refs
+     * use the new table name.
+     */
+    private static readonly _Bucket = {
+        renameTable: -2,
+        renameColumn: -1,
+        dropFk: 1,
+        dropView: 2,
+        dropIndex: 3,
+        dropColumn: 4,
+        dropTable: 5,
+        createTable: 6,
+        addColumn: 7,
+        alterColumn: 8,
+        alterTableOptions: 9,
+        createIndex: 10,
+        addFk: 11,
+        createOrReplaceView: 12
+    };
+
+    private static _isColumn(v: unknown): v is JsonColumn {
+        return Boolean(v) && typeof (v as JsonColumn).name === 'string' && typeof (v as JsonColumn).type === 'string';
+    }
+
+    private static _isTable(v: unknown): v is JsonTable {
+        return Boolean(v) && Array.isArray((v as JsonTable).columns);
+    }
+
+    private static _isIndex(v: unknown): v is JsonIndex {
+        return Boolean(v) && Array.isArray((v as JsonIndex).columns) && typeof (v as JsonIndex).type === 'string';
+    }
+
+    private static _isFk(v: unknown): v is JsonForeignKey {
+        return Boolean(v) && typeof (v as JsonForeignKey).refTableUnid === 'string';
+    }
+
+    private static _isView(v: unknown): v is JsonView {
+        return Boolean(v) && typeof (v as JsonView).select === 'string';
+    }
 
     public static generate(
         changeSet: SchemaChangeSet,
@@ -112,11 +125,11 @@ export class SyncGenerator {
         /* SyncGenerator doesn't append a terminator — the executor or UI does. */
         const term = '';
         const ix = (): JsonIndex => {
-            if (isIndex(change.after) || isIndex(change.before)) {return (change.after ?? change.before) as JsonIndex;}
+            if (SyncGenerator._isIndex(change.after) || SyncGenerator._isIndex(change.before)) {return (change.after ?? change.before) as JsonIndex;}
             throw new Error('index change missing payload');
         };
         const fk = (): JsonForeignKey => {
-            if (isFk(change.after) || isFk(change.before)) {return (change.after ?? change.before) as JsonForeignKey;}
+            if (SyncGenerator._isFk(change.after) || SyncGenerator._isFk(change.before)) {return (change.after ?? change.before) as JsonForeignKey;}
             throw new Error('fk change missing payload');
         };
 
@@ -128,25 +141,25 @@ export class SyncGenerator {
 
         switch (change.kind) {
             case SchemaChangeKind.tableAdded: {
-                if (!isTable(change.after)) {return [];}
+                if (!SyncGenerator._isTable(change.after)) {return [];}
                 const create = dialect.renderCreateTable(change.after, ctx) + term;
-                const out: { sql: string; bucket: number; }[] = [{sql: create, bucket: Bucket.createTable}];
+                const out: { sql: string; bucket: number; }[] = [{sql: create, bucket: SyncGenerator._Bucket.createTable}];
                 /*
                  * Indexes and FKs for a brand-new table go into their own
                  * buckets so they sequence correctly with cross-table changes.
                  */
                 for (const idx of change.after.indexes) {
                     const s = dialect.renderCreateIndex(change.after, idx, ctx);
-                    if (s) {out.push({sql: s + term, bucket: Bucket.createIndex});}
+                    if (s) {out.push({sql: s + term, bucket: SyncGenerator._Bucket.createIndex});}
                 }
                 for (const f of change.after.foreignKeys) {
                     const s = dialect.renderAddForeignKey(change.after, f, ctx);
-                    if (s) {out.push({sql: s + term, bucket: Bucket.addFk});}
+                    if (s) {out.push({sql: s + term, bucket: SyncGenerator._Bucket.addFk});}
                 }
                 return out;
             }
             case SchemaChangeKind.tableDropped: {
-                if (!isTable(change.before)) {return [];}
+                if (!SyncGenerator._isTable(change.before)) {return [];}
                 /*
                  * Drop FKs on the table first so the table-drop doesn't
                  * fight referential constraints. The diff itself doesn't
@@ -155,88 +168,88 @@ export class SyncGenerator {
                  */
                 const out: { sql: string; bucket: number; }[] = [];
                 for (const f of change.before.foreignKeys) {
-                    out.push({sql: dialect.renderDropForeignKey(change.before, f.name, ctx) + term, bucket: Bucket.dropFk});
+                    out.push({sql: dialect.renderDropForeignKey(change.before, f.name, ctx) + term, bucket: SyncGenerator._Bucket.dropFk});
                 }
-                out.push({sql: dialect.renderDropTable(change.before, ctx) + term, bucket: Bucket.dropTable});
+                out.push({sql: dialect.renderDropTable(change.before, ctx) + term, bucket: SyncGenerator._Bucket.dropTable});
                 return out;
             }
             case SchemaChangeKind.tableOptionsChanged: {
                 const t = tableFor();
                 if (!t) {return [];}
                 const s = dialect.renderAlterTableOptions(t, ctx);
-                return s ? [{sql: s + term, bucket: Bucket.alterTableOptions}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.alterTableOptions}] : [];
             }
             case SchemaChangeKind.columnAdded: {
                 const t = tableFor();
-                if (!t || !isColumn(change.after)) {return [];}
-                return [{sql: dialect.renderAlterTableAddColumn(t, change.after, ctx) + term, bucket: Bucket.addColumn}];
+                if (!t || !SyncGenerator._isColumn(change.after)) {return [];}
+                return [{sql: dialect.renderAlterTableAddColumn(t, change.after, ctx) + term, bucket: SyncGenerator._Bucket.addColumn}];
             }
             case SchemaChangeKind.columnDropped: {
                 const t = tableFor();
-                if (!t || !isColumn(change.before)) {return [];}
-                return [{sql: dialect.renderAlterTableDropColumn(t, change.before, ctx) + term, bucket: Bucket.dropColumn}];
+                if (!t || !SyncGenerator._isColumn(change.before)) {return [];}
+                return [{sql: dialect.renderAlterTableDropColumn(t, change.before, ctx) + term, bucket: SyncGenerator._Bucket.dropColumn}];
             }
             case SchemaChangeKind.columnChanged: {
                 const t = tableFor();
-                if (!t || !isColumn(change.before) || !isColumn(change.after)) {return [];}
-                return [{sql: dialect.renderAlterTableChangeColumn(t, change.before, change.after, ctx) + term, bucket: Bucket.alterColumn}];
+                if (!t || !SyncGenerator._isColumn(change.before) || !SyncGenerator._isColumn(change.after)) {return [];}
+                return [{sql: dialect.renderAlterTableChangeColumn(t, change.before, change.after, ctx) + term, bucket: SyncGenerator._Bucket.alterColumn}];
             }
             case SchemaChangeKind.indexAdded: {
                 const t = tableFor();
                 if (!t) {return [];}
                 const s = dialect.renderCreateIndex(t, ix(), ctx);
-                return s ? [{sql: s + term, bucket: Bucket.createIndex}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.createIndex}] : [];
             }
             case SchemaChangeKind.indexDropped: {
                 const t = tableFor();
-                if (!t || !isIndex(change.before)) {return [];}
+                if (!t || !SyncGenerator._isIndex(change.before)) {return [];}
                 const s = dialect.renderDropIndex(t, change.before, ctx);
-                return s ? [{sql: s + term, bucket: Bucket.dropIndex}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.dropIndex}] : [];
             }
             case SchemaChangeKind.indexChanged: {
                 const t = tableFor();
                 if (!t) {return [];}
-                const drop = isIndex(change.before) ? dialect.renderDropIndex(t, change.before, ctx) : null;
-                const create = isIndex(change.after) ? dialect.renderCreateIndex(t, change.after, ctx) : null;
+                const drop = SyncGenerator._isIndex(change.before) ? dialect.renderDropIndex(t, change.before, ctx) : null;
+                const create = SyncGenerator._isIndex(change.after) ? dialect.renderCreateIndex(t, change.after, ctx) : null;
                 const out: { sql: string; bucket: number; }[] = [];
-                if (drop) {out.push({sql: drop + term, bucket: Bucket.dropIndex});}
-                if (create) {out.push({sql: create + term, bucket: Bucket.createIndex});}
+                if (drop) {out.push({sql: drop + term, bucket: SyncGenerator._Bucket.dropIndex});}
+                if (create) {out.push({sql: create + term, bucket: SyncGenerator._Bucket.createIndex});}
                 return out;
             }
             case SchemaChangeKind.fkAdded: {
                 const t = tableFor();
                 if (!t) {return [];}
                 const s = dialect.renderAddForeignKey(t, fk(), ctx);
-                return s ? [{sql: s + term, bucket: Bucket.addFk}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.addFk}] : [];
             }
             case SchemaChangeKind.fkDropped: {
                 const t = tableFor();
-                if (!t || !isFk(change.before)) {return [];}
-                return [{sql: dialect.renderDropForeignKey(t, change.before.name, ctx) + term, bucket: Bucket.dropFk}];
+                if (!t || !SyncGenerator._isFk(change.before)) {return [];}
+                return [{sql: dialect.renderDropForeignKey(t, change.before.name, ctx) + term, bucket: SyncGenerator._Bucket.dropFk}];
             }
             case SchemaChangeKind.fkChanged: {
                 const t = tableFor();
                 if (!t) {return [];}
                 const out: { sql: string; bucket: number; }[] = [];
-                if (isFk(change.before)) {out.push({sql: dialect.renderDropForeignKey(t, change.before.name, ctx) + term, bucket: Bucket.dropFk});}
-                if (isFk(change.after)) {
+                if (SyncGenerator._isFk(change.before)) {out.push({sql: dialect.renderDropForeignKey(t, change.before.name, ctx) + term, bucket: SyncGenerator._Bucket.dropFk});}
+                if (SyncGenerator._isFk(change.after)) {
                     const s = dialect.renderAddForeignKey(t, change.after, ctx);
-                    if (s) {out.push({sql: s + term, bucket: Bucket.addFk});}
+                    if (s) {out.push({sql: s + term, bucket: SyncGenerator._Bucket.addFk});}
                 }
                 return out;
             }
             case SchemaChangeKind.viewAdded:
             case SchemaChangeKind.viewChanged: {
-                if (!isView(change.after)) {return [];}
+                if (!SyncGenerator._isView(change.after)) {return [];}
                 const s = change.kind === SchemaChangeKind.viewAdded
                     ? dialect.renderCreateView(change.after, ctx)
                     : dialect.renderReplaceView(change.after, ctx);
-                return s ? [{sql: s + term, bucket: Bucket.createOrReplaceView}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.createOrReplaceView}] : [];
             }
             case SchemaChangeKind.viewDropped: {
-                if (!isView(change.before)) {return [];}
+                if (!SyncGenerator._isView(change.before)) {return [];}
                 const s = dialect.renderDropView(change.before, ctx);
-                return s ? [{sql: s + term, bucket: Bucket.dropView}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.dropView}] : [];
             }
             case SchemaChangeKind.tableRenamed: {
                 /*
@@ -246,15 +259,15 @@ export class SyncGenerator {
                  * subsequent column/index changes flow normally
                  * after this bucket completes.
                  */
-                if (!isTable(change.before) || !change.tableName) {return [];}
+                if (!SyncGenerator._isTable(change.before) || !change.tableName) {return [];}
                 const s = dialect.renderRenameTable(change.before.name, change.tableName, ctx);
-                return s ? [{sql: s + term, bucket: Bucket.renameTable}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.renameTable}] : [];
             }
             case SchemaChangeKind.columnRenamed: {
                 const t = tableFor();
-                if (!t || !isColumn(change.before) || !isColumn(change.after)) {return [];}
+                if (!t || !SyncGenerator._isColumn(change.before) || !SyncGenerator._isColumn(change.after)) {return [];}
                 const s = dialect.renderRenameColumn(t, change.before.name, change.after, ctx);
-                return s ? [{sql: s + term, bucket: Bucket.renameColumn}] : [];
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.renameColumn}] : [];
             }
             default:
                 return [];

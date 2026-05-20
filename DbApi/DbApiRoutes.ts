@@ -3,20 +3,15 @@ import * as path from 'path';
 import express, {Express, Request, Response, NextFunction} from 'express';
 import {SchemaErrors} from 'vts';
 import {SchemaConfig} from '../Config/Config.js';
-import {EnvPlaceholderError, resolveEnvPlaceholders} from '../Config/EnvPlaceholderResolver.js';
+import {EnvPlaceholderError, EnvPlaceholderResolver} from '../Config/EnvPlaceholderResolver.js';
 import {
-    addProjectToConfig,
-    updateProjectInConfig,
-    removeProjectFromConfig,
+    ProjectConfig,
     AddProjectError,
     AddProjectInput,
     UpdateProjectInput
 } from '../Config/AddProject.js';
 import {
-    addConnectionToConfig,
-    rebindConnectionInConfig,
-    removeConnectionFromConfig,
-    updateConnectionInConfig,
+    ConnectionConfig,
     AddConnectionInput,
     UpdateConnectionInput,
     ConnectionConfigError
@@ -33,16 +28,16 @@ import {SchemaDiff} from '../DbDiff/SchemaDiff.js';
 import {SchemaRenameHints} from '../DbDiff/ChangeTypes.js';
 import {SyncGenerator} from '../DbGenerator/Sync/SyncGenerator.js';
 import {pickDialect} from '../DbGenerator/DialectFactory.js';
-import {buildDialectContextFromModel} from '../DbGenerator/DialectContextBuilder.js';
+import {DialectContextBuilder} from '../DbGenerator/DialectContextBuilder.js';
 import {pickDriver} from '../DbConnection/DriverFactory.js';
 import {SyncExecutor} from '../DbSyncExecutor/SyncExecutor.js';
 import {SyncTestRunner} from '../DbSyncExecutor/SyncTestRunner.js';
 import {MigrationPairWriter} from '../DbSyncExecutor/MigrationPairWriter.js';
-import {appendEntry, historyPathFor, loadHistory, summariseChanges} from '../DbSyncExecutor/SyncHistoryRepo.js';
-import {narrowDataForScope} from '../DbGenerator/ScopeNarrow.js';
+import {SyncHistoryRepo} from '../DbSyncExecutor/SyncHistoryRepo.js';
+import {ScopeNarrow} from '../DbGenerator/ScopeNarrow.js';
 import {MwbFileFormatPlugin} from '../DbMwbImport/MwbFileFormatPlugin.js';
 import {PluginRegistry} from '../editor_core/plugin/PluginRegistry.js';
-import {generateMarkdownDocs} from '../DbDoc/MarkdownDocGenerator.js';
+import {MarkdownDocGenerator} from '../DbDoc/MarkdownDocGenerator.js';
 import * as Bodies from './DbApiRequests.js';
 
 type RouteDeps = {
@@ -627,7 +622,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             }
             let nextConfig;
             try {
-                nextConfig = addProjectToConfig(raw, req.body as AddProjectInput);
+                nextConfig = ProjectConfig.add(raw, req.body as AddProjectInput);
             } catch (err) {
                 if (err instanceof AddProjectError) {
                     const status = err.code === 'duplicate-name' || err.code === 'duplicate-schema-path' ? 409 : 400;
@@ -732,7 +727,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             if (raw === null) {return;}
             let nextConfig;
             try {
-                nextConfig = updateProjectInConfig(raw, repo.project.name, req.body as UpdateProjectInput);
+                nextConfig = ProjectConfig.update(raw, repo.project.name, req.body as UpdateProjectInput);
             } catch (err) {
                 if (err instanceof AddProjectError) {
                     res.status(projectErrorStatus(err.code)).json({error: err.message, code: err.code, details: err.details});
@@ -764,7 +759,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             if (raw === null) {return;}
             let nextConfig;
             try {
-                nextConfig = removeProjectFromConfig(raw, repo.project.name);
+                nextConfig = ProjectConfig.remove(raw, repo.project.name);
             } catch (err) {
                 if (err instanceof AddProjectError) {
                     res.status(projectErrorStatus(err.code)).json({error: err.message, code: err.code, details: err.details});
@@ -795,7 +790,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             if (raw === null) {return;}
             let nextConfig;
             try {
-                nextConfig = addConnectionToConfig(raw, repo.project.name, req.body as AddConnectionInput);
+                nextConfig = ConnectionConfig.add(raw, repo.project.name, req.body as AddConnectionInput);
             } catch (err) {
                 if (err instanceof ConnectionConfigError) {
                     res.status(connectionErrorStatus(err.code)).json({error: err.message, code: err.code, details: err.details});
@@ -822,7 +817,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             if (raw === null) {return;}
             let nextConfig;
             try {
-                nextConfig = updateConnectionInConfig(
+                nextConfig = ConnectionConfig.update(
                     raw,
                     repo.project.name,
                     req.params.databaseUnid,
@@ -865,7 +860,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             if (raw === null) {return;}
             let nextConfig;
             try {
-                nextConfig = rebindConnectionInConfig(
+                nextConfig = ConnectionConfig.rebind(
                     raw,
                     repo.project.name,
                     req.params.databaseUnid,
@@ -891,7 +886,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             if (raw === null) {return;}
             let nextConfig;
             try {
-                nextConfig = removeConnectionFromConfig(raw, repo.project.name, req.params.databaseUnid);
+                nextConfig = ConnectionConfig.remove(raw, repo.project.name, req.params.databaseUnid);
             } catch (err) {
                 if (err instanceof ConnectionConfigError) {
                     res.status(connectionErrorStatus(err.code)).json({error: err.message, code: err.code, details: err.details});
@@ -920,7 +915,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 return;
             }
             try {
-                resolveEnvPlaceholders(raw);
+                EnvPlaceholderResolver.resolve(raw);
             } catch (err) {
                 if (err instanceof EnvPlaceholderError) {
                     res.status(400).json({error: err.message});
@@ -1136,7 +1131,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         if (!validate(Bodies.SchemaConnectionTestAdHocBody, req.body, res)) {return;}
         let resolved: any;
         try {
-            resolved = resolveEnvPlaceholders(req.body);
+            resolved = EnvPlaceholderResolver.resolve(req.body);
         } catch (err) {
             if (err instanceof EnvPlaceholderError) {
                 res.status(400).json({error: err.message});
@@ -1197,7 +1192,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             const renames = req.body.renames as SchemaRenameHints | undefined;
             const changeSet = SchemaDiff.diff(modelDb as JsonDataDB, tree, repo.effectiveSync(), modelRoot, diagramUnid, renames);
             const dialect = pickDialect(repo.project.dialect);
-            const ctx = buildDialectContextFromModel(modelRoot, repo.effectiveProject.output.sqlIndent, repo.effectiveProject.output.statementTerminator, repo.effectiveProject.output.sqlComment);
+            const ctx = DialectContextBuilder.fromModel(modelRoot, repo.effectiveProject.output.sqlIndent, repo.effectiveProject.output.statementTerminator, repo.effectiveProject.output.sqlComment);
             const statements = SyncGenerator.generate(changeSet, modelDb as JsonDataDB, dialect, ctx);
             /*
              * Surface the model database's defaults alongside the
@@ -1270,7 +1265,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             }
             const filteredSet = {...fullChangeSet, changes: selectedChanges};
             const dialect = pickDialect(repo.project.dialect);
-            const ctx = buildDialectContextFromModel(modelRoot, repo.effectiveProject.output.sqlIndent, repo.effectiveProject.output.statementTerminator, repo.effectiveProject.output.sqlComment);
+            const ctx = DialectContextBuilder.fromModel(modelRoot, repo.effectiveProject.output.sqlIndent, repo.effectiveProject.output.statementTerminator, repo.effectiveProject.output.sqlComment);
             const statements = SyncGenerator.generate(filteredSet, modelDb as JsonDataDB, dialect, ctx);
 
             const driver = pickDriver(repo.project.dialect);
@@ -1313,14 +1308,14 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
              * real applies leave a trace.
              */
             if (!dryRun) {
-                appendEntry(historyPathFor(repo.project.schemaPath), {
+                SyncHistoryRepo.append(SyncHistoryRepo.pathFor(repo.project.schemaPath), {
                     mode: 'apply',
                     dialect: repo.project.dialect,
                     databaseUnid: databaseUnid,
                     databaseName: (modelDb as JsonDataDB).name,
                     diagramUnid: diagramUnid,
                     selectedChangeIds: selectedChanges.map(c => c.id),
-                    changeSetSummary: summariseChanges(selectedChanges),
+                    changeSetSummary: SyncHistoryRepo.summarise(selectedChanges),
                     statementResults: statementResults,
                     migrationFiles: migrationFiles,
                     success: allOk,
@@ -1384,14 +1379,14 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
              * the user can trace "when did I adopt live state into
              * the model?" in the history view.
              */
-            appendEntry(historyPathFor(repo.project.schemaPath), {
+            SyncHistoryRepo.append(SyncHistoryRepo.pathFor(repo.project.schemaPath), {
                 mode: 'reverse-apply',
                 dialect: repo.project.dialect,
                 databaseUnid: databaseUnid,
                 databaseName: (modelDb as JsonDataDB).name,
                 diagramUnid: diagramUnid,
                 selectedChangeIds: selectedChanges.map(c => c.id),
-                changeSetSummary: summariseChanges(selectedChanges),
+                changeSetSummary: SyncHistoryRepo.summarise(selectedChanges),
                 statementResults: [],
                 appliedChangeIds: result.appliedChangeIds,
                 success: true,
@@ -1465,7 +1460,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
             }
             const filteredSet = {...fullChangeSet, changes: selectedChanges};
             const dialect = pickDialect(repo.project.dialect);
-            const ctx = buildDialectContextFromModel(modelRoot, repo.effectiveProject.output.sqlIndent, repo.effectiveProject.output.statementTerminator, repo.effectiveProject.output.sqlComment);
+            const ctx = DialectContextBuilder.fromModel(modelRoot, repo.effectiveProject.output.sqlIndent, repo.effectiveProject.output.statementTerminator, repo.effectiveProject.output.sqlComment);
             const statements = SyncGenerator.generate(filteredSet, modelDb as JsonDataDB, dialect, ctx);
 
             /*
@@ -1502,14 +1497,14 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
              * including failed ones (especially failed ones — the
              * dump path and statement results are the diagnosis).
              */
-            appendEntry(historyPathFor(repo.project.schemaPath), {
+            SyncHistoryRepo.append(SyncHistoryRepo.pathFor(repo.project.schemaPath), {
                 mode: 'test-run',
                 dialect: repo.project.dialect,
                 databaseUnid: databaseUnid,
                 databaseName: (modelDb as JsonDataDB).name,
                 diagramUnid: diagramUnid,
                 selectedChangeIds: selectedChanges.map(c => c.id),
-                changeSetSummary: summariseChanges(selectedChanges),
+                changeSetSummary: SyncHistoryRepo.summarise(selectedChanges),
                 statementResults: result.statementResults,
                 dumpPath: result.dumpPath,
                 dumpKept: result.dumpKept,
@@ -1540,7 +1535,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         const limitRaw = typeof req.query.limit === 'string' ? Number(req.query.limit) : NaN;
         const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : undefined;
         try {
-            const all = loadHistory(historyPathFor(repo.project.schemaPath));
+            const all = SyncHistoryRepo.load(SyncHistoryRepo.pathFor(repo.project.schemaPath));
             const entries = limit ? all.slice(0, limit) : all;
             res.json({success: true, entries: entries, total: all.length});
         } catch (err) {
@@ -1563,7 +1558,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         }
         try {
             await repo.flush();
-            const narrowed = narrowDataForScope(repo.data, {
+            const narrowed = ScopeNarrow.narrow(repo.data, {
                 databaseUnid: databaseUnid,
                 tableUnid: tableUnid,
                 tableUnids: tableUnids
@@ -1609,7 +1604,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
         try {
             await repo.flush();
             const dryRun = req.body?.dryRun === true;
-            const docs = generateMarkdownDocs(repo.data.fs);
+            const docs = MarkdownDocGenerator.generate(repo.data.fs);
             const docsRoot = path.join(repo.effectiveProject.output.destinationPath, 'docs');
             if (!dryRun && docs.length > 0) {
                 if (!fs.existsSync(docsRoot)) {fs.mkdirSync(docsRoot, {recursive: true});}

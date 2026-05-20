@@ -4,7 +4,6 @@ import {
     JsonDataDB,
     JsonDataDBType,
     JsonForeignKey,
-    JsonForeignKeyAction,
     JsonForeignKeyColumn,
     JsonIndex,
     JsonIndexColumn,
@@ -13,91 +12,72 @@ import {
     JsonView
 } from '../DbEditor/JsonData.js';
 import {DbIntrospector} from './DbIntrospector.js';
-
-const uTable = (db: string, t: string): string => `live:t:${db}:${t}`;
-const uColumn = (db: string, t: string, c: string): string => `live:c:${db}:${t}:${c}`;
-const uIndex = (db: string, t: string, i: string): string => `live:i:${db}:${t}:${i}`;
-const uFk = (db: string, t: string, n: string): string => `live:fk:${db}:${t}:${n}`;
-const uView = (db: string, v: string): string => `live:v:${db}:${v}`;
-const uDb = (db: string): string => `live:db:${db}`;
-
-/*
- * ---------------------------------------------------------------------------
- * SQLite stores the "declared type" verbatim — `INTEGER`, `VARCHAR(255)`,
- * `BOOLEAN`, etc. We map declared types back to the editor's logical names
- * the same way the MySQL parser does. SQLite's type affinity rules apply
- * at the storage diagram, but the diff is over the *declared* type.
- * ---------------------------------------------------------------------------
- */
-const mapDeclaredType = (declared: string): { type: string; length?: string; } => {
-    const trimmed = (declared || '').trim();
-    if (!trimmed) {return {type: 'text'};}
-
-    const m = trimmed.match(/^([A-Za-z_][A-Za-z_0-9]*)\s*(?:\(([^)]+)\))?\s*$/u);
-    if (!m) {return {type: trimmed.toLowerCase()};}
-    const raw = m[1].toLowerCase();
-    const len = m[2] ? m[2].trim() : undefined;
-    switch (raw) {
-        case 'integer':
-        case 'int':
-        case 'tinyint':
-        case 'smallint':
-        case 'mediumint':
-        case 'bigint':
-            return {type: 'int', length: len};
-        case 'bool':
-        case 'boolean':
-            return {type: 'boolean'};
-        case 'real':
-        case 'double':
-        case 'float':
-            return {type: 'double'};
-        case 'numeric':
-        case 'decimal':
-            return {type: 'decimal', length: len};
-        case 'varchar':
-            return {type: 'varchar', length: len};
-        case 'char':
-        case 'character':
-            return {type: 'char', length: len};
-        case 'text':
-        case 'clob':
-            return {type: 'text', length: len};
-        case 'blob':
-            return {type: 'blob'};
-        case 'date':
-        case 'time':
-        case 'datetime':
-        case 'timestamp':
-        case 'uuid':
-        case 'json':
-            return {type: raw};
-        default:
-            return {type: raw, length: len};
-    }
-};
-
-const mapAction = (raw: string | null | undefined): string | undefined => {
-    if (!raw) {return undefined;}
-    const v = String(raw).toUpperCase();
-    switch (v) {
-        case 'NO ACTION':   return JsonForeignKeyAction.no_action;
-        case 'RESTRICT':    return JsonForeignKeyAction.restrict;
-        case 'CASCADE':     return JsonForeignKeyAction.cascade;
-        case 'SET NULL':    return JsonForeignKeyAction.set_null;
-        case 'SET DEFAULT': return JsonForeignKeyAction.set_default;
-        default:            return v;
-    }
-};
+import {FkActionMapper} from './FkActionMapper.js';
+import {LiveUridScheme} from './LiveUridScheme.js';
 
 export class SqliteIntrospector implements DbIntrospector {
+
+    /**
+     * SQLite stores the "declared type" verbatim — `INTEGER`,
+     * `VARCHAR(255)`, `BOOLEAN`, etc. We map declared types back to the
+     * editor's logical names the same way the MySQL parser does. SQLite's
+     * type affinity rules apply at the storage layer, but the diff is over
+     * the *declared* type.
+     */
+    private static _mapDeclaredType(declared: string): { type: string; length?: string; } {
+        const trimmed = (declared || '').trim();
+        if (!trimmed) {return {type: 'text'};}
+
+        const m = trimmed.match(/^([A-Za-z_][A-Za-z_0-9]*)\s*(?:\(([^)]+)\))?\s*$/u);
+        if (!m) {return {type: trimmed.toLowerCase()};}
+        const raw = m[1].toLowerCase();
+        const len = m[2] ? m[2].trim() : undefined;
+        switch (raw) {
+            case 'integer':
+            case 'int':
+            case 'tinyint':
+            case 'smallint':
+            case 'mediumint':
+            case 'bigint':
+                return {type: 'int', length: len};
+            case 'bool':
+            case 'boolean':
+                return {type: 'boolean'};
+            case 'real':
+            case 'double':
+            case 'float':
+                return {type: 'double'};
+            case 'numeric':
+            case 'decimal':
+                return {type: 'decimal', length: len};
+            case 'varchar':
+                return {type: 'varchar', length: len};
+            case 'char':
+            case 'character':
+                return {type: 'char', length: len};
+            case 'text':
+            case 'clob':
+                return {type: 'text', length: len};
+            case 'blob':
+                return {type: 'blob'};
+            case 'date':
+            case 'time':
+            case 'datetime':
+            case 'timestamp':
+            case 'uuid':
+            case 'json':
+                return {type: raw};
+            default:
+                return {type: raw, length: len};
+        }
+    }
 
     public async introspect(conn: DbConnection, db: string): Promise<JsonDataDB> {
         const tableNames = await this._loadObjectNames(conn, 'table');
         const tables = await this._loadTables(conn, db, tableNames);
         const views = await this._loadViews(conn, db);
         return {
-            unid: uDb(db),
+            unid: LiveUridScheme.db(db),
             name: db,
             type: JsonDataDBType.database,
             istoggle: true,
@@ -137,7 +117,7 @@ export class SqliteIntrospector implements DbIntrospector {
             // eslint-disable-next-line no-await-in-loop
             const foreignKeys = await this._loadForeignKeys(conn, db, name, columns);
             tables.push({
-                unid: uTable(db, name),
+                unid: LiveUridScheme.table(db, name),
                 name: name,
                 pos: {x: 0, y: 0},
                 columns: columns,
@@ -158,9 +138,9 @@ export class SqliteIntrospector implements DbIntrospector {
         for (const r of rows) {
             const colName = String(r.name);
             const declared = String(r.type || '');
-            const parsed = mapDeclaredType(declared);
+            const parsed = SqliteIntrospector._mapDeclaredType(declared);
             const col: JsonColumn = {
-                unid: uColumn(db, tableName, colName),
+                unid: LiveUridScheme.column(db, tableName, colName),
                 name: colName,
                 type: parsed.type
             };
@@ -218,7 +198,7 @@ export class SqliteIntrospector implements DbIntrospector {
                 indexColumns.push({columnUnid: refCol.unid});
             }
             out.push({
-                unid: uIndex(db, tableName, indexName),
+                unid: LiveUridScheme.index(db, tableName, indexName),
                 name: indexName,
                 type: Number(r.unique) === 1 ? JsonIndexType.unique : JsonIndexType.index,
                 columns: indexColumns
@@ -245,13 +225,13 @@ export class SqliteIntrospector implements DbIntrospector {
             let fk = byId.get(fkId);
             if (!fk) {
                 fk = {
-                    unid: uFk(db, tableName, fkName),
+                    unid: LiveUridScheme.fk(db, tableName, fkName),
                     name: fkName,
-                    refTableUnid: uTable(db, refTable),
+                    refTableUnid: LiveUridScheme.table(db, refTable),
                     columns: []
                 };
-                const onDelete = mapAction(r.on_delete as string);
-                const onUpdate = mapAction(r.on_update as string);
+                const onDelete = FkActionMapper.fromSql(r.on_delete as string);
+                const onUpdate = FkActionMapper.fromSql(r.on_update as string);
                 if (onDelete) {fk.onDelete = onDelete;}
                 if (onUpdate) {fk.onUpdate = onUpdate;}
                 byId.set(fkId, fk);
@@ -260,7 +240,7 @@ export class SqliteIntrospector implements DbIntrospector {
             if (!local) {continue;}
             const fkc: JsonForeignKeyColumn = {
                 columnUnid: local.unid,
-                refColumnUnid: uColumn(db, refTable, String(r.to))
+                refColumnUnid: LiveUridScheme.column(db, refTable, String(r.to))
             };
             fk.columns.push(fkc);
         }
@@ -283,7 +263,7 @@ export class SqliteIntrospector implements DbIntrospector {
             const fullSql = String(r.sql || '');
             const asMatch = fullSql.match(/\bAS\s+(.+)$/isu);
             out.push({
-                unid: uView(db, name),
+                unid: LiveUridScheme.view(db, name),
                 name: name,
                 pos: {x: 0, y: 0},
                 select: asMatch ? asMatch[1].trim() : fullSql.trim()

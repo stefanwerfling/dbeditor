@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {MySqlDialect} from '../../DbGenerator/Dialects/MySqlDialect.js';
 import {DialectContext} from '../../DbGenerator/DbDialect.js';
-import {buildDialectContextFromModel} from '../../DbGenerator/DialectContextBuilder.js';
+import {DialectContextBuilder} from '../../DbGenerator/DialectContextBuilder.js';
 import {
     JsonColumn,
     JsonDataDB,
@@ -48,7 +48,7 @@ const db = (tables: JsonTable[], enums: JsonEnum[] = []): JsonDataDB => ({
 });
 
 const ctxFor = (tables: JsonTable[], enums: JsonEnum[] = []): DialectContext =>
-    buildDialectContextFromModel(db(tables, enums), '    ', ';', true);
+    DialectContextBuilder.fromModel(db(tables, enums), '    ', ';', true);
 
 describe('MySqlDialect.quote', () => {
 

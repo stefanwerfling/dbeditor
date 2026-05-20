@@ -4,7 +4,6 @@ import {
     JsonDataDB,
     JsonDataDBType,
     JsonForeignKey,
-    JsonForeignKeyAction,
     JsonForeignKeyColumn,
     JsonIndex,
     JsonIndexColumn,
@@ -14,30 +13,12 @@ import {
     JsonView
 } from '../DbEditor/JsonData.js';
 import {DbIntrospector} from './DbIntrospector.js';
+import {FkActionMapper} from './FkActionMapper.js';
+import {LiveUridScheme} from './LiveUridScheme.js';
 
-/*
- * ---------------------------------------------------------------------------
- * Unid synthesis — stable across re-introspection of the same database.
- * The diff engine matches model↔live by NAME; unids are only used to track
- * an object within one tree.
- * ---------------------------------------------------------------------------
- */
-const uTable = (db: string, t: string): string => `live:t:${db}:${t}`;
-const uColumn = (db: string, t: string, c: string): string => `live:c:${db}:${t}:${c}`;
-const uIndex = (db: string, t: string, i: string): string => `live:i:${db}:${t}:${i}`;
-const uFk = (db: string, t: string, n: string): string => `live:fk:${db}:${t}:${n}`;
-const uView = (db: string, v: string): string => `live:v:${db}:${v}`;
-const uDb = (db: string): string => `live:db:${db}`;
-
-/*
- * ---------------------------------------------------------------------------
- * Column-type parser
- *
- * MySQL exposes the fully formatted type string via information_schema as
- * `COLUMN_TYPE` (e.g. `int(11) unsigned`, `varchar(255)`, `decimal(10,2)`,
- * `enum('a','b')`, `tinyint(1)`). We need to split that into the editor's
- * separate `type` + `length` + `unsigned` fields.
- * ---------------------------------------------------------------------------
+/**
+ * Parsed shape of a MySQL `COLUMN_TYPE` string (e.g. `int(11) unsigned`,
+ * `varchar(255)`, `decimal(10,2)`, `enum('a','b')`).
  */
 type ParsedColumnType = {
     type: string;
@@ -46,98 +27,78 @@ type ParsedColumnType = {
     enumValues?: string[];
 };
 
-const parseEnumValues = (inside: string): string[] => {
-    /*
+export class MysqlIntrospector implements DbIntrospector {
+
+    /**
      * `enum('foo','bar','it''s ok')` — values are SQL-quoted with doubled
      * single quotes as escape. Walk byte-by-byte, no regex shenanigans.
      */
-    const out: string[] = [];
-    let i = 0;
-    while (i < inside.length) {
-        while (i < inside.length && inside[i] !== '\'') {i++;}
-        if (i >= inside.length) {break;}
-        i++;
-        let v = '';
+    private static _parseEnumValues(inside: string): string[] {
+        const out: string[] = [];
+        let i = 0;
         while (i < inside.length) {
-            if (inside[i] === '\'' && inside[i + 1] === '\'') { v += '\''; i += 2; continue; }
-            if (inside[i] === '\'') { i++; break; }
-            v += inside[i];
+            while (i < inside.length && inside[i] !== '\'') {i++;}
+            if (i >= inside.length) {break;}
             i++;
+            let v = '';
+            while (i < inside.length) {
+                if (inside[i] === '\'' && inside[i + 1] === '\'') { v += '\''; i += 2; continue; }
+                if (inside[i] === '\'') { i++; break; }
+                v += inside[i];
+                i++;
+            }
+            out.push(v);
         }
-        out.push(v);
-    }
-    return out;
-};
-
-const parseColumnType = (raw: string): ParsedColumnType => {
-    const s = raw.trim();
-    const unsigned = /\bunsigned\b/iu.test(s);
-    const base = s.replace(/\bunsigned\b/iu, '').replace(/\bzerofill\b/iu, '').trim();
-
-    const enumMatch = base.match(/^enum\s*\((.+)\)\s*$/iu);
-    if (enumMatch) {
-        return {type: 'enum', enumValues: parseEnumValues(enumMatch[1])};
+        return out;
     }
 
-    const m = base.match(/^([a-z_]+)\s*(?:\(([^)]+)\))?\s*$/iu);
-    if (!m) {return {type: base.toLowerCase(), unsigned: unsigned};}
-    const t = m[1].toLowerCase();
-    let len = m[2] ? m[2].trim() : undefined;
-    /*
-     * Display width on INT-family types (e.g. `int(11)`, `bigint(20)`)
-     * is purely cosmetic and deprecated in MySQL 8.0.17+. Strip it so
-     * the diff doesn't false-positive against a model that doesn't
-     * carry it — the .mwb importer drops it too. EXCEPTION: keep
-     * `tinyint(1)` literally because models commonly declare boolean
-     * columns that way and dropping the length would surface as a
-     * needless MODIFY COLUMN on every sync.
+    /**
+     * MySQL exposes the fully formatted type string via information_schema
+     * as `COLUMN_TYPE`. We split that into the editor's separate
+     * `type` + `length` + `unsigned` fields.
      */
-    const isIntFamily = t === 'int' || t === 'integer' || t === 'tinyint'
-        || t === 'smallint' || t === 'mediumint' || t === 'bigint';
-    if (isIntFamily && len !== undefined) {
+    private static _parseColumnType(raw: string): ParsedColumnType {
+        const s = raw.trim();
+        const unsigned = /\bunsigned\b/iu.test(s);
+        const base = s.replace(/\bunsigned\b/iu, '').replace(/\bzerofill\b/iu, '').trim();
+
+        const enumMatch = base.match(/^enum\s*\((.+)\)\s*$/iu);
+        if (enumMatch) {
+            return {type: 'enum', enumValues: MysqlIntrospector._parseEnumValues(enumMatch[1])};
+        }
+
+        const m = base.match(/^([a-z_]+)\s*(?:\(([^)]+)\))?\s*$/iu);
+        if (!m) {return {type: base.toLowerCase(), unsigned: unsigned};}
+        const t = m[1].toLowerCase();
+        let len = m[2] ? m[2].trim() : undefined;
         /*
-         * Strip display width unconditionally — including `tinyint(1)`.
-         * Models imported from `.mwb` carry bare `tinyint` because the
-         * Workbench reader drops cosmetic length for all integer
-         * variants. Keeping `tinyint(1)` here would surface a false-
-         * positive MODIFY on every boolean-style column.
+         * Display width on INT-family types (e.g. `int(11)`, `bigint(20)`)
+         * is purely cosmetic and deprecated in MySQL 8.0.17+. Strip it so
+         * the diff doesn't false-positive against a model that doesn't
+         * carry it — the .mwb importer drops it too. Including `tinyint(1)`:
+         * Workbench imports drop the length there as well, so keeping it
+         * here would surface a false-positive MODIFY on every boolean-style
+         * column.
          */
-        len = undefined;
+        const isIntFamily = t === 'int' || t === 'integer' || t === 'tinyint'
+            || t === 'smallint' || t === 'mediumint' || t === 'bigint';
+        if (isIntFamily && len !== undefined) {
+            len = undefined;
+        }
+        return {
+            type: t,
+            length: len,
+            unsigned: unsigned || undefined
+        };
     }
-    return {
-        type: t,
-        length: len,
-        unsigned: unsigned || undefined
-    };
-};
 
-/*
- * ---------------------------------------------------------------------------
- * Foreign-key action mapping
- * ---------------------------------------------------------------------------
- */
-const mapAction = (raw: string | null | undefined): string | undefined => {
-    if (!raw) {return undefined;}
-    const v = String(raw).toUpperCase();
-    switch (v) {
-        case 'NO ACTION':   return JsonForeignKeyAction.no_action;
-        case 'RESTRICT':    return JsonForeignKeyAction.restrict;
-        case 'CASCADE':     return JsonForeignKeyAction.cascade;
-        case 'SET NULL':    return JsonForeignKeyAction.set_null;
-        case 'SET DEFAULT': return JsonForeignKeyAction.set_default;
-        default:            return v;
+    private static _mapIndexType(raw: string | null | undefined, nonUnique: number): string {
+        const t = String(raw || '').toUpperCase();
+        if (t === 'FULLTEXT') {return JsonIndexType.fulltext;}
+        if (t === 'SPATIAL') {return JsonIndexType.spatial;}
+        if (nonUnique === 0) {return JsonIndexType.unique;}
+        return JsonIndexType.index;
     }
-};
-
-const mapIndexType = (raw: string | null | undefined, nonUnique: number): string => {
-    const t = String(raw || '').toUpperCase();
-    if (t === 'FULLTEXT') {return JsonIndexType.fulltext;}
-    if (t === 'SPATIAL') {return JsonIndexType.spatial;}
-    if (nonUnique === 0) {return JsonIndexType.unique;}
-    return JsonIndexType.index;
-};
-
-export class MysqlIntrospector implements DbIntrospector {
 
     public async introspect(conn: DbConnection, db: string): Promise<JsonDataDB> {
         /*
@@ -162,7 +123,7 @@ export class MysqlIntrospector implements DbIntrospector {
         const views = await this._loadViews(conn, db);
 
         return {
-            unid: uDb(db),
+            unid: LiveUridScheme.db(db),
             name: db,
             type: JsonDataDBType.database,
             istoggle: true,
@@ -248,7 +209,7 @@ export class MysqlIntrospector implements DbIntrospector {
             if (tr.TABLE_COMMENT) {options.comment = String(tr.TABLE_COMMENT);}
 
             tables.push({
-                unid: uTable(db, tableName),
+                unid: LiveUridScheme.table(db, tableName),
                 name: tableName,
                 pos: {x: 0, y: 0},
                 columns: columns,
@@ -280,12 +241,12 @@ export class MysqlIntrospector implements DbIntrospector {
         for (const r of rows) {
             if (String(r.TABLE_NAME) !== tableName) {continue;}
             const colName = String(r.COLUMN_NAME);
-            const parsed = parseColumnType(String(r.COLUMN_TYPE));
+            const parsed = MysqlIntrospector._parseColumnType(String(r.COLUMN_TYPE));
             const isNullable = String(r.IS_NULLABLE).toUpperCase() === 'YES';
             const extra = String(r.EXTRA || '').toLowerCase();
             const key = String(r.COLUMN_KEY || '').toUpperCase();
             const col: JsonColumn = {
-                unid: uColumn(db, tableName, colName),
+                unid: LiveUridScheme.column(db, tableName, colName),
                 name: colName,
                 type: parsed.type
             };
@@ -366,9 +327,9 @@ export class MysqlIntrospector implements DbIntrospector {
             let ix = byName.get(ixName);
             if (!ix) {
                 ix = {
-                    unid: uIndex(db, tableName, ixName),
+                    unid: LiveUridScheme.index(db, tableName, ixName),
                     name: ixName,
-                    type: mapIndexType(r.INDEX_TYPE as string | null, Number(r.NON_UNIQUE)),
+                    type: MysqlIntrospector._mapIndexType(r.INDEX_TYPE as string | null, Number(r.NON_UNIQUE)),
                     columns: []
                 };
                 if (r.INDEX_COMMENT) {ix.comment = String(r.INDEX_COMMENT);}
@@ -405,13 +366,13 @@ export class MysqlIntrospector implements DbIntrospector {
             if (!fk) {
                 const refTable = String(r.REFERENCED_TABLE_NAME);
                 fk = {
-                    unid: uFk(db, tableName, fkName),
+                    unid: LiveUridScheme.fk(db, tableName, fkName),
                     name: fkName,
-                    refTableUnid: uTable(db, refTable),
+                    refTableUnid: LiveUridScheme.table(db, refTable),
                     columns: []
                 };
-                const onDelete = mapAction(r.DELETE_RULE as string);
-                const onUpdate = mapAction(r.UPDATE_RULE as string);
+                const onDelete = FkActionMapper.fromSql(r.DELETE_RULE as string);
+                const onUpdate = FkActionMapper.fromSql(r.UPDATE_RULE as string);
                 if (onDelete) {fk.onDelete = onDelete;}
                 if (onUpdate) {fk.onUpdate = onUpdate;}
                 byName.set(fkName, fk);
@@ -422,7 +383,7 @@ export class MysqlIntrospector implements DbIntrospector {
             const refTableName = String(r.REFERENCED_TABLE_NAME);
             const fkc: JsonForeignKeyColumn = {
                 columnUnid: local.unid,
-                refColumnUnid: uColumn(db, refTableName, refColName)
+                refColumnUnid: LiveUridScheme.column(db, refTableName, refColName)
             };
             fk.columns.push(fkc);
         }
@@ -446,7 +407,7 @@ export class MysqlIntrospector implements DbIntrospector {
         for (const r of rows) {
             const name = String(r.TABLE_NAME);
             out.push({
-                unid: uView(db, name),
+                unid: LiveUridScheme.view(db, name),
                 name: name,
                 pos: {x: 0, y: 0},
                 select: String(r.VIEW_DEFINITION || '')

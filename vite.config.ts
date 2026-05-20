@@ -6,7 +6,7 @@ import {randomUUID} from 'crypto';
 import {defineConfig, Plugin} from 'vite';
 import {SchemaErrors} from 'vts';
 import {ConfigDialect, ConfigOutputMode, SchemaConfig} from './Config/Config.js';
-import {EnvPlaceholderError, resolveEnvPlaceholders} from './Config/EnvPlaceholderResolver.js';
+import {EnvPlaceholderError, EnvPlaceholderResolver} from './Config/EnvPlaceholderResolver.js';
 import {DbProject, DbProjectConnection} from './DbProject/DbProject.js';
 import {DbFsRepository} from './DbRepository/DbFsRepository.js';
 import {DbRepositoryRegistry} from './DbRepository/DbRepositoryRegistry.js';
@@ -49,7 +49,7 @@ function expressMiddleware(): Plugin {
                 }
                 let config: typeof rawConfig;
                 try {
-                    config = resolveEnvPlaceholders(rawConfig);
+                    config = EnvPlaceholderResolver.resolve(rawConfig);
                 } catch (err) {
                     if (err instanceof EnvPlaceholderError) {
                         console.error(`[dbeditor] ${err.message}`);
