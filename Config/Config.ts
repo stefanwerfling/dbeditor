@@ -132,6 +132,72 @@ export const SchemaConfigBrowser = Vts.object({
 });
 
 /**
+ * Action a policy rule can prescribe for an MCP tool call.
+ */
+export enum ConfigMcpPolicyAction {
+    allow = 'allow',
+    ask = 'ask',
+    deny = 'deny'
+}
+
+/**
+ * One MCP policy rule. `match` is a wildcard pattern matched against the
+ * tool name (`*` matches any run of name characters, e.g. `db_delete_*`);
+ * `action` is what to do on match.
+ */
+export const SchemaConfigMcpPolicyRule = Vts.object({
+    match: Vts.string(),
+    action: Vts.enum(ConfigMcpPolicyAction)
+});
+
+export type ConfigMcpPolicyRule = ExtractSchemaResultType<typeof SchemaConfigMcpPolicyRule>;
+
+/**
+ * Client-agnostic permission policy for MCP tool calls. Rules are
+ * evaluated in order against the tool name; first match wins. If no
+ * rule matches, `default` applies (fallback `ask`).
+ */
+export const SchemaConfigMcpPolicy = Vts.object({
+    default: Vts.optional(Vts.enum(ConfigMcpPolicyAction)),
+    rules: Vts.optional(Vts.array(SchemaConfigMcpPolicyRule))
+});
+
+export type ConfigMcpPolicy = ExtractSchemaResultType<typeof SchemaConfigMcpPolicy>;
+
+/**
+ * Logging for the MCP endpoint. When `enabled` is true every tool call,
+ * policy decision, approval request, and session event is recorded as a
+ * JSON line. If `file` is set the line is appended to that file
+ * (resolved against the project root); otherwise it is written to stdout
+ * with an `[mcp]` prefix.
+ */
+export const SchemaConfigMcpLogging = Vts.object({
+    enabled: Vts.boolean(),
+    file: Vts.optional(Vts.string())
+});
+
+export type ConfigMcpLogging = ExtractSchemaResultType<typeof SchemaConfigMcpLogging>;
+
+/**
+ * MCP-server settings. When `enabled` is true the Vite dev server will
+ * (once the `@modelcontextprotocol/sdk` is installed) expose a Model
+ * Context Protocol endpoint at `path` (default `/mcp`) so Claude CLI and
+ * other MCP clients can read/mutate the schema tree through the same
+ * repository the web editor uses.
+ *
+ * The dbeditor scaffold under `editor_core/Mcp/` validates against this
+ * schema today; the actual transport ships once the SDK lands.
+ */
+export const SchemaConfigMcp = Vts.object({
+    enabled: Vts.boolean(),
+    path: Vts.optional(Vts.string()),
+    policy: Vts.optional(SchemaConfigMcpPolicy),
+    logging: Vts.optional(SchemaConfigMcpLogging)
+});
+
+export type ConfigMcp = ExtractSchemaResultType<typeof SchemaConfigMcp>;
+
+/**
  * Top-level config schema.
  *
  * `plugins` is the activation list for npm-installed editor plugins:
@@ -140,12 +206,16 @@ export const SchemaConfigBrowser = Vts.object({
  * installation does nothing — only entries listed here are loaded.
  * The bundled dialects + MWB plugin ship with the editor and are
  * always active without an entry here.
+ *
+ * `mcp` opts into the Model Context Protocol endpoint — see
+ * `SchemaConfigMcp` above. Omitted ⇒ no MCP endpoint exposed.
  */
 export const SchemaConfig = Vts.object({
     projects: Vts.array(SchemaConfigProject),
     server: Vts.optional(SchemaConfigServer),
     browser: Vts.optional(SchemaConfigBrowser),
-    plugins: Vts.optional(Vts.array(Vts.string()))
+    plugins: Vts.optional(Vts.array(Vts.string())),
+    mcp: Vts.optional(SchemaConfigMcp)
 });
 
 export type Config = ExtractSchemaResultType<typeof SchemaConfig>;

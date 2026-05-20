@@ -14,6 +14,12 @@ import {DbLiveRepository} from './DbRepository/DbLiveRepository.js';
 import {DbLiveRepositoryRegistry} from './DbRepository/DbLiveRepositoryRegistry.js';
 import {DbRepositoryEvent} from './DbRepository/DbRepositoryEventTypes.js';
 import {registerDbApiRoutes} from './DbApi/DbApiRoutes.js';
+// eslint-disable-next-line import/extensions
+import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {McpServer} from './editor_core/Mcp/McpServer.js';
+import {McpPolicy} from './editor_core/Mcp/McpPolicy.js';
+import {McpToolRegistry} from './editor_core/Mcp/McpToolRegistry.js';
+import {McpTools} from './editor_core/Mcp/McpTools.js';
 import {DbGenerator, GeneratedFile} from './DbGenerator/DbGenerator.js';
 import {PluginBootstrap} from './editor_core/plugin/PluginBootstrap.js';
 
@@ -233,9 +239,90 @@ function expressMiddleware(): Plugin {
                 configFilePath: configFile
             });
 
+            mountMcpEndpoint(app, config?.mcp, repositories);
+
             server.middlewares.use(app);
         }
     };
+}
+
+/**
+ * Mount the MCP HTTP endpoint when `mcp.enabled` is true in
+ * `dbeditor.json`. Stateful streamable-HTTP transport — each MCP client
+ * `initialize` request mints a new session id (`Mcp-Session-Id` header);
+ * subsequent calls within that session route to the same transport.
+ *
+ * The approval handler is intentionally absent: dbeditor doesn't ship
+ * an in-app approval UI yet, so `ask`-action tools simply return a
+ * "not confirmed" error result via the registry. Users wire `allow`
+ * for the read-only `db_list_*` / `db_get_*` tools and leave mutations
+ * out of the policy until the UI lands.
+ */
+function mountMcpEndpoint(
+    app: express.Express,
+    mcp: unknown,
+    repositories: DbRepositoryRegistry
+): void {
+    const cfg = mcp as { enabled?: boolean; path?: string; policy?: never; } | undefined;
+    if (!cfg?.enabled) {return;}
+
+    const mcpPath = typeof cfg.path === 'string' && cfg.path.length > 0 ? cfg.path : '/mcp';
+
+    const decide = McpPolicy.compile(cfg as never);
+    const registry = new McpToolRegistry(McpTools.build({repositories: repositories}), {decide: decide});
+    const transports = new Map<string, StreamableHTTPServerTransport>();
+
+    const schemaPaths: string[] = [];
+    for (const [, repo] of repositories.entries()) {
+        schemaPaths.push(repo.project.schemaPath);
+    }
+
+    const isInitializeRequest = (body: unknown): boolean => {
+        if (Array.isArray(body)) {return body.some(isInitializeRequest);}
+        return typeof body === 'object'
+            && body !== null
+            && (body as {method?: unknown}).method === 'initialize';
+    };
+
+    app.all(mcpPath, async(req: Request, res: Response): Promise<void> => {
+        const sid = req.header('Mcp-Session-Id');
+        let transport: StreamableHTTPServerTransport | undefined;
+
+        if (sid) {
+            transport = transports.get(sid);
+            if (!transport) {
+                res.status(404).json({
+                    jsonrpc: '2.0',
+                    error: {code: -32000, message: `Unknown MCP session ${sid}`},
+                    id: null
+                });
+                return;
+            }
+        } else if (req.method === 'POST' && isInitializeRequest(req.body)) {
+            transport = new StreamableHTTPServerTransport({
+                sessionIdGenerator: (): string => randomUUID(),
+                onsessioninitialized: (newSid: string): void => {
+                    transports.set(newSid, transport!);
+                }
+            });
+            transport.onclose = (): void => {
+                if (transport?.sessionId) {transports.delete(transport.sessionId);}
+            };
+            const server = McpServer.create(registry, {schemaPaths: schemaPaths});
+            await server.connect(transport);
+        } else {
+            res.status(400).json({
+                jsonrpc: '2.0',
+                error: {code: -32000, message: 'No MCP session; send initialize first.'},
+                id: null
+            });
+            return;
+        }
+
+        await transport.handleRequest(req, res, req.body);
+    });
+
+    console.log(`[dbeditor] MCP server mounted at ${mcpPath}`);
 }
 
 function sendEvent(res: Response, ev: DbRepositoryEvent): void {
