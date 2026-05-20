@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import {spawn} from 'child_process';
 import {DbProject} from '../DbProject/DbProject.js';
 import {ConfigOutputMode} from '../Config/Config.js';
 import {JsonData, JsonDataDB, JsonTable, JsonEnum, JsonColumn} from '../DbEditor/JsonData.js';
@@ -68,6 +69,29 @@ export class DbGenerator {
         }
     }
 
+    /*
+     * Run one user-configured shell hook from `project.scripts_*`. The
+     * command is fed to the platform shell (so pipes / redirects / npm
+     * scripts work); `cwd` defaults to process.cwd() if empty, otherwise
+     * uses the entry path as-is (relative paths resolve against
+     * process.cwd, which in the dev server is the project root). stdout
+     * and stderr inherit the parent's streams so the user sees output
+     * inline. A non-zero exit aborts the generate by throwing — the
+     * caller decides whether to surface the error or swallow it.
+     */
+    private static async _runShellScript(entry: {script: string; path: string;}, label: string): Promise<void> {
+        const cwd = entry.path.length > 0 ? entry.path : process.cwd();
+        console.log(`[dbeditor] ${label}: ${entry.script} (cwd: ${cwd})`);
+        await new Promise<void>((resolve, reject) => {
+            const child = spawn(entry.script, {shell: true, cwd: cwd, stdio: 'inherit'});
+            child.on('error', reject);
+            child.on('exit', (code) => {
+                if (code === 0) {resolve();}
+                else {reject(new Error(`script "${entry.script}" (${label}) exited with code ${code}`));}
+            });
+        });
+    }
+
     private _dryRun = false;
 
     public async generate(project: DbProject, data: JsonData, options: GenerateOptions = {}): Promise<GeneratedFile[]> {
@@ -88,6 +112,20 @@ export class DbGenerator {
                 await h.beforeGenerate(project, data);
             }
 
+            /*
+             * User-configured shell hooks run after the plugin
+             * beforeGenerate so plugins can stage state that the user's
+             * own script may rely on. Same dry-run skip — a preview must
+             * not exec anything.
+             */
+            if (!this._dryRun) {
+                for (const entry of project.scripts_before_generate) {
+                    // sequential — see comment on the plugin hook loop above
+                    // eslint-disable-next-line no-await-in-loop
+                    await DbGenerator._runShellScript(entry, 'before_generate');
+                }
+            }
+
             const dest = project.output.destinationPath;
             if (project.output.destinationClear && !this._dryRun) {DbGenerator._clearDir(dest);}
             if (!this._dryRun) {DbGenerator._ensureDir(dest);}
@@ -103,6 +141,14 @@ export class DbGenerator {
                 // sequential by design — afterGenerate may chain (e.g. format then commit)
                 // eslint-disable-next-line no-await-in-loop
                 await h.afterGenerate(project, data, written);
+            }
+
+            if (!this._dryRun) {
+                for (const entry of project.scripts_after_generate) {
+                    // sequential — afterGenerate scripts may chain (e.g. format then commit)
+                    // eslint-disable-next-line no-await-in-loop
+                    await DbGenerator._runShellScript(entry, 'after_generate');
+                }
             }
 
             return written;
