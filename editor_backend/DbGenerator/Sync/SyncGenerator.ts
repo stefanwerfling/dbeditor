@@ -1,5 +1,5 @@
 import {DbFsTreeWalker} from '../../DbRepository/DbFsTreeWalker.js';
-import {JsonColumn, JsonDataDB, JsonForeignKey, JsonIndex, JsonTable, JsonView} from '../../../editor_schemas/JsonData.js';
+import {JsonColumn, JsonDataDB, JsonEnum, JsonForeignKey, JsonIndex, JsonTable, JsonView} from '../../../editor_schemas/JsonData.js';
 import {SchemaChange, SchemaChangeKind, SchemaChangeSet} from '../../DbDiff/ChangeTypes.js';
 import {DbDialect, DialectContext} from '../DbDialect.js';
 
@@ -57,6 +57,16 @@ export class SyncGenerator {
         dropIndex: 3,
         dropColumn: 4,
         dropTable: 5,
+        /*
+         * Enum drop runs AFTER table drops because Postgres rejects
+         * DROP TYPE while any column still references it. Enum
+         * create + ALTER TYPE ADD VALUE run BEFORE table creates so
+         * brand-new tables can reference newly-introduced types or
+         * values.
+         */
+        dropEnum: 5.5,
+        createEnum: 5.7,
+        alterEnumAddValue: 5.8,
         createTable: 6,
         addColumn: 7,
         alterColumn: 8,
@@ -84,6 +94,102 @@ export class SyncGenerator {
 
     private static _isView(v: unknown): v is JsonView {
         return Boolean(v) && typeof (v as JsonView).select === 'string';
+    }
+
+    private static _isEnum(v: unknown): v is JsonEnum {
+        return Boolean(v) && Array.isArray((v as JsonEnum).values) && typeof (v as JsonEnum).name === 'string';
+    }
+
+    /**
+     * Decide what to emit for an `enumChanged` diff. The cheap path is
+     * `ALTER TYPE name ADD VALUE 'v' [BEFORE/AFTER 'anchor']` per
+     * newly-added value — supported by Postgres for any number of
+     * inserts at arbitrary positions, as long as no value is being
+     * removed or moved. Removal or reorder requires a full
+     * DROP+RECREATE which cascades to every dependent column; we
+     * refuse to emit that automatically and surface a comment
+     * statement that the executor will run as a no-op, signalling to
+     * the user that a manual migration is required.
+     *
+     * Returns multiple SQL parts when multiple values are added. The
+     * anchor for each new value is the model-side neighbour that
+     * already exists on the live side, preferring the previous
+     * (BEFORE-the-next) over the next (AFTER-the-previous) — this
+     * matches Postgres' own preference order and keeps the inserts
+     * stable when chained.
+     */
+    private static _renderEnumChanged(
+        live: JsonEnum,
+        model: JsonEnum,
+        dialect: DbDialect,
+        ctx: DialectContext,
+        term: string
+    ): { sql: string; bucket: number; }[] {
+        const liveValues = live.values.map(v => v.value);
+        const modelValues = model.values.map(v => v.value);
+        const liveSet = new Set(liveValues);
+        const modelSet = new Set(modelValues);
+
+        /*
+         * Refuse value removal or reorder automatically. Reorder is
+         * detected by checking whether the live values appear in the
+         * same relative order inside the model — if they do, we have
+         * a pure-add. If they don't, it's a reorder we can't realise
+         * via ADD VALUE alone.
+         */
+        for (const lv of liveValues) {
+            if (!modelSet.has(lv)) {
+                return [{
+                    sql: `-- enum "${model.name}": value "${lv}" was removed in the model. `
+                        + 'Postgres has no ALTER TYPE DROP VALUE; this requires a manual '
+                        + 'migration (drop dependent columns, drop type, recreate, restore '
+                        + 'columns). Skipped automatically.',
+                    bucket: SyncGenerator._Bucket.alterEnumAddValue
+                }];
+            }
+        }
+        const liveOrderInModel: number[] = [];
+        for (const lv of liveValues) {
+            const idx = modelValues.indexOf(lv);
+            if (idx < 0) {continue;}
+            liveOrderInModel.push(idx);
+        }
+        for (let i = 1; i < liveOrderInModel.length; i++) {
+            if (liveOrderInModel[i] < liveOrderInModel[i - 1]) {
+                return [{
+                    sql: `-- enum "${model.name}": existing values were reordered in the model. `
+                        + 'Postgres preserves declared order on ALTER TYPE ADD VALUE — '
+                        + 'a true reorder requires drop + recreate. Skipped automatically.',
+                    bucket: SyncGenerator._Bucket.alterEnumAddValue
+                }];
+            }
+        }
+
+        /*
+         * Pure add — for each modelValue not in liveSet, emit ALTER
+         * TYPE ADD VALUE with the right anchor. The anchor is taken
+         * from the live side because that's the state the statement
+         * runs against.
+         */
+        const out: { sql: string; bucket: number; }[] = [];
+        for (let i = 0; i < modelValues.length; i++) {
+            const v = modelValues[i];
+            if (liveSet.has(v)) {continue;}
+            let anchor: { before: string; } | { after: string; } | null = null;
+            for (let j = i + 1; j < modelValues.length; j++) {
+                if (liveSet.has(modelValues[j])) {anchor = {before: modelValues[j]}; break;}
+            }
+            if (!anchor) {
+                for (let j = i - 1; j >= 0; j--) {
+                    if (liveSet.has(modelValues[j])) {anchor = {after: modelValues[j]}; break;}
+                }
+            }
+            const sql = dialect.renderAlterEnumAddValue(model.name, v, anchor, ctx);
+            if (sql) {
+                out.push({sql: sql + term, bucket: SyncGenerator._Bucket.alterEnumAddValue});
+            }
+        }
+        return out;
     }
 
     public static generate(
@@ -268,6 +374,20 @@ export class SyncGenerator {
                 if (!t || !SyncGenerator._isColumn(change.before) || !SyncGenerator._isColumn(change.after)) {return [];}
                 const s = dialect.renderRenameColumn(t, change.before.name, change.after, ctx);
                 return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.renameColumn}] : [];
+            }
+            case SchemaChangeKind.enumAdded: {
+                if (!SyncGenerator._isEnum(change.after)) {return [];}
+                const s = dialect.renderCreateEnum(change.after, ctx);
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.createEnum}] : [];
+            }
+            case SchemaChangeKind.enumDropped: {
+                if (!SyncGenerator._isEnum(change.before)) {return [];}
+                const s = dialect.renderDropEnum(change.before, ctx);
+                return s ? [{sql: s + term, bucket: SyncGenerator._Bucket.dropEnum}] : [];
+            }
+            case SchemaChangeKind.enumChanged: {
+                if (!SyncGenerator._isEnum(change.before) || !SyncGenerator._isEnum(change.after)) {return [];}
+                return SyncGenerator._renderEnumChanged(change.before, change.after, dialect, ctx, term);
             }
             default:
                 return [];

@@ -268,6 +268,21 @@ export class SqliteDialect extends DialectPlugin {
         ].join(';\n');
     }
 
+    /*
+     * SQLite has no first-class ENUM; the dialect renders enum-typed
+     * columns as `TEXT CHECK (col IN (…))`. Value-list drift therefore
+     * surfaces as `columnChanged` and is handled by the table-rebuild
+     * pattern, not by a dedicated ALTER.
+     */
+    public renderAlterEnumAddValue(
+        _enumName: string,
+        _value: string,
+        _anchor: { before: string; } | { after: string; } | null,
+        _ctx: DialectContext
+    ): string | null {
+        return null;
+    }
+
     public renderAlterTableOptions(_table: JsonTable, _ctx: DialectContext): string | null {
         /*
          * SQLite has no per-table options the editor models (no engine, no

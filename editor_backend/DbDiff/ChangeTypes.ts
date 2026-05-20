@@ -1,4 +1,4 @@
-import {JsonColumn, JsonForeignKey, JsonIndex, JsonTable, JsonTableOptions, JsonView} from '../../editor_schemas/JsonData.js';
+import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonTable, JsonTableOptions, JsonView} from '../../editor_schemas/JsonData.js';
 
 export enum SchemaChangeKind {
     tableAdded = 'tableAdded',
@@ -17,7 +17,10 @@ export enum SchemaChangeKind {
     fkChanged = 'fkChanged',
     viewAdded = 'viewAdded',
     viewDropped = 'viewDropped',
-    viewChanged = 'viewChanged'
+    viewChanged = 'viewChanged',
+    enumAdded = 'enumAdded',
+    enumDropped = 'enumDropped',
+    enumChanged = 'enumChanged'
 }
 
 /**
@@ -56,10 +59,12 @@ export type SchemaChange = {
     indexName?: string;
     fkName?: string;
     viewName?: string;
+    /** Name of the affected enum type — mutually exclusive with the table-side names. */
+    enumName?: string;
     /** Live-side value, if any. */
-    before?: JsonColumn | JsonIndex | JsonForeignKey | JsonTable | JsonView | JsonTableOptions;
+    before?: JsonColumn | JsonIndex | JsonForeignKey | JsonTable | JsonView | JsonTableOptions | JsonEnum;
     /** Model-side value, if any. */
-    after?: JsonColumn | JsonIndex | JsonForeignKey | JsonTable | JsonView | JsonTableOptions;
+    after?: JsonColumn | JsonIndex | JsonForeignKey | JsonTable | JsonView | JsonTableOptions | JsonEnum;
     /** Filled in by SyncGenerator — one or more SQL statements that realise this change. */
     sql: string[];
 };

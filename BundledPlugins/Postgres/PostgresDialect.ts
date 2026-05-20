@@ -238,6 +238,36 @@ export class PostgresDialect extends DialectPlugin {
         return `ALTER TABLE ${this.quote(table.name)} DROP CONSTRAINT ${this.quote(fkName)}`;
     }
 
+    /*
+     * Postgres supports `ALTER TYPE name ADD VALUE 'v' [BEFORE/AFTER
+     * 'anchor']` since 9.6 (the AT-VALUE forms; bare `ADD VALUE` is
+     * older). The statement must run outside of an implicit
+     * transaction block; the SyncExecutor's optional dryRun BEGIN/
+     * ROLLBACK wrap therefore won't work with these — that limitation
+     * is documented at the executor layer.
+     *
+     * `value` and `anchor` come straight from JsonEnum.values[].value
+     * which the user typed in — both are quoted as literals here. The
+     * type identifier uses `this.quote()`.
+     */
+    public renderAlterEnumAddValue(
+        enumName: string,
+        value: string,
+        anchor: { before: string; } | { after: string; } | null,
+        _ctx: DialectContext
+    ): string | null {
+        const escVal = `'${value.replace(/'/gu, '\'\'')}'`;
+        let position = '';
+        if (anchor) {
+            if ('before' in anchor) {
+                position = ` BEFORE '${anchor.before.replace(/'/gu, '\'\'')}'`;
+            } else {
+                position = ` AFTER '${anchor.after.replace(/'/gu, '\'\'')}'`;
+            }
+        }
+        return `ALTER TYPE ${this.quote(enumName)} ADD VALUE ${escVal}${position}`;
+    }
+
     public renderAlterTableOptions(table: JsonTable, _ctx: DialectContext): string | null {
         const o = table.options || {};
         const parts: string[] = [];

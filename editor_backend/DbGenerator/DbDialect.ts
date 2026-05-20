@@ -97,6 +97,24 @@ export interface DbDialect {
     renderDropForeignKey(table: JsonTable, fkName: string, ctx: DialectContext): string;
 
     /**
+     * `ALTER TYPE name ADD VALUE 'v' [BEFORE/AFTER 'anchor']` (Postgres).
+     * Used when a sync diff finds an enum value that's missing on the
+     * live side and the new value's position in the model is between
+     * two existing live values. `anchor` carries the live-side value
+     * to attach before/after — null means "append to end". Returns
+     * null for dialects without first-class enum types (MySQL/MariaDB
+     * inline enums in the column type, so enum-value drift surfaces
+     * as `columnChanged`; SQLite uses CHECK constraints handled by
+     * the table-rebuild pattern).
+     */
+    renderAlterEnumAddValue(
+        enumName: string,
+        value: string,
+        anchor: { before: string; } | { after: string; } | null,
+        ctx: DialectContext
+    ): string | null;
+
+    /**
      * `RENAME TABLE oldName TO newName` (or dialect equivalent).
      * `table` carries the new table state — caller passes the model
      * side so the rename inherits any options it sets.

@@ -254,6 +254,32 @@ describe('PostgresDialect.renderCreateEnum / renderDropEnum', () => {
 
 });
 
+describe('PostgresDialect.renderAlterEnumAddValue', () => {
+
+    const d = new PostgresDialect();
+
+    it('appends to the end when anchor is null', () => {
+        expect(d.renderAlterEnumAddValue('status', 'new', null, ctxFor([])))
+        .toBe('ALTER TYPE "status" ADD VALUE \'new\'');
+    });
+
+    it('inserts BEFORE an existing value', () => {
+        expect(d.renderAlterEnumAddValue('status', 'new', {before: 'active'}, ctxFor([])))
+        .toBe('ALTER TYPE "status" ADD VALUE \'new\' BEFORE \'active\'');
+    });
+
+    it('inserts AFTER an existing value', () => {
+        expect(d.renderAlterEnumAddValue('status', 'new', {after: 'inactive'}, ctxFor([])))
+        .toBe('ALTER TYPE "status" ADD VALUE \'new\' AFTER \'inactive\'');
+    });
+
+    it('SQL-escapes single quotes in the value and the anchor', () => {
+        expect(d.renderAlterEnumAddValue('odd', 'o\'brien', {before: 'me\'too'}, ctxFor([])))
+        .toBe('ALTER TYPE "odd" ADD VALUE \'o\'\'brien\' BEFORE \'me\'\'too\'');
+    });
+
+});
+
 describe('PostgresDialect drop renderers', () => {
 
     const d = new PostgresDialect();

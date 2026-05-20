@@ -1,4 +1,4 @@
-import {JsonDataDB, JsonTable, JsonView, JsonColumn} from '../../editor_schemas/JsonData.js';
+import {JsonDataDB, JsonTable, JsonView, JsonColumn, JsonEnum} from '../../editor_schemas/JsonData.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
 import {DbProjectSync} from '../DbProject/DbProject.js';
 import {SchemaChange, SchemaChangeKind, SchemaChangeSet, SchemaChangeSeverity, SchemaRenameHints} from './ChangeTypes.js';
@@ -8,6 +8,7 @@ const severityFor = (kind: SchemaChangeKind): SchemaChangeSeverity => {
     switch (kind) {
         case SchemaChangeKind.tableDropped:
         case SchemaChangeKind.columnDropped:
+        case SchemaChangeKind.enumDropped:
             return 'destructive';
         case SchemaChangeKind.columnChanged:
         case SchemaChangeKind.indexChanged:
@@ -19,6 +20,7 @@ const severityFor = (kind: SchemaChangeKind): SchemaChangeSeverity => {
         case SchemaChangeKind.viewDropped:
         case SchemaChangeKind.tableRenamed:
         case SchemaChangeKind.columnRenamed:
+        case SchemaChangeKind.enumChanged:
             return 'warn';
         default:
             return 'safe';
@@ -46,7 +48,8 @@ const changeId = (kind: SchemaChangeKind, patch: Partial<SchemaChange>): string 
         patch.columnName ?? '',
         patch.indexName ?? '',
         patch.fkName ?? '',
-        patch.viewName ?? ''
+        patch.viewName ?? '',
+        patch.enumName ?? ''
     ];
     return parts.join(':');
 };
@@ -163,6 +166,42 @@ export class SchemaDiff {
         }
 
         /*
+         * ---------------- enums ----------------
+         * Postgres-only in practice — `MysqlIntrospector` and
+         * `SqliteIntrospector` always return `enums: []` because
+         * those dialects don't carry first-class enum types (MySQL
+         * inlines values in the column type; SQLite uses CHECK
+         * constraints). On those dialects enum drift surfaces as
+         * `columnChanged` instead.
+         *
+         * Match by name. Value-level diff (which values were added /
+         * removed / reordered) is computed in the SyncGenerator from
+         * the before/after JsonEnum payload so the SQL renderer can
+         * decide between `ALTER TYPE ADD VALUE BEFORE/AFTER` (cheap)
+         * and full DROP+CREATE (expensive — currently not emitted;
+         * the user gets the SQL with a hint instead).
+         *
+         * Skipped entirely under diagram-scope (layers are a
+         * table-only grouping construct).
+         */
+        if (!layerTableNames) {
+            const modelEnums = new Map<string, JsonEnum>();
+            for (const {enum: e} of DbFsTreeWalker.allEnums(modelDb)) {modelEnums.set(e.name, e);}
+            const liveEnums = new Map<string, JsonEnum>();
+            for (const e of liveDb.enums) {liveEnums.set(e.name, e);}
+            const allEnumNames = new Set([...modelEnums.keys(), ...liveEnums.keys()]);
+            for (const name of [...allEnumNames].sort()) {
+                const m = modelEnums.get(name);
+                const l = liveEnums.get(name);
+                if (m && !l) {changes.push(newChange(SchemaChangeKind.enumAdded, {enumName: name, after: m})); continue;}
+                if (!m && l) {changes.push(newChange(SchemaChangeKind.enumDropped, {enumName: name, before: l})); continue;}
+                if (m && l && !SchemaDiff._enumValuesEqual(l, m)) {
+                    changes.push(newChange(SchemaChangeKind.enumChanged, {enumName: name, before: l, after: m}));
+                }
+            }
+        }
+
+        /*
          * Apply user-supplied rename hints: collapse matching
          * drop+add pairs into single `tableRenamed`/`columnRenamed`
          * entries. Pairs that don't both exist are left alone (the
@@ -179,6 +218,22 @@ export class SchemaDiff {
             databaseName: liveDb.name,
             changes: finalChanges
         };
+    }
+
+    /**
+     * Value-level enum equivalence: same length AND same value sequence
+     * (sequence matters — Postgres `ALTER TYPE ADD VALUE BEFORE/AFTER`
+     * preserves declared order, so a reorder is a real diff). Compared
+     * positionally; the unids are deliberately ignored (live-side unids
+     * are synthetic, model-side unids are random per value-row, so they
+     * never match by accident).
+     */
+    private static _enumValuesEqual(live: JsonEnum, model: JsonEnum): boolean {
+        if (live.values.length !== model.values.length) {return false;}
+        for (let i = 0; i < live.values.length; i++) {
+            if (live.values[i].value !== model.values[i].value) {return false;}
+        }
+        return true;
     }
 
     /**

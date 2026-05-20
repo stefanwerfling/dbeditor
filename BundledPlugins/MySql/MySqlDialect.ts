@@ -207,6 +207,20 @@ export class MySqlDialect extends DialectPlugin {
         return `ALTER TABLE ${this.quote(table.name)} DROP FOREIGN KEY ${this.quote(fkName)}`;
     }
 
+    /*
+     * MySQL inlines ENUM values into the column type, so enum-value
+     * drift surfaces as `columnChanged` (the column type string
+     * differs). No first-class ALTER TYPE exists.
+     */
+    public renderAlterEnumAddValue(
+        _enumName: string,
+        _value: string,
+        _anchor: { before: string; } | { after: string; } | null,
+        _ctx: DialectContext
+    ): string | null {
+        return null;
+    }
+
     public renderAlterTableOptions(table: JsonTable, _ctx: DialectContext): string | null {
         const o = table.options || {};
         const parts: string[] = [];

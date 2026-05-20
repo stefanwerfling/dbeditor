@@ -6,6 +6,7 @@ import {
     JsonColumn,
     JsonDataDB,
     JsonDataDBType,
+    JsonEnum,
     JsonForeignKey,
     JsonIndex,
     JsonIndexType,
@@ -50,10 +51,17 @@ const view = (name: string, select: string, patch: Partial<JsonView> = {}): Json
     ...patch
 });
 
+const enumOf = (name: string, values: string[]): JsonEnum => ({
+    unid: `en-${name}`,
+    name: name,
+    values: values.map((v, i) => ({unid: `en-${name}-v${i}`, value: v}))
+});
+
 const db = (
     name: string,
     tables: JsonTable[] = [],
-    views: JsonView[] = []
+    views: JsonView[] = [],
+    enums: JsonEnum[] = []
 ): JsonDataDB => ({
     unid: `db-${name}`,
     name: name,
@@ -61,7 +69,7 @@ const db = (
     entrys: [],
     tables: tables,
     views: views,
-    enums: []
+    enums: enums
 });
 
 const findChange = (changes: ReturnType<typeof SchemaDiff.diff>['changes'], kind: SchemaChangeKind, name: string): unknown =>
@@ -441,7 +449,7 @@ describe('SchemaDiff.diff — deterministic change ids', () => {
         const changes = SchemaDiff.diff(model, live, sync()).changes;
         const added = changes.find(c => c.kind === SchemaChangeKind.columnAdded);
         expect(added).toBeDefined();
-        expect(added!.id).toBe('columnAdded:users:email:::');
+        expect(added!.id).toBe('columnAdded:users:email::::');
     });
 
     it('different changes get different ids within one diff', () => {
@@ -463,6 +471,76 @@ describe('SchemaDiff.diff — deterministic change ids', () => {
         const bRen = b.changes.find(c => c.kind === SchemaChangeKind.columnRenamed);
         expect(aRen?.id).toBe('columnRenamed:users:email_old:email_new');
         expect(aRen?.id).toBe(bRen?.id);
+    });
+
+});
+
+describe('SchemaDiff.diff — enums', () => {
+
+    it('flags enums only in the model as added with safe severity', () => {
+        const model = db('app', [], [], [enumOf('status', ['active', 'inactive'])]);
+        const live = db('app', [], [], []);
+        const changes = SchemaDiff.diff(model, live, sync()).changes;
+        const added = changes.find(c => c.kind === SchemaChangeKind.enumAdded);
+        expect(added).toBeDefined();
+        expect(added?.enumName).toBe('status');
+        expect(added?.severity).toBe('safe');
+        expect(added?.after).toBeDefined();
+    });
+
+    it('flags enums only in the live DB as dropped with destructive severity', () => {
+        const model = db('app', [], [], []);
+        const live = db('app', [], [], [enumOf('legacy_kind', ['old'])]);
+        const changes = SchemaDiff.diff(model, live, sync()).changes;
+        const dropped = changes.find(c => c.kind === SchemaChangeKind.enumDropped);
+        expect(dropped).toBeDefined();
+        expect(dropped?.enumName).toBe('legacy_kind');
+        expect(dropped?.severity).toBe('destructive');
+        expect(dropped?.before).toBeDefined();
+    });
+
+    it('matches enums by name and emits no change when value lists are identical in order', () => {
+        const model = db('app', [], [], [enumOf('status', ['a', 'b', 'c'])]);
+        const live = db('app', [], [], [enumOf('status', ['a', 'b', 'c'])]);
+        const changes = SchemaDiff.diff(model, live, sync()).changes;
+        expect(changes.some(c => c.kind === SchemaChangeKind.enumChanged)).toBe(false);
+    });
+
+    it('flags an enum as changed when the model adds a value', () => {
+        const model = db('app', [], [], [enumOf('status', ['a', 'b', 'c'])]);
+        const live = db('app', [], [], [enumOf('status', ['a', 'b'])]);
+        const changes = SchemaDiff.diff(model, live, sync()).changes;
+        const changed = changes.find(c => c.kind === SchemaChangeKind.enumChanged);
+        expect(changed).toBeDefined();
+        expect(changed?.enumName).toBe('status');
+        expect(changed?.severity).toBe('warn');
+    });
+
+    it('flags an enum as changed when values are reordered (positional compare)', () => {
+        const model = db('app', [], [], [enumOf('status', ['b', 'a'])]);
+        const live = db('app', [], [], [enumOf('status', ['a', 'b'])]);
+        const changes = SchemaDiff.diff(model, live, sync()).changes;
+        const changed = changes.find(c => c.kind === SchemaChangeKind.enumChanged);
+        expect(changed).toBeDefined();
+    });
+
+    it('enum change id encodes the kind + enumName, stable across diff calls', () => {
+        const model = db('app', [], [], [enumOf('status', ['a', 'b', 'c'])]);
+        const live = db('app', [], [], [enumOf('status', ['a', 'b'])]);
+        const a = SchemaDiff.diff(model, live, sync()).changes
+        .find(c => c.kind === SchemaChangeKind.enumChanged);
+        const b = SchemaDiff.diff(model, live, sync()).changes
+        .find(c => c.kind === SchemaChangeKind.enumChanged);
+        expect(a?.id).toBe('enumChanged::::::status');
+        expect(a?.id).toBe(b?.id);
+    });
+
+    it('skips enum diff entirely when diagram-scoped (enums are not layer members)', () => {
+        const layeredTable = table('users', [col('id')], {diagramUnid: 'lay-1'});
+        const model = db('app', [layeredTable], [], [enumOf('status', ['a'])]);
+        const live = db('app', [layeredTable], [], []);
+        const changes = SchemaDiff.diff(model, live, sync(), undefined, 'lay-1').changes;
+        expect(changes.some(c => c.kind === SchemaChangeKind.enumAdded)).toBe(false);
     });
 
 });
