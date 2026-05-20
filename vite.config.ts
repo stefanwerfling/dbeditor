@@ -15,11 +15,14 @@ import {DbLiveRepositoryRegistry} from './DbRepository/DbLiveRepositoryRegistry.
 import {DbRepositoryEvent} from './DbRepository/DbRepositoryEventTypes.js';
 import {registerDbApiRoutes} from './DbApi/DbApiRoutes.js';
 import {DbGenerator, GeneratedFile} from './DbGenerator/DbGenerator.js';
+import {PluginBootstrap} from './editor_core/plugin/PluginBootstrap.js';
 
 function expressMiddleware(): Plugin {
     return {
         name: 'vite-express-middleware',
-        configureServer(server) {
+        async configureServer(server) {
+            PluginBootstrap.bootstrapBuiltins();
+
             const app = express();
             app.use(express.json({ limit: '50mb' }));
             app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -57,6 +60,14 @@ function expressMiddleware(): Plugin {
                 if (config.server?.limit) {
                     app.use(express.json({ limit: config.server.limit }));
                     app.use(express.urlencoded({ limit: config.server.limit, extended: true }));
+                }
+
+                const pluginNames = config.plugins ?? [];
+                if (pluginNames.length > 0) {
+                    const loaded = await PluginBootstrap.loadFromConfig(pluginNames, projectRoot);
+                    if (loaded.length > 0) {
+                        console.log(`[dbeditor] loaded ${loaded.length} npm plugin(s): ${loaded.join(', ')}`);
+                    }
                 }
 
                 for (const cp of config.projects) {

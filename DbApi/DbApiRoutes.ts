@@ -37,12 +37,11 @@ import {buildDialectContextFromModel} from '../DbGenerator/DialectContextBuilder
 import {pickDriver} from '../DbConnection/DriverFactory.js';
 import {SyncExecutor} from '../DbSyncExecutor/SyncExecutor.js';
 import {SyncTestRunner} from '../DbSyncExecutor/SyncTestRunner.js';
-import {pickDumpAdapter} from '../DbSyncExecutor/DumpAdapters/DumpAdapterFactory.js';
 import {MigrationPairWriter} from '../DbSyncExecutor/MigrationPairWriter.js';
 import {appendEntry, historyPathFor, loadHistory, summariseChanges} from '../DbSyncExecutor/SyncHistoryRepo.js';
 import {narrowDataForScope} from '../DbGenerator/ScopeNarrow.js';
-import {parseMwb} from '../DbMwbImport/MwbReader.js';
-import {writeMwb} from '../DbMwbImport/MwbWriter.js';
+import {MwbFileFormatPlugin} from '../DbMwbImport/MwbFileFormatPlugin.js';
+import {PluginRegistry} from '../editor_core/plugin/PluginRegistry.js';
 import {generateMarkdownDocs} from '../DbDoc/MarkdownDocGenerator.js';
 import * as Bodies from './DbApiRequests.js';
 
@@ -96,6 +95,12 @@ const handleRepoError = (err: unknown, res: Response): void => {
     }
     console.error('[DbApi]', err);
     res.status(500).json({error: 'internal error'});
+};
+
+const mwbPlugin = (): MwbFileFormatPlugin => {
+    const plugin = PluginRegistry.instance.fileFormat('mwb') as MwbFileFormatPlugin | undefined;
+    if (!plugin) {throw new Error('mwb file-format plugin not registered (PluginBootstrap.bootstrapBuiltins not called?)');}
+    return plugin;
 };
 
 export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
@@ -466,7 +471,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 return;
             }
             try {
-                const result = parseMwb(buf);
+                const result = mwbPlugin().parseFull(buf);
                 /*
                  * `mode=append` adds the imported databases to the
                  * current schema as new top-level entries; default
@@ -561,7 +566,7 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
              * regeneration.
              */
             const original = repo.getMwbOriginalBytes();
-            const buf = original ?? writeMwb(repo.data.fs, {
+            const buf = original ?? mwbPlugin().writeFull(repo.data.fs, {
                 routineXmlByUnid: repo.getMwbRoutineOriginalXml(),
                 viewXmlByUnid: repo.getMwbViewOriginalXml(),
                 tableCacheByUnid: repo.getMwbTableOriginalXml()
@@ -1437,11 +1442,9 @@ export const registerDbApiRoutes = (app: Express, deps: RouteDeps): void => {
                 return;
             }
 
-            let adapter;
-            try {
-                adapter = pickDumpAdapter(repo.project.dialect);
-            } catch (err) {
-                res.status(501).json({error: (err as Error).message});
+            const adapter = pickDriver(repo.project.dialect).dumpAdapter();
+            if (!adapter) {
+                res.status(501).json({error: `dump/restore not yet implemented for dialect "${repo.project.dialect}" — only MySQL/MariaDB this iteration`});
                 return;
             }
 

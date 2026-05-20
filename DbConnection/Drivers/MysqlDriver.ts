@@ -1,10 +1,25 @@
 // eslint-disable-next-line import/extensions
 import mysql from 'mysql2/promise';
+import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
+import {MysqlIntrospector} from '../../DbIntrospect/MysqlIntrospector.js';
+import {DbIntrospector} from '../../DbIntrospect/DbIntrospector.js';
 import {DbProjectConnection} from '../../DbProject/DbProject.js';
-import {DbConnection, DbDriver} from '../DbConnection.js';
+import {DumpAdapter} from '../../DbSyncExecutor/DumpAdapters/DumpAdapter.js';
+import {MysqlDumpAdapter} from '../../DbSyncExecutor/DumpAdapters/MysqlDumpAdapter.js';
+import {DbConnection} from '../DbConnection.js';
 import {MysqlConnection} from './MysqlConnection.js';
 
-export class MysqlDriver implements DbDriver {
+/**
+ * MySQL / MariaDB live-connection driver. Both dialects share the same wire
+ * protocol, so a single plugin covers them via `supportedDialects`.
+ */
+export class MysqlDriver extends DbConnectionPlugin {
+
+    public readonly id: string = 'mysql';
+
+    public readonly displayName: string = 'MySQL / MariaDB';
+
+    public readonly supportedDialects: readonly string[] = ['mysql', 'mariadb'];
 
     public async connect(cfg: DbProjectConnection): Promise<DbConnection> {
         const conn = await mysql.createConnection({
@@ -24,6 +39,14 @@ export class MysqlDriver implements DbDriver {
             dateStrings: true
         });
         return new MysqlConnection(conn);
+    }
+
+    public introspector(): DbIntrospector {
+        return new MysqlIntrospector();
+    }
+
+    public override dumpAdapter(): DumpAdapter {
+        return new MysqlDumpAdapter();
     }
 
 }

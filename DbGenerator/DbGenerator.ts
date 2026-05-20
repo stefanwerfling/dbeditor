@@ -6,6 +6,7 @@ import {JsonData, JsonDataDB, JsonTable, JsonEnum, JsonColumn} from '../DbEditor
 import {DbDialect, DialectContext} from './DbDialect.js';
 import {pickDialect} from './DialectFactory.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
+import {PluginRegistry} from '../editor_core/plugin/PluginRegistry.js';
 
 const safeFilename = (name: string): string => name.replace(/[^a-zA-Z0-9_-]+/gu, '_');
 
@@ -73,6 +74,18 @@ export class DbGenerator {
             const dialect = pickDialect(project.dialect);
             const ctx = this._buildContext(project, data);
 
+            /*
+             * Hooks are skipped in dry-run: a preview should never trigger
+             * external side effects (e.g. a hook that pulls live schema,
+             * writes typed entity files, or formats prior output).
+             */
+            const hooks = this._dryRun ? [] : PluginRegistry.instance.generationHooks();
+            for (const h of hooks) {
+                // sequential by design — earlier hooks may set up state that later ones depend on
+                // eslint-disable-next-line no-await-in-loop
+                await h.beforeGenerate(project, data);
+            }
+
             const dest = project.output.destinationPath;
             if (project.output.destinationClear && !this._dryRun) {clearDir(dest);}
             if (!this._dryRun) {ensureDir(dest);}
@@ -83,6 +96,13 @@ export class DbGenerator {
             } else {
                 await this._writeDdlFiles(project, data, dialect, ctx, written);
             }
+
+            for (const h of hooks) {
+                // sequential by design — afterGenerate may chain (e.g. format then commit)
+                // eslint-disable-next-line no-await-in-loop
+                await h.afterGenerate(project, data, written);
+            }
+
             return written;
         } finally {
             this._dryRun = false;

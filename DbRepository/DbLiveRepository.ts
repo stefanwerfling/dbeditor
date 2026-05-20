@@ -1,7 +1,6 @@
 import {DbProject, DbProjectConnection} from '../DbProject/DbProject.js';
 import {DbConnection} from '../DbConnection/DbConnection.js';
 import {pickDriver} from '../DbConnection/DriverFactory.js';
-import {pickIntrospector} from '../DbIntrospect/IntrospectorFactory.js';
 import {JsonDataDB} from '../DbEditor/JsonData.js';
 import {DbRepositoryEventBus} from './DbRepositoryEventBus.js';
 
@@ -67,11 +66,10 @@ export class DbLiveRepository {
             throw new Error(`no connection configured for databaseUnid "${databaseUnid}"`);
         }
         const driver = pickDriver(this._project.dialect);
-        const introspector = pickIntrospector(this._project.dialect);
         let conn: DbConnection | null = null;
         try {
             conn = await driver.connect(cfg);
-            const tree = await introspector.introspect(conn, cfg.database, cfg.schema);
+            const tree = await driver.introspector().introspect(conn, cfg.database, cfg.schema);
             this._byDatabaseUnid.set(databaseUnid, tree);
             this._errors.delete(databaseUnid);
             this._rev++;

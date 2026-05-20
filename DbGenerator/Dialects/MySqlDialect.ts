@@ -1,13 +1,21 @@
 import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonIndexType, JsonRoutine, JsonRoutineKind, JsonTable, JsonView} from '../../DbEditor/JsonData.js';
-import {DbDialect, DialectContext} from '../DbDialect.js';
+import {DialectContext} from '../DbDialect.js';
+import {DialectPlugin} from '../../editor_core/plugin/DialectPlugin.js';
 
 /**
  * MySQL DDL renderer. Identifiers are backtick-quoted, ENUMs are inlined
  * into the column type, AUTO_INCREMENT is rendered for auto-increment
  * columns, and table-level ENGINE / CHARSET / COLLATE / COMMENT options
  * are emitted from `JsonTable.options`.
+ *
+ * First bundled dialect to migrate from the legacy `implements DbDialect`
+ * shape to the plugin base — the other three follow when next touched.
  */
-export class MySqlDialect implements DbDialect {
+export class MySqlDialect extends DialectPlugin {
+
+    public readonly id: string = 'mysql';
+
+    public readonly displayName: string = 'MySQL';
 
     public quote(name: string): string {
         return `\`${  name.replace(/`/gu, '``')  }\``;

@@ -1,7 +1,10 @@
 import * as path from 'path';
 import Database from 'better-sqlite3';
+import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
+import {DbIntrospector} from '../../DbIntrospect/DbIntrospector.js';
+import {SqliteIntrospector} from '../../DbIntrospect/SqliteIntrospector.js';
 import {DbProjectConnection} from '../../DbProject/DbProject.js';
-import {DbConnection, DbDriver} from '../DbConnection.js';
+import {DbConnection} from '../DbConnection.js';
 import {SqliteConnection} from './SqliteConnection.js';
 
 /**
@@ -14,7 +17,13 @@ import {SqliteConnection} from './SqliteConnection.js';
  * with FK enforcement disabled per connection, and we want apply-side
  * referential integrity to behave like the other dialects.
  */
-export class SqliteDriver implements DbDriver {
+export class SqliteDriver extends DbConnectionPlugin {
+
+    public readonly id: string = 'sqlite';
+
+    public readonly displayName: string = 'SQLite';
+
+    public readonly supportedDialects: readonly string[] = ['sqlite'];
 
     public async connect(cfg: DbProjectConnection): Promise<DbConnection> {
         const root = process.env.DBEDITOR_PROJECT_ROOT ?? process.cwd();
@@ -22,6 +31,10 @@ export class SqliteDriver implements DbDriver {
         const db = new Database(file, {readonly: cfg.readOnly});
         db.pragma('foreign_keys = ON');
         return new SqliteConnection(db);
+    }
+
+    public introspector(): DbIntrospector {
+        return new SqliteIntrospector();
     }
 
 }

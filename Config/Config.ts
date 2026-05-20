@@ -133,11 +133,19 @@ export const SchemaConfigBrowser = Vts.object({
 
 /**
  * Top-level config schema.
+ *
+ * `plugins` is the activation list for npm-installed editor plugins:
+ * each entry names a package that must be `npm install`-ed into the
+ * project (resolved from `<projectRoot>/node_modules/<name>`). Mere
+ * installation does nothing — only entries listed here are loaded.
+ * The bundled dialects + MWB plugin ship with the editor and are
+ * always active without an entry here.
  */
 export const SchemaConfig = Vts.object({
     projects: Vts.array(SchemaConfigProject),
     server: Vts.optional(SchemaConfigServer),
-    browser: Vts.optional(SchemaConfigBrowser)
+    browser: Vts.optional(SchemaConfigBrowser),
+    plugins: Vts.optional(Vts.array(Vts.string()))
 });
 
 export type Config = ExtractSchemaResultType<typeof SchemaConfig>;

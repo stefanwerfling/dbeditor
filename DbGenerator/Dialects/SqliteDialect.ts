@@ -1,5 +1,6 @@
 import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonIndexType, JsonRoutine, JsonRoutineKind, JsonTable, JsonView} from '../../DbEditor/JsonData.js';
-import {DbDialect, DialectContext} from '../DbDialect.js';
+import {DialectContext} from '../DbDialect.js';
+import {DialectPlugin} from '../../editor_core/plugin/DialectPlugin.js';
 
 /**
  * SQLite DDL renderer. SQLite has no separate AUTO_INCREMENT for arbitrary
@@ -8,7 +9,11 @@ import {DbDialect, DialectContext} from '../DbDialect.js';
  * ALTER TABLE ADD CONSTRAINT). The dispatcher handles inline-FK insertion
  * by passing FKs to renderCreateTable; we render them inside the body.
  */
-export class SqliteDialect implements DbDialect {
+export class SqliteDialect extends DialectPlugin {
+
+    public readonly id: string = 'sqlite';
+
+    public readonly displayName: string = 'SQLite';
 
     public quote(name: string): string {
         return `"${  name.replace(/"/gu, '""')  }"`;

@@ -1,6 +1,9 @@
 import pg from 'pg';
+import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
+import {DbIntrospector} from '../../DbIntrospect/DbIntrospector.js';
+import {PostgresIntrospector} from '../../DbIntrospect/PostgresIntrospector.js';
 import {DbProjectConnection} from '../../DbProject/DbProject.js';
-import {DbConnection, DbDriver} from '../DbConnection.js';
+import {DbConnection} from '../DbConnection.js';
 import {PostgresConnection} from './PostgresConnection.js';
 
 const {Client} = pg;
@@ -15,7 +18,13 @@ const {Client} = pg;
  * is out of scope for iter 3 — call sites with strict TLS needs can fall
  * back to a `connectionString` in a later polish iteration.
  */
-export class PostgresDriver implements DbDriver {
+export class PostgresDriver extends DbConnectionPlugin {
+
+    public readonly id: string = 'postgres';
+
+    public readonly displayName: string = 'PostgreSQL';
+
+    public readonly supportedDialects: readonly string[] = ['postgres'];
 
     public async connect(cfg: DbProjectConnection): Promise<DbConnection> {
         const client = new Client({
@@ -28,6 +37,10 @@ export class PostgresDriver implements DbDriver {
         });
         await client.connect();
         return new PostgresConnection(client);
+    }
+
+    public introspector(): DbIntrospector {
+        return new PostgresIntrospector();
     }
 
 }
