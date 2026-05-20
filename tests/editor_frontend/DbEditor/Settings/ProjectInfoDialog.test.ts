@@ -6,8 +6,8 @@
  * read-only fallback when no save callback is supplied.
  */
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {ProjectInfoDialog, ProjectInfoActions} from '../../../DbEditor/Settings/ProjectInfoDialog.js';
-import {OutputSettings, ProjectInfo} from '../../../DbEditor/Api/DbApiClient.js';
+import {ProjectInfoDialog, ProjectInfoActions} from '../../../../editor_frontend/DbEditor/Settings/ProjectInfoDialog.js';
+import {OutputSettings, ProjectInfo} from '../../../../editor_frontend/DbEditor/Api/DbApiClient.js';
 
 const mkOutput = (over: Partial<OutputSettings> = {}): OutputSettings => ({
     mode: 'ddl-files',

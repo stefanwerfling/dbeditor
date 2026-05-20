@@ -7,7 +7,7 @@ import {
     JsonRoutine,
     JsonTable,
     JsonView
-} from '../../DbEditor/JsonData.js';
+} from '../../editor_frontend/DbEditor/JsonData.js';
 
 /**
  * One Markdown document, ready to write to disk or paste somewhere.

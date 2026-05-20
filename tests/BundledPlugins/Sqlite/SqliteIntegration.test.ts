@@ -18,7 +18,7 @@ import {SyncExecutor} from '../../../editor_backend/DbSyncExecutor/SyncExecutor.
 import {DialectContextBuilder} from '../../../editor_backend/DbGenerator/DialectContextBuilder.js';
 import {DbConnection} from '../../../editor_backend/DbConnection/DbConnection.js';
 import {DbProjectConnection} from '../../../editor_backend/DbProject/DbProject.js';
-import {JsonColumn, JsonDataDB, JsonIndex} from '../../../DbEditor/JsonData.js';
+import {JsonColumn, JsonDataDB, JsonIndex} from '../../../editor_frontend/DbEditor/JsonData.js';
 
 let tmpDbPath = '';
 let conn: DbConnection | null = null;

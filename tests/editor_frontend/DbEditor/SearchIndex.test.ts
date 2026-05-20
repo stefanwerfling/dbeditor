@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {SearchIndex} from '../../DbEditor/Util/SearchIndex.js';
-import {JsonColumn, JsonDataDB, JsonDataDBType, JsonTable} from '../../DbEditor/JsonData.js';
+import {SearchIndex} from '../../../editor_frontend/DbEditor/Util/SearchIndex.js';
+import {JsonColumn, JsonDataDB, JsonDataDBType, JsonTable} from '../../../editor_frontend/DbEditor/JsonData.js';
 
 const col = (unid: string, name: string): JsonColumn => ({unid: unid, name: name, type: 'int'});
 

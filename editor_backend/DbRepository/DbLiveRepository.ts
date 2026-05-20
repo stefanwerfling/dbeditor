@@ -1,7 +1,7 @@
 import {DbProject, DbProjectConnection} from '../DbProject/DbProject.js';
 import {DbConnection} from '../DbConnection/DbConnection.js';
 import {pickDriver} from '../DbConnection/DriverFactory.js';
-import {JsonDataDB} from '../../DbEditor/JsonData.js';
+import {JsonDataDB} from '../../editor_frontend/DbEditor/JsonData.js';
 import {DbRepositoryEventBus} from './DbRepositoryEventBus.js';
 
 export type DbLiveSnapshot = {

@@ -25,7 +25,7 @@ import {
     JsonRoutineKind,
     JsonTable,
     JsonView
-} from '../../DbEditor/JsonData.js';
+} from '../../editor_frontend/DbEditor/JsonData.js';
 
 /**
  * MySQL Workbench `.mwb` file → our `JsonDataDB[]` tree.

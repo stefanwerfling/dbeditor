@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {Rect, Rects} from '../../DbEditor/Util/Rect.js';
+import {Rect, Rects} from '../../../editor_frontend/DbEditor/Util/Rect.js';
 
 const r = (left: number, top: number, right: number, bottom: number): Rect => ({
     left: left, top: top, right: right, bottom: bottom

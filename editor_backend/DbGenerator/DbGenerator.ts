@@ -3,7 +3,7 @@ import * as path from 'path';
 import {spawn} from 'child_process';
 import {DbProject} from '../DbProject/DbProject.js';
 import {ConfigOutputMode} from '../Config/Config.js';
-import {JsonData, JsonDataDB, JsonTable, JsonEnum, JsonColumn} from '../../DbEditor/JsonData.js';
+import {JsonData, JsonDataDB, JsonTable, JsonEnum, JsonColumn} from '../../editor_frontend/DbEditor/JsonData.js';
 import {DbDialect, DialectContext} from './DbDialect.js';
 import {pickDialect} from './DialectFactory.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';

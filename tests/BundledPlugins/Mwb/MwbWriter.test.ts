@@ -17,7 +17,7 @@ import {describe, expect, it} from 'vitest';
 import AdmZip from 'adm-zip';
 import {MwbReader} from '../../../BundledPlugins/Mwb/MwbReader.js';
 import {MwbWriter} from '../../../BundledPlugins/Mwb/MwbWriter.js';
-import {JsonColumn, JsonDataDB, JsonDataDBType, JsonRoutineKind} from '../../../DbEditor/JsonData.js';
+import {JsonColumn, JsonDataDB, JsonDataDBType, JsonRoutineKind} from '../../../editor_frontend/DbEditor/JsonData.js';
 
 const SAMPLE = path.resolve(__dirname, '../../../sample/example.mwb');
 

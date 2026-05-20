@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import {DbProject} from '../DbProject/DbProject.js';
-import {JsonDataDB} from '../../DbEditor/JsonData.js';
+import {JsonDataDB} from '../../editor_frontend/DbEditor/JsonData.js';
 import {SchemaDiff} from '../DbDiff/SchemaDiff.js';
 import {SyncGenerator, SyncStatement} from '../DbGenerator/Sync/SyncGenerator.js';
 import {DbDialect, DialectContext} from '../DbGenerator/DbDialect.js';

@@ -1,4 +1,4 @@
-import {JsonDataDB} from '../../DbEditor/JsonData.js';
+import {JsonDataDB} from '../../editor_frontend/DbEditor/JsonData.js';
 import {Plugin} from './Plugin.js';
 import {PluginKind} from './PluginKind.js';
 

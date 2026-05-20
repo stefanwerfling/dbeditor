@@ -1,4 +1,4 @@
-import {JsonData, JsonDataDB, JsonTable} from '../../DbEditor/JsonData.js';
+import {JsonData, JsonDataDB, JsonTable} from '../../editor_frontend/DbEditor/JsonData.js';
 
 /**
  * Scope specifier for `ScopeNarrow.narrow`. At least one of the unids

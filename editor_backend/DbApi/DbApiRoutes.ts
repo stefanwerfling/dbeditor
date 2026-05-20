@@ -22,7 +22,7 @@ import {DbLiveRepository} from '../DbRepository/DbLiveRepository.js';
 import {DbLiveRepositoryRegistry} from '../DbRepository/DbLiveRepositoryRegistry.js';
 import {RepoError} from '../DbRepository/DbRepositoryErrors.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
-import {JsonDataDB, JsonDataDBType} from '../../DbEditor/JsonData.js';
+import {JsonDataDB, JsonDataDBType} from '../../editor_frontend/DbEditor/JsonData.js';
 import {DbGenerator, GeneratedFile} from '../DbGenerator/DbGenerator.js';
 import {SchemaDiff} from '../DbDiff/SchemaDiff.js';
 import {SchemaRenameHints} from '../DbDiff/ChangeTypes.js';

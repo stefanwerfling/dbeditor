@@ -11,7 +11,7 @@ import {
     JsonTable,
     JsonTableOptions,
     JsonView
-} from '../../DbEditor/JsonData.js';
+} from '../../editor_frontend/DbEditor/JsonData.js';
 import {DbIntrospector} from '../../editor_backend/DbIntrospect/DbIntrospector.js';
 import {FkActionMapper} from '../../editor_backend/DbIntrospect/FkActionMapper.js';
 import {LiveUridScheme} from '../../editor_backend/DbIntrospect/LiveUridScheme.js';

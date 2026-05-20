@@ -9,9 +9,9 @@
  * Modell / Live mode bar's connection-count badge.
  */
 import {beforeEach, describe, expect, it} from 'vitest';
-import {Treeview} from '../../../DbEditor/Treeview/Treeview.js';
-import {EditorEvents} from '../../../DbEditor/Base/EditorEvents.js';
-import {JsonDataDB, JsonDataDBType, JsonTable, JsonRoutineKind} from '../../../DbEditor/JsonData.js';
+import {Treeview} from '../../../../editor_frontend/DbEditor/Treeview/Treeview.js';
+import {EditorEvents} from '../../../../editor_frontend/DbEditor/Base/EditorEvents.js';
+import {JsonDataDB, JsonDataDBType, JsonTable, JsonRoutineKind} from '../../../../editor_frontend/DbEditor/JsonData.js';
 
 const mkTable = (name: string, unid?: string): JsonTable => ({
     unid: unid ?? `t-${name}`,

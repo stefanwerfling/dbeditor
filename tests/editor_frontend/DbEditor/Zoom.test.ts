@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {Zoom} from '../../DbEditor/Util/Zoom.js';
+import {Zoom} from '../../../editor_frontend/DbEditor/Util/Zoom.js';
 
 describe('Zoom.clamp', () => {
 

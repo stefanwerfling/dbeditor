@@ -22,7 +22,7 @@ import {
     JsonRoutineKind,
     JsonSyncSettings,
     SchemaJsonData
-} from '../../DbEditor/JsonData.js';
+} from '../../editor_frontend/DbEditor/JsonData.js';
 import {MwbTableCacheEntry} from '../../BundledPlugins/Mwb/MwbReader.js';
 import {DbRepositoryEventBus} from './DbRepositoryEventBus.js';
 import {DbFsTreeWalker} from './DbFsTreeWalker.js';

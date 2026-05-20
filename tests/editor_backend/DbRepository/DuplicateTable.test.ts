@@ -13,7 +13,7 @@ import {
     JsonIndex,
     JsonIndexType,
     JsonTable
-} from '../../../DbEditor/JsonData.js';
+} from '../../../editor_frontend/DbEditor/JsonData.js';
 
 let tmpFile = '';
 const DB_UNID = 'db-main';

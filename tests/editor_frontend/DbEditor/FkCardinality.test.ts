@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {FkCardinality} from '../../DbEditor/Util/FkCardinality.js';
-import {JsonColumn, JsonIndex, JsonIndexType, JsonTable} from '../../DbEditor/JsonData.js';
+import {FkCardinality} from '../../../editor_frontend/DbEditor/Util/FkCardinality.js';
+import {JsonColumn, JsonIndex, JsonIndexType, JsonTable} from '../../../editor_frontend/DbEditor/JsonData.js';
 
 const col = (name: string, patch: Partial<JsonColumn> = {}): JsonColumn => ({
     unid: `c-${name}`,

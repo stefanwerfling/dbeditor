@@ -1,5 +1,5 @@
 import {ExtractSchemaResultType, Vts} from 'vts';
-import {SchemaJsonDataDB, SchemaJsonEditorSettings} from '../../DbEditor/JsonData.js';
+import {SchemaJsonDataDB, SchemaJsonEditorSettings} from '../../editor_frontend/DbEditor/JsonData.js';
 
 /**
  * Project summary returned to the frontend on /api/load-schema.

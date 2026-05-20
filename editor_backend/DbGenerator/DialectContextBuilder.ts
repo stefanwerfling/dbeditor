@@ -1,4 +1,4 @@
-import {JsonColumn, JsonDataDB, JsonEnum, JsonTable} from '../../DbEditor/JsonData.js';
+import {JsonColumn, JsonDataDB, JsonEnum, JsonTable} from '../../editor_frontend/DbEditor/JsonData.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
 import {DialectContext} from './DbDialect.js';
 

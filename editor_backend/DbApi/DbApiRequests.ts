@@ -1,5 +1,5 @@
 import {Vts} from 'vts';
-import {SchemaJsonPosition, SchemaJsonIndexColumn, SchemaJsonForeignKeyColumn, SchemaJsonTableOptions, SchemaJsonDataDB, SchemaJsonDiagramPlacement} from '../../DbEditor/JsonData.js';
+import {SchemaJsonPosition, SchemaJsonIndexColumn, SchemaJsonForeignKeyColumn, SchemaJsonTableOptions, SchemaJsonDataDB, SchemaJsonDiagramPlacement} from '../../editor_frontend/DbEditor/JsonData.js';
 
 export const SchemaCreateContainerBody = Vts.object({
     parentUnid: Vts.string(),
