@@ -5,7 +5,7 @@ import * as path from 'path';
 import {randomUUID} from 'crypto';
 import {defineConfig, Plugin} from 'vite';
 import {SchemaErrors} from 'vts';
-import {ConfigDialect, ConfigOutputMode, SchemaConfig} from './editor_backend/Config/Config.js';
+import {Config, ConfigDialect, ConfigOutputMode, SchemaConfig} from './editor_backend/Config/Config.js';
 import {EnvPlaceholderError, EnvPlaceholderResolver} from './editor_backend/Config/EnvPlaceholderResolver.js';
 import {DbProject, DbProjectConnection} from './editor_backend/DbProject/DbProject.js';
 import {DbFsRepository} from './editor_backend/DbRepository/DbFsRepository.js';
@@ -42,6 +42,13 @@ function expressMiddleware(): Plugin {
 
             const repositories = new DbRepositoryRegistry();
             const liveRepositories = new DbLiveRepositoryRegistry();
+            /*
+             * Hoisted to the outer scope so `mountMcpEndpoint` (called
+             * after the bootstrap block) can read `config?.mcp`. Stays
+             * `undefined` when no config file is present, which leaves
+             * the MCP mount inert.
+             */
+            let config: Config | undefined;
 
             if (configFile && fs.existsSync(configFile)) {
                 const rawConfig = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
@@ -51,9 +58,8 @@ function expressMiddleware(): Plugin {
                     console.error(errors);
                     return;
                 }
-                let config: typeof rawConfig;
                 try {
-                    config = EnvPlaceholderResolver.resolve(rawConfig);
+                    config = EnvPlaceholderResolver.resolve(rawConfig) as Config;
                 } catch (err) {
                     if (err instanceof EnvPlaceholderError) {
                         console.error(`[dbeditor] ${err.message}`);
