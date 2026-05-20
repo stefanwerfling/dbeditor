@@ -15,19 +15,19 @@ import * as path from 'path';
 import {describe, expect, it} from 'vitest';
 // eslint-disable-next-line import/extensions
 import AdmZip from 'adm-zip';
-import {parseMwb} from '../../DbMwbImport/MwbReader.js';
-import {writeMwb} from '../../DbMwbImport/MwbWriter.js';
+import {MwbReader} from '../../DbMwbImport/MwbReader.js';
+import {MwbWriter} from '../../DbMwbImport/MwbWriter.js';
 import {JsonColumn, JsonDataDB, JsonDataDBType, JsonRoutineKind} from '../../DbEditor/JsonData.js';
 
 const SAMPLE = path.resolve(__dirname, '../../sample/example.mwb');
 
-describe('writeMwb — example.mwb round-trip', () => {
+describe('MwbWriter.write — example.mwb round-trip', () => {
 
     it('parse → write → parse preserves schema/table/column/FK counts', () => {
         const originalBuf = fs.readFileSync(SAMPLE);
-        const original = parseMwb(originalBuf);
-        const rewrittenBuf = writeMwb(original.databases);
-        const re = parseMwb(rewrittenBuf);
+        const original = MwbReader.parse(originalBuf);
+        const rewrittenBuf = MwbWriter.write(original.databases);
+        const re = MwbReader.parse(rewrittenBuf);
 
         expect(re.schemaCount).toBe(original.schemaCount);
         expect(re.tableCount).toBe(original.tableCount);
@@ -36,8 +36,8 @@ describe('writeMwb — example.mwb round-trip', () => {
     });
 
     it('round-trip preserves table names + column names + ordering within each table', () => {
-        const original = parseMwb(fs.readFileSync(SAMPLE));
-        const re = parseMwb(writeMwb(original.databases));
+        const original = MwbReader.parse(fs.readFileSync(SAMPLE));
+        const re = MwbReader.parse(MwbWriter.write(original.databases));
 
         expect(re.databases[0].tables.map(t => t.name).sort())
         .toEqual(original.databases[0].tables.map(t => t.name).sort());
@@ -51,8 +51,8 @@ describe('writeMwb — example.mwb round-trip', () => {
     });
 
     it('round-trip preserves PK + AI + NN + UNSIGNED column flags', () => {
-        const original = parseMwb(fs.readFileSync(SAMPLE));
-        const re = parseMwb(writeMwb(original.databases));
+        const original = MwbReader.parse(fs.readFileSync(SAMPLE));
+        const re = MwbReader.parse(MwbWriter.write(original.databases));
 
         const origByName = new Map(original.databases[0].tables.map(t => [t.name, t]));
         let totalCols = 0;
@@ -83,8 +83,8 @@ describe('writeMwb — example.mwb round-trip', () => {
          * produce the same diagram count and the same table → diagram
          * grouping (matched by name, since unids are minted afresh).
          */
-        const original = parseMwb(fs.readFileSync(SAMPLE));
-        const re = parseMwb(writeMwb(original.databases));
+        const original = MwbReader.parse(fs.readFileSync(SAMPLE));
+        const re = MwbReader.parse(MwbWriter.write(original.databases));
 
         expect(re.layerCount).toBe(original.layerCount);
 
@@ -116,8 +116,8 @@ describe('writeMwb — example.mwb round-trip', () => {
     });
 
     it('round-trip preserves canvas positions for tables that had a figure', () => {
-        const original = parseMwb(fs.readFileSync(SAMPLE));
-        const re = parseMwb(writeMwb(original.databases));
+        const original = MwbReader.parse(fs.readFileSync(SAMPLE));
+        const re = MwbReader.parse(MwbWriter.write(original.databases));
 
         /*
          * Phase C imports positions from `workbench.physical.TableFigure`;
@@ -137,8 +137,8 @@ describe('writeMwb — example.mwb round-trip', () => {
     });
 
     it('round-trip preserves FK refTable + column-pair structure', () => {
-        const original = parseMwb(fs.readFileSync(SAMPLE));
-        const re = parseMwb(writeMwb(original.databases));
+        const original = MwbReader.parse(fs.readFileSync(SAMPLE));
+        const re = MwbReader.parse(MwbWriter.write(original.databases));
 
         const origByName = new Map(original.databases[0].tables.map(t => [t.name, t]));
         const reByName = new Map(re.databases[0].tables.map(t => [t.name, t]));
@@ -178,7 +178,7 @@ const mkCol = (over: Partial<JsonColumn> & {name: string; type: string;}): JsonC
     ...over
 });
 
-describe('writeMwb — synthetic build', () => {
+describe('MwbWriter.write — synthetic build', () => {
 
     it('write a one-table model and re-parse it', () => {
         const db: JsonDataDB = {
@@ -202,7 +202,7 @@ describe('writeMwb — synthetic build', () => {
             enums: [],
             routines: []
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         expect(r.schemaCount).toBe(1);
         expect(r.databases[0].name).toBe('mini');
         expect(r.databases[0].tables).toHaveLength(1);
@@ -232,7 +232,7 @@ describe('writeMwb — synthetic build', () => {
             }],
             views: [], enums: [], routines: []
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         const t = r.databases[0].tables[0];
         const ix = t.indexes.find(i => i.name === 'uk_slug');
         expect(ix).toBeDefined();
@@ -267,7 +267,7 @@ describe('writeMwb — synthetic build', () => {
             ],
             views: [], enums: [], routines: []
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         const post = r.databases[0].tables.find(t => t.name === 'post')!;
         expect(post.foreignKeys).toHaveLength(1);
         const fk = post.foreignKeys[0];
@@ -298,7 +298,7 @@ describe('writeMwb — synthetic build', () => {
                 name: 'People'
             }]
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         const reLayers = r.databases[0].diagrams ?? [];
         expect(reLayers).toHaveLength(1);
         expect(reLayers[0].name).toBe('People');
@@ -337,7 +337,7 @@ describe('writeMwb — synthetic build', () => {
                 {unid: billingUnid, name: 'Billing'}
             ]
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         const reLayers = r.databases[0].diagrams ?? [];
         const reNames = reLayers.map(l => l.name).sort();
         expect(reNames).toEqual(['Billing', 'People']);
@@ -362,7 +362,7 @@ describe('writeMwb — synthetic build', () => {
                 {unid: 'lay-b', name: 'Reports', diagramUnid: billingUnid, pos: {x: 50, y: 60}, width: 400, height: 250}
             ]
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         const reLayers = r.databases[0].layers ?? [];
         expect(reLayers).toHaveLength(2);
         const byName = new Map(reLayers.map(l => [l.name, l]));
@@ -395,7 +395,7 @@ describe('writeMwb — synthetic build', () => {
             ],
             enums: [], routines: []
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         expect(r.positionedViewCount).toBe(1);
         const placed = r.databases[0].views.find(v => v.name === 'placed_view')!;
         const defaulted = r.databases[0].views.find(v => v.name === 'default_view')!;
@@ -429,7 +429,7 @@ describe('writeMwb — synthetic build', () => {
                 }
             ]
         };
-        const r = parseMwb(writeMwb([db]));
+        const r = MwbReader.parse(MwbWriter.write([db]));
         expect(r.viewCount).toBe(1);
         expect(r.routineCount).toBe(1);
         expect(r.triggerCount).toBe(1);
@@ -450,7 +450,7 @@ describe('writeMwb — synthetic build', () => {
  * passthrough payload survives write+re-parse — the smaller but
  * faithful signal that the codec is bidirectional.
  */
-describe('writeMwb — Phase E wbPassthrough round-trip', () => {
+describe('MwbWriter.write — Phase E wbPassthrough round-trip', () => {
 
     it('synthetic passthrough: a custom value round-trips through write+re-parse', () => {
         const db: JsonDataDB = {
@@ -467,7 +467,7 @@ describe('writeMwb — Phase E wbPassthrough round-trip', () => {
                 }
             }]
         };
-        const re = parseMwb(writeMwb([db]));
+        const re = MwbReader.parse(MwbWriter.write([db]));
         const reTable = re.databases[0].tables.find(t => t.name === 'users');
         expect(reTable).toBeDefined();
         const captured = (reTable?.wbPassthrough?.values ?? []).map(v => v.key);
@@ -477,7 +477,7 @@ describe('writeMwb — Phase E wbPassthrough round-trip', () => {
 
 });
 
-describe('writeMwb — Phase E.2 per-routine passthrough', () => {
+describe('MwbWriter.write — Phase E.2 per-routine passthrough', () => {
 
     /*
      * When the writer is handed a cached XML for a routine.unid it
@@ -504,8 +504,8 @@ describe('writeMwb — Phase E.2 per-routine passthrough', () => {
         <link type="object" struct-name="GrtObject" key="owner">OLD_SCHEMA_ID</link>
       </value>`;
         const cache = new Map([['r-cached', cachedXml]]);
-        const out = writeMwb([db], {routineXmlByUnid: cache});
-        const re = parseMwb(out);
+        const out = MwbWriter.write([db], {routineXmlByUnid: cache});
+        const re = MwbReader.parse(out);
         const routines = re.databases[0].routines ?? [];
         const cachedRoutine = routines.find(r => r.name === 'preserved_sp');
         expect(cachedRoutine).toBeDefined();
@@ -528,7 +528,7 @@ describe('writeMwb — Phase E.2 per-routine passthrough', () => {
                 body: 'CREATE PROCEDURE fresh_sp() BEGIN END'
             }]
         };
-        const re = parseMwb(writeMwb([db], {routineXmlByUnid: new Map()}));
+        const re = MwbReader.parse(MwbWriter.write([db], {routineXmlByUnid: new Map()}));
         expect(re.databases[0].routines?.[0]?.name).toBe('fresh_sp');
     });
 
@@ -570,8 +570,8 @@ describe('writeMwb — Phase E.2 per-routine passthrough', () => {
             grtId: 'grt-tbl-A',
             columnGrtIds: ['grt-col-A1']
         }]]);
-        const out = writeMwb([db], {tableCacheByUnid: cache});
-        const re = parseMwb(out);
+        const out = MwbWriter.write([db], {tableCacheByUnid: cache});
+        const re = MwbReader.parse(out);
         const t = re.databases[0].tables[0];
         expect(t.name).toBe('cached_table');
         expect(t.columns[0]?.name).toBe('cached_id');
@@ -598,8 +598,8 @@ describe('writeMwb — Phase E.2 per-routine passthrough', () => {
         <value type="string" key="oldName">preserved_view</value>
         <link type="object" struct-name="GrtObject" key="owner">OLD_OWNER</link>
       </value>`;
-        const out = writeMwb([db], {viewXmlByUnid: new Map([['v-cached', cachedViewXml]])});
-        const re = parseMwb(out);
+        const out = MwbWriter.write([db], {viewXmlByUnid: new Map([['v-cached', cachedViewXml]])});
+        const re = MwbReader.parse(out);
         const v = re.databases[0].views[0];
         expect(v.name).toBe('preserved_view');
         expect(v.select).toBe('SELECT cached_body FROM original');

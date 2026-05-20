@@ -15,46 +15,46 @@ import * as path from 'path';
 import {describe, expect, it} from 'vitest';
 // eslint-disable-next-line import/extensions
 import AdmZip from 'adm-zip';
-import {parseMwb, parseMwbAsFsRoot} from '../../DbMwbImport/MwbReader.js';
+import {MwbReader} from '../../DbMwbImport/MwbReader.js';
 import {JsonDataDBType, JsonRoutineKind} from '../../DbEditor/JsonData.js';
 
 const SAMPLE = path.resolve(__dirname, '../../sample/example.mwb');
 
-describe('parseMwb — example.mwb integration', () => {
+describe('MwbReader.parse — example.mwb integration', () => {
 
     it('extracts exactly one schema named "demo"', () => {
         const buf = fs.readFileSync(SAMPLE);
-        const r = parseMwb(buf);
+        const r = MwbReader.parse(buf);
         expect(r.schemaCount).toBe(1);
         expect(r.databases[0].name).toBe('demo');
         expect(r.databases[0].type).toBe(JsonDataDBType.database);
     });
 
     it('the schema has 4 tables', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         expect(r.databases[0].tables).toHaveLength(4);
         expect(r.tableCount).toBe(4);
     });
 
     it('every table has at least one column', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         for (const t of r.databases[0].tables) {
             expect(t.columns.length).toBeGreaterThan(0);
         }
     });
 
     it('aggregate column count matches the demo schema (17 columns total)', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         expect(r.columnCount).toBe(17);
     });
 
     it('aggregate FK count matches the demo schema (3 FKs total)', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         expect(r.foreignKeyCount).toBe(3);
     });
 
     it('every FK refTableUnid resolves to a real table in the result', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const tableUnids = new Set(r.databases[0].tables.map(t => t.unid));
         for (const t of r.databases[0].tables) {
             for (const fk of t.foreignKeys) {
@@ -64,7 +64,7 @@ describe('parseMwb — example.mwb integration', () => {
     });
 
     it('FK columns resolve to columns on the local AND remote tables', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const tablesByUnid = new Map(r.databases[0].tables.map(t => [t.unid, t]));
         for (const t of r.databases[0].tables) {
             const localCols = new Set(t.columns.map(c => c.unid));
@@ -81,7 +81,7 @@ describe('parseMwb — example.mwb integration', () => {
     });
 
     it('PRIMARY indexes are surfaced as column.primaryKey flags, not as JsonIndex entries', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         for (const t of r.databases[0].tables) {
             /* No surfaced index should be named PRIMARY — the editor models PKs at the column. */
             for (const ix of t.indexes) {
@@ -93,9 +93,9 @@ describe('parseMwb — example.mwb integration', () => {
         expect(tablesWithPk.length).toBeGreaterThan(0);
     });
 
-    it('parseMwbAsFsRoot wraps databases under a root node ready for replaceFs', () => {
+    it('parseAsFsRoot wraps databases under a root node ready for replaceFs', () => {
         const buf = fs.readFileSync(SAMPLE);
-        const {fs: root, stats} = parseMwbAsFsRoot(buf);
+        const {fs: root, stats} = MwbReader.parseAsFsRoot(buf);
         expect(root.unid).toBe('root');
         expect(root.type).toBe(JsonDataDBType.root);
         expect(root.entrys).toHaveLength(stats.schemaCount);
@@ -109,18 +109,18 @@ describe('parseMwb — example.mwb integration', () => {
      * tableCount; positions must be non-default integers.
      */
     it('positionedTableCount reports tables placed from a TableFigure', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         expect(r.positionedTableCount).toBe(4);
     });
 
     it('every table receives a non-default position from its figure', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const placed = r.databases[0].tables.filter(t => t.pos.x !== 80 || t.pos.y !== 80);
         expect(placed.length).toBe(4);
     });
 
     it('imported positions are integer pixel coordinates', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         for (const t of r.databases[0].tables) {
             expect(Number.isInteger(t.pos.x)).toBe(true);
             expect(Number.isInteger(t.pos.y)).toBe(true);
@@ -135,7 +135,7 @@ describe('parseMwb — example.mwb integration', () => {
          * if anything ever regresses to "stack everything at (80,80)"
          * this trips.
          */
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const seen = new Map<string, string>();
         const collisions: string[] = [];
         for (const t of r.databases[0].tables) {
@@ -148,7 +148,7 @@ describe('parseMwb — example.mwb integration', () => {
     });
 
     it('imports the authored Workbench Layer ("Authoring") as a JsonLayer with bounds', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const layers = r.databases[0].layers ?? [];
         expect(layers.length).toBeGreaterThanOrEqual(1);
         const authoring = layers.find(l => l.name === 'Authoring');
@@ -160,7 +160,7 @@ describe('parseMwb — example.mwb integration', () => {
     });
 
     it('every imported JsonLayer points at a real JsonDiagram parent', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const diagramUnids = new Set((r.databases[0].diagrams ?? []).map(d => d.unid));
         for (const l of r.databases[0].layers ?? []) {
             expect(diagramUnids).toContain(l.diagramUnid);
@@ -168,7 +168,7 @@ describe('parseMwb — example.mwb integration', () => {
     });
 
     it('every table belongs to its parent Workbench diagram (via diagramUnid)', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const diagrams = r.databases[0].diagrams ?? [];
         expect(diagrams.length).toBeGreaterThanOrEqual(1);
         const diagramUnids = new Set(diagrams.map(d => d.unid));
@@ -177,7 +177,7 @@ describe('parseMwb — example.mwb integration', () => {
     });
 
     it('positions land in the diagram coordinate space (not all clustered at fallback)', () => {
-        const r = parseMwb(fs.readFileSync(SAMPLE));
+        const r = MwbReader.parse(fs.readFileSync(SAMPLE));
         const xs = r.databases[0].tables.map(t => t.pos.x);
         const ys = r.databases[0].tables.map(t => t.pos.y);
         const spanX = Math.max(...xs) - Math.min(...xs);
@@ -187,8 +187,8 @@ describe('parseMwb — example.mwb integration', () => {
     });
 
     it('a second parse produces identical positions for every table (deterministic)', () => {
-        const a = parseMwb(fs.readFileSync(SAMPLE));
-        const b = parseMwb(fs.readFileSync(SAMPLE));
+        const a = MwbReader.parse(fs.readFileSync(SAMPLE));
+        const b = MwbReader.parse(fs.readFileSync(SAMPLE));
         const aByName = new Map(a.databases[0].tables.map(t => [t.name, t.pos]));
         for (const t of b.databases[0].tables) {
             const ap = aByName.get(t.name);
@@ -234,10 +234,10 @@ const wrap = (schemaInner: string): Buffer => {
     return zip.toBuffer();
 };
 
-describe('parseMwb — views (synthetic)', () => {
+describe('MwbReader.parse — views (synthetic)', () => {
 
     it('imports a single view with name + SELECT body', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
             <value type="object" struct-name="db.mysql.View" id="v1">
               <value type="string" key="name">active_users</value>
@@ -253,7 +253,7 @@ describe('parseMwb — views (synthetic)', () => {
     });
 
     it('strips a leading "CREATE [...] VIEW name AS" prefix from sqlDefinition', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
             <value type="object" struct-name="db.mysql.View" id="v1">
               <value type="string" key="name">v1</value>
@@ -265,7 +265,7 @@ describe('parseMwb — views (synthetic)', () => {
     });
 
     it('passes through view comment as description', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
             <value type="object" struct-name="db.mysql.View" id="v1">
               <value type="string" key="name">v1</value>
@@ -279,10 +279,10 @@ describe('parseMwb — views (synthetic)', () => {
 
 });
 
-describe('parseMwb — routines (synthetic)', () => {
+describe('MwbReader.parse — routines (synthetic)', () => {
 
     it('imports procedures and functions with the right kind', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.Routine" key="routines">
             <value type="object" struct-name="db.mysql.Routine" id="r1">
               <value type="string" key="name">sp_calc</value>
@@ -305,7 +305,7 @@ describe('parseMwb — routines (synthetic)', () => {
     });
 
     it('routineType case is normalised', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.Routine" key="routines">
             <value type="object" struct-name="db.mysql.Routine" id="r1">
               <value type="string" key="name">F</value>
@@ -319,10 +319,10 @@ describe('parseMwb — routines (synthetic)', () => {
 
 });
 
-describe('parseMwb — triggers (synthetic)', () => {
+describe('MwbReader.parse — triggers (synthetic)', () => {
 
     it('triggers nested in a table land in the schema-level routines list with kind=trigger', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
             <value type="object" struct-name="db.mysql.Table" id="t1">
               <value type="string" key="name">orders</value>
@@ -346,7 +346,7 @@ describe('parseMwb — triggers (synthetic)', () => {
     });
 
     it('routines and triggers coexist; procedures/functions come first, triggers last', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
             <value type="object" struct-name="db.mysql.Table" id="t1">
               <value type="string" key="name">t</value>
@@ -374,10 +374,10 @@ describe('parseMwb — triggers (synthetic)', () => {
 
 });
 
-describe('parseMwb — empty schema', () => {
+describe('MwbReader.parse — empty schema', () => {
 
     it('returns viewCount/routineCount/triggerCount = 0 when none present', () => {
-        const r = parseMwb(wrap(''));
+        const r = MwbReader.parse(wrap(''));
         expect(r.viewCount).toBe(0);
         expect(r.routineCount).toBe(0);
         expect(r.triggerCount).toBe(0);
@@ -393,10 +393,10 @@ describe('parseMwb — empty schema', () => {
  * pass through), so capture is exercised via synthetic XML fragments
  * that hand-craft known + unknown keys side-by-side.
  */
-describe('parseMwb — Phase E passthrough capture', () => {
+describe('MwbReader.parse — Phase E passthrough capture', () => {
 
     it('captures unknown schema-level keys into wbPassthrough', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="string" key="customData">vendor-specific</value>
           <value type="int" key="vendorFlag">42</value>
         `));
@@ -408,7 +408,7 @@ describe('parseMwb — Phase E passthrough capture', () => {
     });
 
     it('captures unknown table-level keys', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
             <value type="object" struct-name="db.mysql.Table" id="t1">
               <value type="string" key="name">orders</value>
@@ -424,7 +424,7 @@ describe('parseMwb — Phase E passthrough capture', () => {
     });
 
     it('does NOT capture keys we already model into passthrough', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
             <value type="object" struct-name="db.mysql.Table" id="t1">
               <value type="string" key="name">orders</value>
@@ -443,7 +443,7 @@ describe('parseMwb — Phase E passthrough capture', () => {
     });
 
     it('captures unknown column-level keys', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
             <value type="object" struct-name="db.mysql.Table" id="t1">
               <value type="string" key="name">orders</value>
@@ -466,7 +466,7 @@ describe('parseMwb — Phase E passthrough capture', () => {
     });
 
     it('lifts schema-level defaultCharset / defaultCollation onto JsonDataDB (synthetic)', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="string" key="defaultCharacterSetName">utf8mb4</value>
           <value type="string" key="defaultCollationName">utf8mb4_unicode_ci</value>
         `));
@@ -481,7 +481,7 @@ describe('parseMwb — Phase E passthrough capture', () => {
          * meaning "no schema-level default". The reader treats empty
          * as "not set" so user-defined defaults stay free.
          */
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="string" key="defaultCharacterSetName"></value>
           <value type="string" key="defaultCollationName"></value>
         `));
@@ -491,7 +491,7 @@ describe('parseMwb — Phase E passthrough capture', () => {
     });
 
     it('does NOT also capture defaultCharacterSetName/defaultCollationName into passthrough', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="string" key="defaultCharacterSetName">utf8mb4</value>
           <value type="string" key="defaultCollationName">utf8mb4_unicode_ci</value>
         `));
@@ -537,10 +537,10 @@ const wrapWithDiagrams = (schemaInner: string, diagramsInner: string): Buffer =>
     return zip.toBuffer();
 };
 
-describe('parseMwb — view positions (synthetic)', () => {
+describe('MwbReader.parse — view positions (synthetic)', () => {
 
     it('reads a ViewFigure into JsonView.pos and counts it as positioned', () => {
-        const r = parseMwb(wrapWithDiagrams(
+        const r = MwbReader.parse(wrapWithDiagrams(
             `<value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
                 <value type="object" struct-name="db.mysql.View" id="v1">
                     <value type="string" key="name">active_users</value>
@@ -565,7 +565,7 @@ describe('parseMwb — view positions (synthetic)', () => {
     });
 
     it('falls back to (80, 80) when a view has no ViewFigure', () => {
-        const r = parseMwb(wrap(`
+        const r = MwbReader.parse(wrap(`
           <value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
             <value type="object" struct-name="db.mysql.View" id="v1">
               <value type="string" key="name">orphan_view</value>
@@ -578,7 +578,7 @@ describe('parseMwb — view positions (synthetic)', () => {
     });
 
     it('rounds real-valued ViewFigure coordinates to integers', () => {
-        const r = parseMwb(wrapWithDiagrams(
+        const r = MwbReader.parse(wrapWithDiagrams(
             `<value type="list" content-type="object" content-struct-name="db.mysql.View" key="views">
                 <value type="object" struct-name="db.mysql.View" id="v1">
                     <value type="string" key="name">v1</value>
@@ -604,7 +604,7 @@ describe('parseMwb — view positions (synthetic)', () => {
 
 });
 
-describe('parseMwb — multi-diagram table membership (synthetic)', () => {
+describe('MwbReader.parse — multi-diagram table membership (synthetic)', () => {
 
     /*
      * Sample: one table appears as a TableFigure in two diagrams. The
@@ -616,7 +616,7 @@ describe('parseMwb — multi-diagram table membership (synthetic)', () => {
      * diagram.
      */
     it('records the second figure as a diagramPlacements entry', () => {
-        const r = parseMwb(wrapWithDiagrams(
+        const r = MwbReader.parse(wrapWithDiagrams(
             `<value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
                 <value type="object" struct-name="db.mysql.Table" id="t1">
                     <value type="string" key="name">users</value>
@@ -664,7 +664,7 @@ describe('parseMwb — multi-diagram table membership (synthetic)', () => {
     });
 
     it('leaves single-diagram tables with no diagramPlacements', () => {
-        const r = parseMwb(wrapWithDiagrams(
+        const r = MwbReader.parse(wrapWithDiagrams(
             `<value type="list" content-type="object" content-struct-name="db.mysql.Table" key="tables">
                 <value type="object" struct-name="db.mysql.Table" id="t1">
                     <value type="string" key="name">solo</value>
