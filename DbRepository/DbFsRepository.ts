@@ -23,7 +23,7 @@ import {
     JsonSyncSettings,
     SchemaJsonData
 } from '../DbEditor/JsonData.js';
-import {MwbTableCacheEntry} from '../DbMwbImport/MwbReader.js';
+import {MwbTableCacheEntry} from '../BundledPlugins/Mwb/MwbReader.js';
 import {DbRepositoryEventBus} from './DbRepositoryEventBus.js';
 import {DbFsTreeWalker} from './DbFsTreeWalker.js';
 import {RepoNotFoundError, RepoInvalidError} from './DbRepositoryErrors.js';

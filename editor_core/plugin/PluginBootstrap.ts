@@ -1,14 +1,14 @@
 import {createRequire} from 'module';
 import * as path from 'path';
 import {pathToFileURL} from 'url';
-import {MysqlDriver} from '../../DbConnection/Drivers/MysqlDriver.js';
-import {PostgresDriver} from '../../DbConnection/Drivers/PostgresDriver.js';
-import {SqliteDriver} from '../../DbConnection/Drivers/SqliteDriver.js';
-import {MariaDbDialect} from '../../DbGenerator/Dialects/MariaDbDialect.js';
-import {MySqlDialect} from '../../DbGenerator/Dialects/MySqlDialect.js';
-import {PostgresDialect} from '../../DbGenerator/Dialects/PostgresDialect.js';
-import {SqliteDialect} from '../../DbGenerator/Dialects/SqliteDialect.js';
-import {MwbFileFormatPlugin} from '../../DbMwbImport/MwbFileFormatPlugin.js';
+import {MysqlDriver} from '../../BundledPlugins/MySql/MysqlDriver.js';
+import {PostgresDriver} from '../../BundledPlugins/Postgres/PostgresDriver.js';
+import {SqliteDriver} from '../../BundledPlugins/Sqlite/SqliteDriver.js';
+import {MariaDbDialect} from '../../BundledPlugins/MariaDb/MariaDbDialect.js';
+import {MySqlDialect} from '../../BundledPlugins/MySql/MySqlDialect.js';
+import {PostgresDialect} from '../../BundledPlugins/Postgres/PostgresDialect.js';
+import {SqliteDialect} from '../../BundledPlugins/Sqlite/SqliteDialect.js';
+import {MwbFileFormatPlugin} from '../../BundledPlugins/Mwb/MwbFileFormatPlugin.js';
 import {Plugin} from './Plugin.js';
 import {PluginRegistry} from './PluginRegistry.js';
 

@@ -1,8 +1,8 @@
 import {beforeEach, describe, expect, it} from 'vitest';
-import {MariaDbDialect} from '../../../DbGenerator/Dialects/MariaDbDialect.js';
-import {MySqlDialect} from '../../../DbGenerator/Dialects/MySqlDialect.js';
-import {PostgresDialect} from '../../../DbGenerator/Dialects/PostgresDialect.js';
-import {SqliteDialect} from '../../../DbGenerator/Dialects/SqliteDialect.js';
+import {MariaDbDialect} from '../../../BundledPlugins/MariaDb/MariaDbDialect.js';
+import {MySqlDialect} from '../../../BundledPlugins/MySql/MySqlDialect.js';
+import {PostgresDialect} from '../../../BundledPlugins/Postgres/PostgresDialect.js';
+import {SqliteDialect} from '../../../BundledPlugins/Sqlite/SqliteDialect.js';
 import {FileFormatPlugin} from '../../../editor_core/plugin/FileFormatPlugin.js';
 import {PluginBootstrap} from '../../../editor_core/plugin/PluginBootstrap.js';
 import {PluginRegistry} from '../../../editor_core/plugin/PluginRegistry.js';

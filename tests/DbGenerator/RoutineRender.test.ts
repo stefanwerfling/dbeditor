@@ -4,9 +4,9 @@
  * Postgres, no-op for SQLite procedures/functions but native triggers).
  */
 import {describe, expect, it} from 'vitest';
-import {MySqlDialect} from '../../DbGenerator/Dialects/MySqlDialect.js';
-import {PostgresDialect} from '../../DbGenerator/Dialects/PostgresDialect.js';
-import {SqliteDialect} from '../../DbGenerator/Dialects/SqliteDialect.js';
+import {MySqlDialect} from '../../BundledPlugins/MySql/MySqlDialect.js';
+import {PostgresDialect} from '../../BundledPlugins/Postgres/PostgresDialect.js';
+import {SqliteDialect} from '../../BundledPlugins/Sqlite/SqliteDialect.js';
 import {DialectContext} from '../../DbGenerator/DbDialect.js';
 import {DialectContextBuilder} from '../../DbGenerator/DialectContextBuilder.js';
 import {JsonDataDB, JsonDataDBType, JsonRoutine, JsonRoutineKind} from '../../DbEditor/JsonData.js';
