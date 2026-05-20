@@ -94,6 +94,13 @@ export class DbFsTreeWalker {
         return null;
     }
 
+    public static* allDiagrams(root: JsonDataDB): Generator<{ container: JsonDataDB; diagram: JsonDiagram; }> {
+        for (const d of root.diagrams ?? []) {yield { container: root, diagram: d };}
+        for (const child of root.entrys as JsonDataDB[]) {
+            yield* DbFsTreeWalker.allDiagrams(child);
+        }
+    }
+
     public static findLayer(root: JsonDataDB, unid: string): { container: JsonDataDB; layer: JsonLayer; } | null {
         for (const l of root.layers ?? []) {
             if (l.unid === unid) {return { container: root, layer: l };}

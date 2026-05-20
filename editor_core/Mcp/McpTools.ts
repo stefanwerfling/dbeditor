@@ -208,6 +208,202 @@ export class McpTools {
             }),
 
             McpToolBuilder.define({
+                name: 'db_list_enums',
+                description: 'Flat list of every enum in a project: name, unid, container path, value count. Cheaper than db_get_tree when you only need the enum inventory.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'})
+                }),
+                handler: async({projectUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const enums = [];
+                    for (const {container, enum: e} of DbFsTreeWalker.allEnums(repo.data.fs)) {
+                        enums.push({
+                            unid: e.unid,
+                            name: e.name,
+                            containerUnid: container.unid,
+                            containerName: container.name,
+                            valueCount: e.values.length
+                        });
+                    }
+                    return McpToolBuilder.json({rev: repo.rev, enums: enums});
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_get_enum',
+                description: 'Return one enum\'s full payload (name, description, values with unids). Use the unid from db_list_enums / db_get_tree.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    enumUnid: Vts.string({description: 'Enum unid'})
+                }),
+                handler: async({projectUnid, enumUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const found = DbFsTreeWalker.findEnum(repo.data.fs, enumUnid);
+                    if (!found) {
+                        return McpToolBuilder.error(`unknown enum ${enumUnid} in project ${projectUnid}`);
+                    }
+                    return McpToolBuilder.json({
+                        rev: repo.rev,
+                        containerUnid: found.container.unid,
+                        containerName: found.container.name,
+                        enum: found.enum
+                    });
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_list_views',
+                description: 'Flat list of every view in a project: name, unid, container path, materialized flag, diagram membership. Cheaper than db_get_tree when you only need the view inventory.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'})
+                }),
+                handler: async({projectUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const views = [];
+                    for (const {container, view} of DbFsTreeWalker.allViews(repo.data.fs)) {
+                        views.push({
+                            unid: view.unid,
+                            name: view.name,
+                            containerUnid: container.unid,
+                            containerName: container.name,
+                            materialized: view.materialized ?? false,
+                            diagramUnid: view.diagramUnid
+                        });
+                    }
+                    return McpToolBuilder.json({rev: repo.rev, views: views});
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_get_view',
+                description: 'Return one view\'s full payload (name, raw SELECT body, materialized flag, description). Use the unid from db_list_views / db_get_tree.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    viewUnid: Vts.string({description: 'View unid'})
+                }),
+                handler: async({projectUnid, viewUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const found = DbFsTreeWalker.findView(repo.data.fs, viewUnid);
+                    if (!found) {
+                        return McpToolBuilder.error(`unknown view ${viewUnid} in project ${projectUnid}`);
+                    }
+                    return McpToolBuilder.json({
+                        rev: repo.rev,
+                        containerUnid: found.container.unid,
+                        containerName: found.container.name,
+                        view: found.view
+                    });
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_list_routines',
+                description: 'Flat list of every stored procedure, function, and trigger in a project: name, unid, kind, container path. Cheaper than db_get_tree when you only need the routine inventory.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'})
+                }),
+                handler: async({projectUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const routines = [];
+                    for (const {container, routine} of DbFsTreeWalker.allRoutines(repo.data.fs)) {
+                        routines.push({
+                            unid: routine.unid,
+                            name: routine.name,
+                            kind: routine.kind,
+                            containerUnid: container.unid,
+                            containerName: container.name
+                        });
+                    }
+                    return McpToolBuilder.json({rev: repo.rev, routines: routines});
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_get_routine',
+                description: 'Return one routine\'s full payload (name, kind, body, description). Use the unid from db_list_routines / db_get_tree.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    routineUnid: Vts.string({description: 'Routine unid'})
+                }),
+                handler: async({projectUnid, routineUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const found = DbFsTreeWalker.findRoutine(repo.data.fs, routineUnid);
+                    if (!found) {
+                        return McpToolBuilder.error(`unknown routine ${routineUnid} in project ${projectUnid}`);
+                    }
+                    return McpToolBuilder.json({
+                        rev: repo.rev,
+                        containerUnid: found.container.unid,
+                        containerName: found.container.name,
+                        routine: found.routine
+                    });
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_list_diagrams',
+                description: 'Flat list of every EER diagram in a project: name, unid, container path, count of member tables / views. Diagrams are logical groupings; tables/views opt-in via their `diagramUnid` field.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'})
+                }),
+                handler: async({projectUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const diagrams = [];
+                    for (const {container, diagram} of DbFsTreeWalker.allDiagrams(repo.data.fs)) {
+                        let tableCount = 0;
+                        let viewCount = 0;
+                        for (const {table} of DbFsTreeWalker.allTables(repo.data.fs)) {
+                            if (table.diagramUnid === diagram.unid) {tableCount++;}
+                        }
+                        for (const {view} of DbFsTreeWalker.allViews(repo.data.fs)) {
+                            if (view.diagramUnid === diagram.unid) {viewCount++;}
+                        }
+                        diagrams.push({
+                            unid: diagram.unid,
+                            name: diagram.name,
+                            containerUnid: container.unid,
+                            containerName: container.name,
+                            tableCount: tableCount,
+                            viewCount: viewCount
+                        });
+                    }
+                    return McpToolBuilder.json({rev: repo.rev, diagrams: diagrams});
+                }
+            }),
+
+            McpToolBuilder.define({
+                name: 'db_get_diagram',
+                description: 'Return one diagram\'s payload plus its member table + view unids (resolved by walking the tree and matching diagramUnid). Use this to enumerate what\'s actually IN a diagram.',
+                inputSchema: Vts.object({
+                    projectUnid: Vts.string({description: 'Runtime project unid (from db_list_projects)'}),
+                    diagramUnid: Vts.string({description: 'Diagram unid'})
+                }),
+                handler: async({projectUnid, diagramUnid}) => {
+                    const repo = McpTools._repoOf(ctx, projectUnid);
+                    const found = DbFsTreeWalker.findDiagram(repo.data.fs, diagramUnid);
+                    if (!found) {
+                        return McpToolBuilder.error(`unknown diagram ${diagramUnid} in project ${projectUnid}`);
+                    }
+                    const tables: {unid: string; name: string;}[] = [];
+                    const views: {unid: string; name: string;}[] = [];
+                    for (const {table} of DbFsTreeWalker.allTables(repo.data.fs)) {
+                        if (table.diagramUnid === diagramUnid) {tables.push({unid: table.unid, name: table.name});}
+                    }
+                    for (const {view} of DbFsTreeWalker.allViews(repo.data.fs)) {
+                        if (view.diagramUnid === diagramUnid) {views.push({unid: view.unid, name: view.name});}
+                    }
+                    return McpToolBuilder.json({
+                        rev: repo.rev,
+                        containerUnid: found.container.unid,
+                        containerName: found.container.name,
+                        diagram: found.diagram,
+                        tables: tables,
+                        views: views
+                    });
+                }
+            }),
+
+            McpToolBuilder.define({
                 name: 'db_create_table',
                 description: 'Create a new table inside a database or folder container, optionally with an initial column set. Returns the new tableUnid plus per-column unids. The container must already exist (use db_get_tree to discover container unids). Column `type` is the logical type name (`int`, `bigint`, `varchar`, `text`, `decimal`, `bool`, `datetime`, `date`, `time`, `timestamp`, `json`, `uuid`, `enum`); the dialect resolver maps it to concrete SQL. **Mutation tool — gated by mcp.policy (default `ask`).**',
                 inputSchema: Vts.object({

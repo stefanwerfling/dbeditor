@@ -1,4 +1,7 @@
-import {describe, expect, it} from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import {afterEach, describe, expect, it} from 'vitest';
 import {Vts} from 'vts';
 import {ConfigMcpPolicyAction} from '../../../Config/Config.js';
 import {JsonDataDBType} from '../../../DbEditor/JsonData.js';
@@ -9,15 +12,26 @@ import {McpToolBuilder} from '../../../editor_core/Mcp/McpTool.js';
 import {McpToolRegistry} from '../../../editor_core/Mcp/McpToolRegistry.js';
 import {McpTools} from '../../../editor_core/Mcp/McpTools.js';
 
+/*
+ * Each makeRepo() call gets a unique tmpfile so the debounced flush
+ * can't contaminate the repo source tree or other tests. afterEach
+ * awaits flush() on every repo to drain pending timers (so the
+ * post-cleanup timer tick is a no-op), then unlinks the files.
+ */
+const liveRepos: DbFsRepository[] = [];
+const liveFiles: string[] = [];
+
 const makeRepo = (name: string): DbFsRepository => {
-    return new DbFsRepository({
+    const tmpFile = path.join(os.tmpdir(), `dbed-mcp-${process.pid}-${Date.now()}-${Math.random()}.json`);
+    liveFiles.push(tmpFile);
+    const repo = new DbFsRepository({
         name: name,
-        schemaPath: ':memory:',
+        schemaPath: tmpFile,
         dialect: 'mysql',
         autoGenerate: false,
         output: {
             mode: 'ddl-files',
-            destinationPath: './out',
+            destinationPath: '/tmp/out',
             destinationClear: false,
             sqlComment: true,
             sqlIndent: '    ',
@@ -29,7 +43,17 @@ const makeRepo = (name: string): DbFsRepository => {
         scripts_before_generate: [],
         scripts_after_generate: []
     });
+    liveRepos.push(repo);
+    return repo;
 };
+
+afterEach(async() => {
+    const repos = liveRepos.splice(0);
+    const files = liveFiles.splice(0);
+    // parallel-flush is safe: each repo owns its own file + timer
+    await Promise.all(repos.map(async r => r.flush()));
+    for (const f of files) {if (fs.existsSync(f)) {fs.unlinkSync(f);}}
+});
 
 const parseJsonResult = (result: {content: {type: 'text'; text: string;}[]; isError?: boolean;}): {body: any; isError: boolean;} => {
     return {
@@ -53,9 +77,9 @@ describe('McpTools — read-only surface', () => {
         expect(body.projects[0]).toMatchObject({
             unid: 'pid-1',
             name: 'demo',
-            schemaPath: ':memory:',
             dialect: 'mysql'
         });
+        expect(typeof body.projects[0].schemaPath).toBe('string');
         expect(typeof body.projects[0].rev).toBe('number');
     });
 
@@ -121,6 +145,101 @@ describe('McpTools — read-only surface', () => {
         const miss = await reg.call('db_get_table', {projectUnid: 'pid-1', tableUnid: 'tid-missing'});
         expect(miss.isError).toBe(true);
         expect(miss.content[0].text).toContain('unknown table');
+    });
+
+});
+
+describe('McpTools — enum / view / routine / diagram read tools', () => {
+
+    it('db_list_enums + db_get_enum walk and fetch enums by unid', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {enumNode} = repo.createEnum(db.unid, 'order_status', null, null);
+        repo.addEnumValue(enumNode.unid, 'pending', null);
+        repo.addEnumValue(enumNode.unid, 'shipped', null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const list = await reg.call('db_list_enums', {projectUnid: 'pid-1'});
+        const {body: listBody, isError: listErr} = parseJsonResult(list);
+        expect(listErr).toBe(false);
+        expect(listBody.enums).toHaveLength(1);
+        expect(listBody.enums[0]).toMatchObject({name: 'order_status', valueCount: 2, containerName: 'demo'});
+
+        const get = await reg.call('db_get_enum', {projectUnid: 'pid-1', enumUnid: enumNode.unid});
+        const {body: getBody, isError: getErr} = parseJsonResult(get);
+        expect(getErr).toBe(false);
+        expect(getBody.enum.name).toBe('order_status');
+        expect(getBody.enum.values.map((v: {value: string;}) => v.value)).toEqual(['pending', 'shipped']);
+
+        const miss = await reg.call('db_get_enum', {projectUnid: 'pid-1', enumUnid: 'eid-missing'});
+        expect(miss.isError).toBe(true);
+    });
+
+    it('db_list_views + db_get_view return inventory + full payload', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {view} = repo.createView(db.unid, 'active_orders', null, null);
+        repo.updateView(view.unid, {select: 'SELECT 1', materialized: true}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const list = await reg.call('db_list_views', {projectUnid: 'pid-1'});
+        const {body: listBody} = parseJsonResult(list);
+        expect(listBody.views).toHaveLength(1);
+        expect(listBody.views[0]).toMatchObject({name: 'active_orders', materialized: true});
+
+        const get = await reg.call('db_get_view', {projectUnid: 'pid-1', viewUnid: view.unid});
+        const {body: getBody} = parseJsonResult(get);
+        expect(getBody.view.select).toBe('SELECT 1');
+        expect(getBody.view.materialized).toBe(true);
+    });
+
+    it('db_list_routines + db_get_routine surface stored procedures and their body', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {routine} = repo.createRoutine(db.unid, 'archive', 'procedure', null, null);
+        repo.updateRoutine(routine.unid, {body: 'BEGIN DELETE FROM x; END'}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const list = await reg.call('db_list_routines', {projectUnid: 'pid-1'});
+        const {body: listBody} = parseJsonResult(list);
+        expect(listBody.routines).toHaveLength(1);
+        expect(listBody.routines[0]).toMatchObject({name: 'archive', kind: 'procedure'});
+
+        const get = await reg.call('db_get_routine', {projectUnid: 'pid-1', routineUnid: routine.unid});
+        const {body: getBody} = parseJsonResult(get);
+        expect(getBody.routine.body).toContain('DELETE FROM x');
+    });
+
+    it('db_list_diagrams counts member tables/views and db_get_diagram lists them', async() => {
+        const repositories = new DbRepositoryRegistry();
+        const repo = makeRepo('demo');
+        const db = repo.data.fs.entrys[0]!;
+        const {diagram} = repo.createDiagram(db.unid, 'core', null);
+        const {table: users} = repo.createTable(db.unid, 'users', null, null);
+        const {table: orders} = repo.createTable(db.unid, 'orders', null, null);
+        repo.updateTable(users.unid, {diagramUnid: diagram.unid}, null);
+        repo.updateTable(orders.unid, {diagramUnid: diagram.unid}, null);
+        const {view: v} = repo.createView(db.unid, 'active', null, null);
+        repo.updateView(v.unid, {diagramUnid: diagram.unid}, null);
+        repositories.register('pid-1', repo);
+        const reg = new McpToolRegistry(McpTools.build({repositories: repositories}));
+
+        const list = await reg.call('db_list_diagrams', {projectUnid: 'pid-1'});
+        const {body: listBody} = parseJsonResult(list);
+        expect(listBody.diagrams).toHaveLength(1);
+        expect(listBody.diagrams[0]).toMatchObject({name: 'core', tableCount: 2, viewCount: 1});
+
+        const get = await reg.call('db_get_diagram', {projectUnid: 'pid-1', diagramUnid: diagram.unid});
+        const {body: getBody} = parseJsonResult(get);
+        expect(getBody.diagram.name).toBe('core');
+        expect(getBody.tables.map((t: {name: string;}) => t.name).sort()).toEqual(['orders', 'users']);
+        expect(getBody.views.map((v2: {name: string;}) => v2.name)).toEqual(['active']);
     });
 
 });
