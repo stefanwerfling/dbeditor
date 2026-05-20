@@ -1,5 +1,5 @@
-import {PluginBootstrap} from '../../editor_core/plugin/PluginBootstrap.js';
-import {PluginRegistry} from '../../editor_core/plugin/PluginRegistry.js';
+import {PluginBootstrap} from '../../editor_core/Plugin/PluginBootstrap.js';
+import {PluginRegistry} from '../../editor_core/Plugin/PluginRegistry.js';
 import {DbDialect} from './DbDialect.js';
 
 /**

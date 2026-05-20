@@ -36,7 +36,7 @@ import {MigrationPairWriter} from '../DbSyncExecutor/MigrationPairWriter.js';
 import {SyncHistoryRepo} from '../DbSyncExecutor/SyncHistoryRepo.js';
 import {ScopeNarrow} from '../DbGenerator/ScopeNarrow.js';
 import {MwbFileFormatPlugin} from '../../BundledPlugins/Mwb/MwbFileFormatPlugin.js';
-import {PluginRegistry} from '../../editor_core/plugin/PluginRegistry.js';
+import {PluginRegistry} from '../../editor_core/Plugin/PluginRegistry.js';
 import {MarkdownDocGenerator} from '../DbDoc/MarkdownDocGenerator.js';
 import * as Bodies from './DbApiRequests.js';
 

@@ -1,6 +1,6 @@
-import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
-import {PluginBootstrap} from '../../editor_core/plugin/PluginBootstrap.js';
-import {PluginRegistry} from '../../editor_core/plugin/PluginRegistry.js';
+import {DbConnectionPlugin} from '../../editor_core/Plugin/DbConnectionPlugin.js';
+import {PluginBootstrap} from '../../editor_core/Plugin/PluginBootstrap.js';
+import {PluginRegistry} from '../../editor_core/Plugin/PluginRegistry.js';
 
 /**
  * Resolves a live-DB driver by dialect from the plugin registry.

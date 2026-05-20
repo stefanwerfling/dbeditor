@@ -7,7 +7,7 @@ import {JsonData, JsonDataDB, JsonTable, JsonEnum, JsonColumn} from '../../edito
 import {DbDialect, DialectContext} from './DbDialect.js';
 import {pickDialect} from './DialectFactory.js';
 import {DbFsTreeWalker} from '../DbRepository/DbFsTreeWalker.js';
-import {PluginRegistry} from '../../editor_core/plugin/PluginRegistry.js';
+import {PluginRegistry} from '../../editor_core/Plugin/PluginRegistry.js';
 
 export type GeneratedFile = { path: string; content: string; };
 

@@ -1,5 +1,5 @@
 import {JsonDataDB, JsonDataDBType} from '../../editor_schemas/JsonData.js';
-import {FileFormatImportResult, FileFormatPlugin} from '../../editor_core/plugin/FileFormatPlugin.js';
+import {FileFormatImportResult, FileFormatPlugin} from '../../editor_core/Plugin/FileFormatPlugin.js';
 import {MwbImportResult, MwbReader} from './MwbReader.js';
 import {MwbWriter} from './MwbWriter.js';
 

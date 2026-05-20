@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {FileFormatPlugin} from '../../../editor_core/plugin/FileFormatPlugin.js';
-import {PluginBootstrap, PluginImporter, PluginModule} from '../../../editor_core/plugin/PluginBootstrap.js';
-import {PluginRegistry} from '../../../editor_core/plugin/PluginRegistry.js';
+import {FileFormatPlugin} from '../../../editor_core/Plugin/FileFormatPlugin.js';
+import {PluginBootstrap, PluginImporter, PluginModule} from '../../../editor_core/Plugin/PluginBootstrap.js';
+import {PluginRegistry} from '../../../editor_core/Plugin/PluginRegistry.js';
 
 class ThirdPartyFormat extends FileFormatPlugin {
 

@@ -28,33 +28,57 @@ When hacking the editor itself, the working directory **is** the project root. `
 
 Identical pattern to vtseditor: `vite.config.ts` is actually the **backend** — it registers an Express app onto Vite's dev server via `expressMiddleware()`. All persistence and the SQL generator live there.
 
+### Top-level layout
+
+```
+BundledPlugins/   bundled dialect / driver / introspector / file-format
+                  plugins, one subfolder per plugin (MySql, MariaDb,
+                  Postgres, Sqlite, Mwb)
+editor_backend/   Node-side core: Config loader, repositories, API
+                  routes, SQL generator, diff, introspector interface,
+                  sync executor, doc generator
+editor_frontend/  browser-side editor: main.ts entry + DbEditor/ tree
+editor_schemas/   shared schema (JsonData.ts) — wire format AND
+                  persisted file format, imported by both frontend
+                  and backend
+editor_core/      transport-agnostic plugin registry (Plugin/) + MCP
+                  server (Mcp/)
+cli/              `dbeditor` CLI entry (cli/dev.js)
+tests/            mirrors the source layout (tests/editor_backend/,
+                  tests/editor_frontend/, tests/BundledPlugins/, …)
+vite.config.ts    Vite root config + Express middleware bootstrap
+index.html        Vite entry; loads editor_frontend/main.ts
+```
+
 ### Backend (Node side, loaded by Vite)
 
 - `vite.config.ts` — Express middleware: bootstraps the plugin registry, loads `dbeditor.json`, resolves env placeholders, builds repos, registers API routes, optionally mounts the MCP HTTP endpoint, and runs the generator after every flush of an `autoGenerate` project.
-- `Config/Config.ts` — Vts schema for `dbeditor.json`. Top-level fields: `projects`, `server`, `browser`, `plugins` (npm-loaded extensions), `mcp` (Model Context Protocol endpoint). `EnvPlaceholderResolver.resolve()` substitutes `${VAR}` / `${VAR:-default}` from `process.env` after validation. `ProjectConfig` and `ConnectionConfig` classes own the add/update/remove/rebind config-file mutations triggered by the project + connection management dialogs.
-- `DbProject/DbProject.ts` — runtime project type. Each project gets a `crypto.randomUUID()` handle that the frontend uses (project unids are not stable across server restarts).
-- `DbRepository/DbFsRepository.ts` — per-project in-memory store for the **model** side. Mutations bump a revision, publish an event on the project's `DbRepositoryEventBus`, and schedule a debounced flush (150 ms). After every flush an optional hook runs the generator. CRUD covers containers (database/folder), tables, columns (incl. `reorderColumns`), indexes, foreign keys, enums (incl. value-level), views, routines, diagrams + layers, and editor settings. Also caches per-object MWB-original XML (for lossless round-trip).
-- `DbRepository/DbLiveRepository.ts` — per-project store for the **live-introspected** side. `refresh(databaseUnid)` connects via the matching `DbConnectionPlugin`, calls `driver.introspector().introspect(...)`, and caches the result. Drives the Sync-with-DB feature.
-- `DbApi/DbApiRoutes.ts` — granular CRUD + sync + import/export endpoints. Body validators in `DbApiRequests.ts`. Mirrors the repo: `/containers`, `/tables`, `/tables/:tid/columns`, `/tables/:tid/columns/order` (PUT, full new order), `/tables/:tid/indexes`, `/tables/:tid/foreignkeys`, `/enums`, `/enums/:unid/values`, `/views`, `/routines`, `/diagrams`, `/diagrams/:did/layers`, `/editor-settings`, `/generate`, `/mwb-import`, `/mwb-export`, `/live/refresh`, `/sync/diff`, `/sync/apply`, `/sync/reverse-apply`, `/sync/test-run`, `/sync/history`, `/docs`.
-- `DbGenerator/DbGenerator.ts` — dispatches to a dialect plugin. Two output modes:
+- `editor_backend/Config/Config.ts` — Vts schema for `dbeditor.json`. Top-level fields: `projects`, `server`, `browser`, `plugins` (npm-loaded extensions), `mcp` (Model Context Protocol endpoint). `EnvPlaceholderResolver.resolve()` substitutes `${VAR}` / `${VAR:-default}` from `process.env` after validation. `ProjectConfig` and `ConnectionConfig` classes own the add/update/remove/rebind config-file mutations triggered by the project + connection management dialogs.
+- `editor_backend/DbProject/DbProject.ts` — runtime project type. Each project gets a `crypto.randomUUID()` handle that the frontend uses (project unids are not stable across server restarts).
+- `editor_backend/DbRepository/DbFsRepository.ts` — per-project in-memory store for the **model** side. Mutations bump a revision, publish an event on the project's `DbRepositoryEventBus`, and schedule a debounced flush (150 ms). After every flush an optional hook runs the generator. CRUD covers containers (database/folder), tables, columns (incl. `reorderColumns`), indexes, foreign keys, enums (incl. value-level), views, routines, diagrams + layers, and editor settings. Also caches per-object MWB-original XML (for lossless round-trip).
+- `editor_backend/DbRepository/DbLiveRepository.ts` — per-project store for the **live-introspected** side. `refresh(databaseUnid)` connects via the matching `DbConnectionPlugin`, calls `driver.introspector().introspect(...)`, and caches the result. Drives the Sync-with-DB feature.
+- `editor_backend/DbApi/DbApiRoutes.ts` — granular CRUD + sync + import/export endpoints. Body validators in `DbApiRequests.ts`. Mirrors the repo: `/containers`, `/tables`, `/tables/:tid/columns`, `/tables/:tid/columns/order` (PUT, full new order), `/tables/:tid/indexes`, `/tables/:tid/foreignkeys`, `/enums`, `/enums/:unid/values`, `/views`, `/routines`, `/diagrams`, `/diagrams/:did/layers`, `/editor-settings`, `/generate`, `/mwb-import`, `/mwb-export`, `/live/refresh`, `/sync/diff`, `/sync/apply`, `/sync/reverse-apply`, `/sync/test-run`, `/sync/history`, `/docs`.
+- `editor_backend/DbGenerator/DbGenerator.ts` — dispatches to a dialect plugin. Two output modes:
   - `ddl-files`: one `<table>.sql` per table, plus `<view>.view.sql` per view, plus `_enums.sql` per database (postgres only), plus a single `_foreign_keys.sql` collecting cross-table FK constraints last, plus `<routine>.{procedure,function,trigger}.sql` per routine.
-  - `migrations`: one timestamped `*.up.sql` / `*.down.sql` pair (currently always re-emits an `init` pair — diff-based migrations from the live side flow through `DbGenerator/Sync/SyncGenerator.ts` instead). Up order: enums → tables → indexes → FKs → views → routines. Down reverses.
+  - `migrations`: one timestamped `*.up.sql` / `*.down.sql` pair (currently always re-emits an `init` pair — diff-based migrations from the live side flow through `editor_backend/DbGenerator/Sync/SyncGenerator.ts` instead). Up order: enums → tables → indexes → FKs → views → routines. Down reverses.
   - **Hooks**: `generate()` invokes every registered `GenerationHookPlugin.beforeGenerate` / `afterGenerate`, then the user's `scripts.before_generate` / `scripts.after_generate` shell commands. Dry-run skips both.
-- `DbGenerator/Dialects/{MySql,MariaDb,Postgres,Sqlite}Dialect.ts` — each extends `DialectPlugin` (renderCreateTable / Index / addForeignKey / Enum / View / Routine + the matching Drops). SQLite emits FKs inline (no `ALTER TABLE ADD CONSTRAINT`); Postgres emits `CREATE TYPE` for ENUMs and `MATERIALIZED VIEW` when the flag is set; MySQL/MariaDB inline ENUM values into the column type.
-- `DbConnection/Drivers/{Mysql,Postgres,Sqlite}Driver.ts` — each extends `DbConnectionPlugin` and pairs with an introspector via `introspector()`. MysqlDriver covers both `mysql` and `mariadb` via `supportedDialects` and also overrides `dumpAdapter()` for the test-run dump/restore path.
-- `DbIntrospect/{Mysql,Postgres,Sqlite}Introspector.ts` — read live schema → `JsonDataDB`. Shared utilities `LiveUridScheme` (URI scheme for unids) and `FkActionMapper`. Postgres has the most surface area (functions/procedures, materialized views, schema name handling).
-- `DbDiff/SchemaDiff.ts` + `ColumnEquivalence.ts` — diff a model `JsonDataDB` against a live one; emits a `SchemaChangeSet` with deterministic change IDs (the sync flow filters by IDs across multiple server roundtrips). `SyncGenerator` translates the changeset to dialect-specific DDL.
-- `DbSyncExecutor/{SyncExecutor,SyncTestRunner,MigrationPairWriter,SyncHistoryRepo}.ts` — apply DDL live, optionally test against a dump/restore round-trip, write migration pairs, persist apply-history per project. `DumpAdapter` interface; MysqlDumpAdapter is the only impl today.
-- `DbDoc/MarkdownDocGenerator.ts` — `MarkdownDocGenerator.generate(data, project)` produces a per-database Markdown reference. Routed at `/docs`.
-- `DbMwbImport/{MwbReader,MwbWriter}.ts` + `MwbFileFormatPlugin.ts` — MySQL Workbench `.mwb` parser + writer. The plugin wraps the reader/writer and registers via the plugin system so the file-format-dispatch surface is uniform.
-- `editor_core/plugin/` — see **Plugin system** section below.
+- `BundledPlugins/{MySql,MariaDb,Postgres,Sqlite}/*Dialect.ts` — each extends `DialectPlugin` (renderCreateTable / Index / addForeignKey / Enum / View / Routine + the matching Drops). SQLite emits FKs inline (no `ALTER TABLE ADD CONSTRAINT`); Postgres emits `CREATE TYPE` for ENUMs and `MATERIALIZED VIEW` when the flag is set; MySQL/MariaDB inline ENUM values into the column type.
+- `BundledPlugins/{MySql,Postgres,Sqlite}/*Driver.ts` — each extends `DbConnectionPlugin` and pairs with an introspector via `introspector()`. `MysqlDriver` covers both `mysql` and `mariadb` via `supportedDialects` and also overrides `dumpAdapter()` for the test-run dump/restore path.
+- `BundledPlugins/{MySql,Postgres,Sqlite}/*Introspector.ts` — read live schema → `JsonDataDB`. Shared utilities `editor_backend/DbIntrospect/LiveUridScheme.ts` (URI scheme for unids) and `FkActionMapper.ts`. Postgres has the most surface area (functions/procedures, materialized views, schema name handling).
+- `editor_backend/DbDiff/SchemaDiff.ts` + `ColumnEquivalence.ts` — diff a model `JsonDataDB` against a live one; emits a `SchemaChangeSet` with deterministic change IDs (the sync flow filters by IDs across multiple server roundtrips). `SyncGenerator` translates the changeset to dialect-specific DDL.
+- `editor_backend/DbSyncExecutor/{SyncExecutor,SyncTestRunner,MigrationPairWriter,SyncHistoryRepo}.ts` — apply DDL live, optionally test against a dump/restore round-trip, write migration pairs, persist apply-history per project. `DumpAdapter` interface; `BundledPlugins/MySql/MysqlDumpAdapter.ts` is the only impl today.
+- `editor_backend/DbDoc/MarkdownDocGenerator.ts` — `MarkdownDocGenerator.generate(data, project)` produces a per-database Markdown reference. Routed at `/docs`.
+- `BundledPlugins/Mwb/{MwbReader,MwbWriter,MwbFileFormatPlugin}.ts` — MySQL Workbench `.mwb` parser + writer + the `FileFormatPlugin` wrapper. Registers via the plugin system so the file-format-dispatch surface is uniform.
+- `editor_core/Plugin/` — see **Plugin system** section below.
 - `editor_core/Mcp/` — see **MCP server** section below.
 
 ### Frontend (browser side)
 
-- `main.ts` → `DbEditor/DbEditor.ts` — single entry.
+All paths below are under `editor_frontend/` (so `DbEditor.ts` means `editor_frontend/DbEditor/DbEditor.ts`). The shared `JsonData.ts` lives at `editor_schemas/JsonData.ts`.
+
+- `main.ts` → `DbEditor/DbEditor.ts` — single entry. `index.html` loads `editor_frontend/main.ts`.
 - `DbEditor/DbEditor.ts` is the controller. It loads `/api/load-schema`, builds `Treeview` + `WarningsPanel`, manages a single shared `jsPlumbInstance`, listens for **custom window events** declared in `Base/EditorEvents.ts`, and routes them to `DbApiClient`. Reconciliation on incoming SSE events is a full re-fetch — keep it that way until proven too slow.
-- `DbEditor/JsonData.ts` — the wire format **and** the persisted file format. `JsonDataDB` is the recursive tree: project → database → folder → tables / views / enums. Both frontend and backend import this file; backend additionally validates with `SchemaJsonData` at boundaries.
+- `editor_schemas/JsonData.ts` — the wire format **and** the persisted file format. `JsonDataDB` is the recursive tree: project → database → folder → tables / views / enums. Both frontend and backend import this file; backend additionally validates with `SchemaJsonData` at boundaries. Lives in `editor_schemas/` (not under either side) because it's the shared boundary type.
 - `DbEditor/Table/DbTable.ts` — one draggable card on the canvas. Renders the table name, columns (with PK/U/AI/NN flags + per-row hover-only `⋯` menu), an "indexes" section with editable rows + add affordance, and a read-only "foreign keys" summary. Column rows are drag-reorderable (custom mousedown/mousemove handler with 4 px threshold so click + dblclick still work). Each column row has a hover-only **grip** (`.db-table-column-grip`) that's a jsPlumb source-selector for FK creation, plus `data-column-unid` + `data-table-unid` attributes used by jsPlumb's `extract` option.
 - `DbEditor/Table/DbColumnDialog.ts`, `DbIndexDialog.ts`, `DbForeignKeyDialog.ts`, `DbTableOptionsDialog.ts` — modal editors for the four objects you can attach to a table.
 - `DbEditor/Enum/DbEnumDialog.ts` — name + values list (add / remove / inline-edit per value); the controller diffs the result against the current state and fires the matching API calls sequentially.
@@ -77,7 +101,7 @@ Identical pattern to vtseditor: `vite.config.ts` is actually the **backend** —
 
 ## Plugin system
 
-`editor_core/plugin/` defines four plugin kinds and a process-wide singleton registry. Bundled implementations register at boot (`PluginBootstrap.bootstrapBuiltins()` called from `vite.config.ts`); npm-installed plugins listed in `dbeditor.json:plugins` are loaded by `PluginBootstrap.loadFromConfig(packages, projectRoot)`. Installation alone doesn't activate — the config list is the opt-in gate.
+`editor_core/Plugin/` defines four plugin kinds and a process-wide singleton registry. Bundled implementations live in `BundledPlugins/<Name>/` and register at boot (`PluginBootstrap.bootstrapBuiltins()` called from `vite.config.ts`); npm-installed plugins listed in `dbeditor.json:plugins` are loaded by `PluginBootstrap.loadFromConfig(packages, projectRoot)`. Installation alone doesn't activate — the config list is the opt-in gate.
 
 - `DialectPlugin` — SQL DDL renderer. All four bundled dialects (mysql / mariadb / postgres / sqlite) extend it. `pickDialect(name)` is a pure registry lookup with lazy bootstrap fallback.
 - `DbConnectionPlugin` — live-DB driver + paired introspector + optional dump adapter. `pickDriver(dialect)` is the same lazy-bootstrap registry lookup. `MysqlDriver.supportedDialects = ['mysql','mariadb']` so one plugin covers both wire-protocol-compatible dialects.
@@ -114,7 +138,7 @@ External plugins ship as npm packages. The loader uses `createRequire` rooted at
 
 ## Config reference
 
-The authoritative schema is `Config/Config.ts`. Key fields:
+The authoritative schema is `editor_backend/Config/Config.ts`. Key fields:
 
 ```jsonc
 {

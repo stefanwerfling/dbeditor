@@ -1,6 +1,6 @@
 import {JsonColumn, JsonEnum, JsonForeignKey, JsonIndex, JsonIndexType, JsonRoutine, JsonRoutineKind, JsonTable, JsonView} from '../../editor_schemas/JsonData.js';
 import {DialectContext} from '../../editor_backend/DbGenerator/DbDialect.js';
-import {DialectPlugin} from '../../editor_core/plugin/DialectPlugin.js';
+import {DialectPlugin} from '../../editor_core/Plugin/DialectPlugin.js';
 
 /**
  * PostgreSQL DDL renderer. Identifiers are double-quoted, ENUMs are

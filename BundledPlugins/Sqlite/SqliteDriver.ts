@@ -1,6 +1,6 @@
 import * as path from 'path';
 import Database from 'better-sqlite3';
-import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
+import {DbConnectionPlugin} from '../../editor_core/Plugin/DbConnectionPlugin.js';
 import {DbIntrospector} from '../../editor_backend/DbIntrospect/DbIntrospector.js';
 import {SqliteIntrospector} from './SqliteIntrospector.js';
 import {DbProjectConnection} from '../../editor_backend/DbProject/DbProject.js';

@@ -21,7 +21,7 @@ import {McpPolicy} from './editor_core/Mcp/McpPolicy.js';
 import {McpToolRegistry} from './editor_core/Mcp/McpToolRegistry.js';
 import {McpTools} from './editor_core/Mcp/McpTools.js';
 import {DbGenerator, GeneratedFile} from './editor_backend/DbGenerator/DbGenerator.js';
-import {PluginBootstrap} from './editor_core/plugin/PluginBootstrap.js';
+import {PluginBootstrap} from './editor_core/Plugin/PluginBootstrap.js';
 
 function expressMiddleware(): Plugin {
     return {

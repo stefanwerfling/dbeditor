@@ -1,5 +1,5 @@
 import pg from 'pg';
-import {DbConnectionPlugin} from '../../editor_core/plugin/DbConnectionPlugin.js';
+import {DbConnectionPlugin} from '../../editor_core/Plugin/DbConnectionPlugin.js';
 import {DbIntrospector} from '../../editor_backend/DbIntrospect/DbIntrospector.js';
 import {PostgresIntrospector} from './PostgresIntrospector.js';
 import {DbProjectConnection} from '../../editor_backend/DbProject/DbProject.js';

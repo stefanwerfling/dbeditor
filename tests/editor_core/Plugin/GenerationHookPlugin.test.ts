@@ -2,9 +2,9 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {DbProject} from '../../../editor_backend/DbProject/DbProject.js';
 import {JsonData} from '../../../editor_schemas/JsonData.js';
 import {GeneratedFile} from '../../../editor_backend/DbGenerator/DbGenerator.js';
-import {GenerationHookPlugin} from '../../../editor_core/plugin/GenerationHookPlugin.js';
-import {PluginKind} from '../../../editor_core/plugin/PluginKind.js';
-import {PluginRegistry} from '../../../editor_core/plugin/PluginRegistry.js';
+import {GenerationHookPlugin} from '../../../editor_core/Plugin/GenerationHookPlugin.js';
+import {PluginKind} from '../../../editor_core/Plugin/PluginKind.js';
+import {PluginRegistry} from '../../../editor_core/Plugin/PluginRegistry.js';
 
 class RecordingHook extends GenerationHookPlugin {
 

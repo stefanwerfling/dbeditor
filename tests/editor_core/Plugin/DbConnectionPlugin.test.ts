@@ -8,10 +8,10 @@ import {MysqlIntrospector} from '../../../BundledPlugins/MySql/MysqlIntrospector
 import {PostgresIntrospector} from '../../../BundledPlugins/Postgres/PostgresIntrospector.js';
 import {SqliteIntrospector} from '../../../BundledPlugins/Sqlite/SqliteIntrospector.js';
 import {MysqlDumpAdapter} from '../../../BundledPlugins/MySql/MysqlDumpAdapter.js';
-import {DbConnectionPlugin} from '../../../editor_core/plugin/DbConnectionPlugin.js';
-import {PluginBootstrap} from '../../../editor_core/plugin/PluginBootstrap.js';
-import {PluginKind} from '../../../editor_core/plugin/PluginKind.js';
-import {PluginRegistry} from '../../../editor_core/plugin/PluginRegistry.js';
+import {DbConnectionPlugin} from '../../../editor_core/Plugin/DbConnectionPlugin.js';
+import {PluginBootstrap} from '../../../editor_core/Plugin/PluginBootstrap.js';
+import {PluginKind} from '../../../editor_core/Plugin/PluginKind.js';
+import {PluginRegistry} from '../../../editor_core/Plugin/PluginRegistry.js';
 
 const fakeIntrospector: DbIntrospector = {
     introspect: () => { throw new Error('not used in this test'); }
